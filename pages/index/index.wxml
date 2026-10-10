@@ -1,0 +1,66 @@
+<!--index.wxml-->
+<navigation-bar title="待办事项" back="{{false}}" color="black" background="#FFF"></navigation-bar>
+<scroll-view class="scrollarea" scroll-y type="list">
+  <view class="page-body">
+
+    <!-- 输入区 -->
+    <view class="input-bar">
+      <input
+        class="todo-input"
+        placeholder="添加一条待办事项…"
+        value="{{inputValue}}"
+        confirm-type="done"
+        bindinput="onInput"
+        bindconfirm="addTodo"
+      />
+      <view class="add-btn" bindtap="addTodo">添加</view>
+    </view>
+
+    <!-- 筛选栏 -->
+    <view class="filter-bar">
+      <view class="filter-item {{filter === 'all' ? 'active' : ''}}" data-filter="all" bindtap="setFilter">全部</view>
+      <view class="filter-item {{filter === 'active' ? 'active' : ''}}" data-filter="active" bindtap="setFilter">未完成</view>
+      <view class="filter-item {{filter === 'done' ? 'active' : ''}}" data-filter="done" bindtap="setFilter">已完成</view>
+      <view class="flex-spacer"></view>
+      <view class="clear-btn" bindtap="clearDone">清除已完成</view>
+    </view>
+
+    <!-- 列表区 -->
+    <view class="todo-list">
+      <view class="todo-item" wx:for="{{filteredTodos}}" wx:key="id">
+        <view
+          class="checkbox {{item.done ? 'checked' : ''}}"
+          data-id="{{item.id}}"
+          bindtap="toggleTodo"
+        >
+          <view class="checkbox-mark" wx:if="{{item.done}}">✓</view>
+        </view>
+        <view class="todo-text {{item.done ? 'done-text' : ''}}" data-id="{{item.id}}" bindtap="toggleTodo">{{item.text}}</view>
+        <view class="delete-btn" data-id="{{item.id}}" bindtap="removeTodo">×</view>
+      </view>
+
+      <!-- 空状态 -->
+      <view class="empty-state" wx:if="{{filteredTodos.length === 0}}">
+        <view class="empty-icon">🗒️</view>
+        <view class="empty-tip" wx:if="{{todos.length === 0}}">还没有待办，添加一条吧</view>
+        <view class="empty-tip" wx:else>当前筛选下没有待办</view>
+      </view>
+    </view>
+
+    <!-- 底部统计 -->
+    <view class="footer" wx:if="{{todos.length > 0}}">
+      共 {{todos.length}} 条 · 剩余 {{remaining}} 条未完成
+    </view>
+
+    <!-- 功能入口 -->
+    <view class="entry-card" bindtap="goSensor">
+      <view class="entry-icon">📱</view>
+      <view class="entry-text">
+        <view class="entry-title">加速度传感器</view>
+        <view class="entry-desc">实时查看 X / Y / Z 轴加速度数据</view>
+      </view>
+      <view class="entry-arrow">›</view>
+    </view>
+
+  </view>
+</scroll-view>
