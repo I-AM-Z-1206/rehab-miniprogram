@@ -1,65 +1,53 @@
-<!--index.wxml-->
-<navigation-bar title="待办事项" back="{{false}}" color="black" background="#FFF"></navigation-bar>
-<scroll-view class="scrollarea" scroll-y type="list">
-  <view class="page-body">
+<!--index.wxml—— 首页：蓝牙连接（主位）+ 康复训练 + 数据总览-->
+<navigation-bar title="首页" back="{{false}}" color="black" background="#FFF"></navigation-bar>
+<scroll-view class="ui-scroll" scroll-y type="list">
+  <view class="ui-body">
 
-    <!-- 输入区 -->
-    <view class="input-bar">
-      <input
-        class="todo-input"
-        placeholder="添加一条待办事项…"
-        value="{{inputValue}}"
-        confirm-type="done"
-        bindinput="onInput"
-        bindconfirm="addTodo"
-      />
-      <view class="add-btn" bindtap="addTodo">添加</view>
+    <!-- 顶部横幅 -->
+    <view class="hero">
+      <view class="hero-tag">WT9011DCL · 姿态传感</view>
+      <view class="hero-title">运动康复助手</view>
+      <view class="hero-desc">连一次蓝牙，全程不断开</view>
     </view>
 
-    <!-- 筛选栏 -->
-    <view class="filter-bar">
-      <view class="filter-item {{filter === 'all' ? 'active' : ''}}" data-filter="all" bindtap="setFilter">全部</view>
-      <view class="filter-item {{filter === 'active' ? 'active' : ''}}" data-filter="active" bindtap="setFilter">未完成</view>
-      <view class="filter-item {{filter === 'done' ? 'active' : ''}}" data-filter="done" bindtap="setFilter">已完成</view>
-      <view class="flex-spacer"></view>
-      <view class="clear-btn" bindtap="clearDone">清除已完成</view>
-    </view>
-
-    <!-- 列表区 -->
-    <view class="todo-list">
-      <view class="todo-item" wx:for="{{filteredTodos}}" wx:key="id">
-        <view
-          class="checkbox {{item.done ? 'checked' : ''}}"
-          data-id="{{item.id}}"
-          bindtap="toggleTodo"
-        >
-          <view class="checkbox-mark" wx:if="{{item.done}}">✓</view>
-        </view>
-        <view class="todo-text {{item.done ? 'done-text' : ''}}" data-id="{{item.id}}" bindtap="toggleTodo">{{item.text}}</view>
-        <view class="delete-btn" data-id="{{item.id}}" bindtap="removeTodo">×</view>
+    <!-- 蓝牙连接：主界面中间的主操作 -->
+    <view class="cta ble {{bleLinked ? 'linked' : ''}}" bindtap="goWit">
+      <view class="cta-icon">📡</view>
+      <view class="cta-main">
+        <view class="cta-title">连接蓝牙传感器</view>
+        <view class="cta-desc">{{bleLinked ? '已连接 · 点击查看传感器数据' : '未连接 · 点击扫描并连接设备'}}</view>
       </view>
+      <view class="cta-go">{{bleLinked ? '已连接' : '连接 ›'}}</view>
+    </view>
+    <view class="cta-state">
+      <view class="cta-dot {{bleLinked ? 'on' : ''}}"></view>
+      <view class="cta-state-text">{{bleLinked ? '蓝牙已连接' + (bleLinkedName ? ' · ' + bleLinkedName : '') : '蓝牙未连接'}}</view>
+    </view>
 
-      <!-- 空状态 -->
-      <view class="empty-state" wx:if="{{filteredTodos.length === 0}}">
-        <view class="empty-icon">🗒️</view>
-        <view class="empty-tip" wx:if="{{todos.length === 0}}">还没有待办，添加一条吧</view>
-        <view class="empty-tip" wx:else>当前筛选下没有待办</view>
+    <!-- 康复训练入口 -->
+    <view class="cta" bindtap="goRehab">
+      <view class="cta-icon">🏅</view>
+      <view class="cta-main">
+        <view class="cta-title">开始康复训练</view>
+        <view class="cta-desc">坐直设定基准后，向左 / 向右侧倾即可计数</view>
+      </view>
+      <view class="cta-go">进入 ›</view>
+    </view>
+
+    <!-- 数据总览 -->
+    <view class="ui-stats">
+      <view class="ui-stat">
+        <view class="ui-stat-num">{{rehabCoins}}</view>
+        <view class="ui-stat-label">康复金币</view>
+      </view>
+      <view class="ui-stat">
+        <view class="ui-stat-num">{{best}}</view>
+        <view class="ui-stat-label">最高连击</view>
       </view>
     </view>
 
-    <!-- 底部统计 -->
-    <view class="footer" wx:if="{{todos.length > 0}}">
-      共 {{todos.length}} 条 · 剩余 {{remaining}} 条未完成
-    </view>
-
-    <!-- 功能入口 -->
-    <view class="entry-card" bindtap="goSensor">
-      <view class="entry-icon">📱</view>
-      <view class="entry-text">
-        <view class="entry-title">加速度传感器</view>
-        <view class="entry-desc">实时查看 X / Y / Z 轴加速度数据</view>
-      </view>
-      <view class="entry-arrow">›</view>
+    <view class="ui-tip">
+      用法：① 传感器开机（蓝灯快闪）→ ② 点上方「连接蓝牙传感器」→ ③ 把传感器绑在胸前 → ④ 进底部「康复」页训练。连接成功后，不出小程序就不会自动断开。
     </view>
 
   </view>

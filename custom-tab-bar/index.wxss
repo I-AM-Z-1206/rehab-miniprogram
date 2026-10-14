@@ -1,0 +1,60 @@
+.tab-bar {
+  /* Skyline 自定义 tabBar 必需：否则点击不生效 / 位置错位 */
+  pointer-events: auto;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: row;
+  background-color: #ffffff;
+  padding-bottom: env(safe-area-inset-bottom);
+  box-shadow: 0 -2rpx 12rpx rgba(17, 24, 39, 0.06);
+}
+
+.tab-bar-border {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 1rpx;
+  background-color: #ececf0;
+}
+
+.tab-item {
+  flex: 1;
+  height: 104rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.tab-icon-wrap {
+  width: 60rpx;
+  height: 60rpx;
+  border-radius: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tab-icon-wrap.on {
+  background-color: rgba(15, 156, 140, 0.12);
+}
+
+.tab-icon {
+  font-size: 30rpx;
+  line-height: 1;
+}
+
+.tab-text {
+  margin-top: 4rpx;
+  font-size: 20rpx;
+  color: #8b8f9a;
+}
+
+.tab-text.on {
+  color: #0f9c8c;
+  font-weight: 600;
+}

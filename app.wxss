@@ -1,10 +1,236 @@
-/**app.wxss**/
-.container {
-  height: 100%;
+/**app.wxss —— 全局基础样式 + 通用 UI 类（ui- 前缀，供各页面复用）**/
+
+page {
+  background-color: #f5f6fa;
+  color: #1f2329;
+  font-size: 28rpx;
+}
+
+/* ---------- 页面骨架 ---------- */
+.ui-scroll {
+  flex: 1;
+  overflow-y: hidden;
+}
+
+.ui-body {
+  /* 底部留 104rpx 给自定义 tabBar，避免最后一块内容被盖住 */
+  padding: 24rpx 24rpx 144rpx;
+}
+
+/* ---------- 卡片 / 分区 ---------- */
+.ui-card {
+  background-color: #fff;
+  border-radius: 24rpx;
+  padding: 8rpx 28rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 6rpx 20rpx rgba(17, 24, 39, 0.05);
+}
+
+.ui-sec {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin: 12rpx 8rpx 20rpx;
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #1f2329;
+}
+
+.ui-sec-line {
+  flex: 1;
+  height: 1rpx;
+  background-color: #e9eaee;
+  margin-left: 16rpx;
+}
+
+.ui-divider {
+  height: 1rpx;
+  background-color: #f2f3f5;
+}
+
+/* ---------- 顶部横幅 ---------- */
+.ui-banner {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  border-radius: 24rpx;
+  padding: 24rpx 28rpx;
+  margin-bottom: 24rpx;
+  background: linear-gradient(135deg, #eef6ff 0%, #eaf7f4 100%);
+}
+
+.ui-banner-icon {
+  font-size: 44rpx;
+  margin-right: 20rpx;
+}
+
+.ui-banner-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #1f2329;
+}
+
+.ui-banner-desc {
+  margin-top: 6rpx;
+  font-size: 23rpx;
+  color: #7a7f8a;
+}
+
+/* ---------- 数据总览 ---------- */
+.ui-stats {
+  display: flex;
+  flex-direction: row;
+  background-color: #fff;
+  border-radius: 24rpx;
+  padding: 28rpx 0;
+  margin-bottom: 24rpx;
+  box-shadow: 0 6rpx 20rpx rgba(17, 24, 39, 0.05);
+}
+
+.ui-stat {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  padding: 200rpx 0;
-  box-sizing: border-box;
-} 
+}
+
+.ui-stat-num {
+  font-size: 40rpx;
+  font-weight: 700;
+  color: #1f2329;
+}
+
+.ui-stat-label {
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  color: #8b8f9a;
+}
+
+/* ---------- 列表行 ---------- */
+.ui-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 26rpx 0;
+  border-bottom: 1rpx solid #f2f3f5;
+}
+
+.ui-row-last {
+  border-bottom-color: transparent;
+}
+
+.ui-row-icon {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 20rpx;
+  margin-right: 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36rpx;
+  background-color: #eaf6f3;
+}
+
+.ui-row-main {
+  flex: 1;
+}
+
+.ui-row-title {
+  font-size: 29rpx;
+  font-weight: 600;
+  color: #1f2329;
+}
+
+.ui-row-desc {
+  margin-top: 6rpx;
+  font-size: 23rpx;
+  color: #8b8f9a;
+}
+
+.ui-row-arrow {
+  margin-left: 12rpx;
+  font-size: 40rpx;
+  color: #c8c9cc;
+}
+
+.ui-row-value {
+  margin-left: 12rpx;
+  font-size: 25rpx;
+  color: #a6abb4;
+}
+
+/* ---------- 功能大卡 ---------- */
+.ui-feature {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  background-color: #fff;
+  border-radius: 24rpx;
+  padding: 32rpx 28rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 6rpx 20rpx rgba(17, 24, 39, 0.05);
+}
+
+.ui-feature-icon {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 26rpx;
+  margin-right: 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 44rpx;
+}
+
+.ui-feature-main {
+  flex: 1;
+}
+
+.ui-feature-title {
+  font-size: 31rpx;
+  font-weight: 700;
+  color: #1f2329;
+}
+
+.ui-feature-desc {
+  margin-top: 8rpx;
+  font-size: 23rpx;
+  line-height: 1.6;
+  color: #8b8f9a;
+}
+
+/* ---------- 步骤 ---------- */
+.ui-step {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  padding: 16rpx 0;
+}
+
+.ui-step-no {
+  width: 40rpx;
+  height: 40rpx;
+  line-height: 40rpx;
+  text-align: center;
+  border-radius: 50%;
+  margin-right: 16rpx;
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #fff;
+  background-color: #0f9c8c;
+}
+
+.ui-step-text {
+  flex: 1;
+  font-size: 25rpx;
+  line-height: 40rpx;
+  color: #55595f;
+}
+
+/* ---------- 说明文字 ---------- */
+.ui-tip {
+  margin: 8rpx 12rpx 0;
+  font-size: 23rpx;
+  line-height: 1.8;
+  color: #9aa0a6;
+}

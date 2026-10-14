@@ -5,203 +5,134 @@ page {
   flex-direction: column;
   background-color: #f5f6fa;
 }
-.scrollarea {
-  flex: 1;
-  overflow-y: hidden;
-}
 
-.page-body {
-  padding: 24rpx;
-}
-
-/* ---------- 输入区 ---------- */
-.input-bar {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  background-color: #fff;
-  border-radius: 20rpx;
-  padding: 16rpx 16rpx 16rpx 28rpx;
-  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.04);
-}
-
-.todo-input {
-  flex: 1;
-  height: 72rpx;
-  font-size: 30rpx;
-  color: #333;
-}
-
-.add-btn {
-  margin-left: 20rpx;
-  padding: 0 36rpx;
-  height: 72rpx;
-  line-height: 72rpx;
-  border-radius: 36rpx;
-  background-color: #07c160;
-  color: #fff;
-  font-size: 28rpx;
-  font-weight: 600;
-}
-
-/* ---------- 筛选栏 ---------- */
-.filter-bar {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  margin: 24rpx 8rpx;
-}
-
-.filter-item {
-  padding: 10rpx 28rpx;
-  margin-right: 16rpx;
+/* ---------- 顶部横幅 ---------- */
+.hero {
   border-radius: 28rpx;
-  font-size: 26rpx;
-  color: #666;
-  background-color: #fff;
-}
-
-.filter-item.active {
-  background-color: #07c160;
+  padding: 36rpx 32rpx;
+  margin-bottom: 24rpx;
   color: #fff;
-  font-weight: 600;
+  background: linear-gradient(135deg, #0e9484 0%, #19b5a3 100%);
+  box-shadow: 0 12rpx 28rpx rgba(15, 156, 140, 0.22);
 }
 
-.flex-spacer {
-  flex: 1;
+.hero-tag {
+  display: inline-block;
+  padding: 6rpx 18rpx;
+  border-radius: 999rpx;
+  font-size: 22rpx;
+  background-color: rgba(255, 255, 255, 0.22);
 }
 
-.clear-btn {
-  font-size: 24rpx;
-  color: #e64340;
-  padding: 10rpx 8rpx;
-}
-
-/* ---------- 列表区 ---------- */
-.todo-list {
-  background-color: #fff;
-  border-radius: 20rpx;
-  overflow: hidden;
-  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.04);
-}
-
-.todo-item {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  padding: 28rpx 24rpx;
-  border-bottom: 1rpx solid #f0f0f0;
-}
-
-.todo-item:last-child {
-  border-bottom: none;
-}
-
-.checkbox {
-  width: 44rpx;
-  height: 44rpx;
-  border-radius: 50%;
-  border: 3rpx solid #ccc;
-  margin-right: 24rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.checkbox.checked {
-  background-color: #07c160;
-  border-color: #07c160;
-}
-
-.checkbox-mark {
-  color: #fff;
-  font-size: 26rpx;
+.hero-title {
+  margin-top: 20rpx;
+  font-size: 44rpx;
   font-weight: 700;
 }
 
-.todo-text {
-  flex: 1;
-  font-size: 30rpx;
-  color: #333;
-  word-break: break-all;
-}
-
-.done-text {
-  color: #bbb;
-  text-decoration: line-through;
-}
-
-.delete-btn {
-  width: 56rpx;
-  height: 56rpx;
-  line-height: 52rpx;
-  text-align: center;
-  font-size: 40rpx;
-  color: #c8c9cc;
-  flex-shrink: 0;
-}
-
-/* ---------- 空状态 ---------- */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 100rpx 0;
-}
-
-.empty-icon {
-  font-size: 80rpx;
-  margin-bottom: 20rpx;
-}
-
-.empty-tip {
-  font-size: 26rpx;
-  color: #999;
-}
-
-/* ---------- 底部统计 ---------- */
-.footer {
-  text-align: center;
-  margin-top: 28rpx;
+.hero-desc {
+  margin-top: 10rpx;
   font-size: 24rpx;
-  color: #999;
+  opacity: 0.9;
 }
 
-/* ---------- 功能入口 ---------- */
-.entry-card {
+/* ---------- 蓝牙连接（主位）/ 康复训练入口 ---------- */
+.cta {
   display: flex;
   flex-direction: row;
   align-items: center;
-  margin-top: 40rpx;
-  padding: 28rpx 24rpx;
-  background-color: #fff;
-  border-radius: 20rpx;
-  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.04);
+  padding: 32rpx 28rpx;
+  margin-bottom: 24rpx;
+  border-radius: 28rpx;
+  background-color: #ffffff;
+  box-shadow: 0 8rpx 24rpx rgba(7, 193, 96, 0.16);
+  border: 3rpx solid #d6f5e3;
 }
 
-.entry-icon {
+.cta-icon {
+  width: 104rpx;
+  height: 104rpx;
+  border-radius: 26rpx;
+  text-align: center;
+  line-height: 104rpx;
   font-size: 52rpx;
-  margin-right: 24rpx;
+  background-color: #eafaf0;
 }
 
-.entry-text {
+.cta-main {
   flex: 1;
+  margin-left: 24rpx;
 }
 
-.entry-title {
-  font-size: 30rpx;
-  font-weight: 600;
-  color: #333;
+.cta-title {
+  font-size: 40rpx;
+  font-weight: 800;
+  color: #0f9c8c;
 }
 
-.entry-desc {
-  margin-top: 6rpx;
+.cta-desc {
+  margin-top: 8rpx;
   font-size: 24rpx;
-  color: #999;
+  color: #8b8f9a;
 }
 
-.entry-arrow {
-  font-size: 44rpx;
-  color: #c8c9cc;
+.cta-go {
+  padding: 16rpx 26rpx;
+  border-radius: 999rpx;
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #ffffff;
+  background-color: #0f9c8c;
+}
+
+/* 蓝牙连接卡（青绿主题，连上后变绿） */
+.cta.ble {
+  border-color: #cfeae6;
+  box-shadow: 0 8rpx 24rpx rgba(15, 156, 140, 0.14);
+}
+
+.cta.ble .cta-icon {
+  background-color: #e9f7f4;
+}
+
+.cta.ble.linked {
+  border-color: #07c160;
+}
+
+.cta.ble.linked .cta-icon {
+  background-color: #eafaf0;
+}
+
+.cta.ble.linked .cta-title {
+  color: #07c160;
+}
+
+.cta.ble.linked .cta-go {
+  background-color: #07c160;
+}
+
+/* 连接状态条 */
+.cta-state {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  margin: -12rpx 0 24rpx;
+}
+
+.cta-dot {
+  width: 18rpx;
+  height: 18rpx;
+  border-radius: 50%;
+  background-color: #c8ccd4;
+  margin-right: 12rpx;
+}
+
+.cta-dot.on {
+  background-color: #07c160;
+}
+
+.cta-state-text {
+  font-size: 26rpx;
+  color: #8b8f9a;
 }

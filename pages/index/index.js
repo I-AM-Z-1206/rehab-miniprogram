@@ -1,129 +1,62 @@
-// index.js
-const STORAGE_KEY = 'todo_list'
+// index.js —— 首页：蓝牙连接（主位）+ 康复训练入口 + 数据总览
+const { selectTab, readOverview, openPage } = require('../../utils/tab.js')
+const speaker = require('../../utils/speaker.js')
+const WitBle = require('../../utils/witble.js')
+
+// 每次进入小程序只播报一次欢迎语
+let welcomed = false
 
 Page({
   data: {
-    inputValue: '',
-    // all / active / done
-    filter: 'all',
-    todos: [],
-    filteredTodos: [],
-    remaining: 0
-  },
-
-  onLoad() {
-    this.loadTodos()
+    rehabCoins: 0,
+    best: 0,
+    bleLinked: false, // 蓝牙是否已连接（全局单例，任何页面连上都生效）
+    bleLinkedName: ''
   },
 
   onShow() {
-    this.loadTodos()
+    selectTab(this, 0)
+    this.loadOverview()
+    this.refreshBle()
+    if (!welcomed) {
+      welcomed = true
+      speaker.speak('欢迎使用运动康复助手，请先连接蓝牙传感器')
+    }
   },
 
-  // ---------- 数据加载与保存 ----------
-  loadTodos() {
-    let todos = []
+  onUnload() {
+    speaker.stop()
+  },
+
+  loadOverview() {
+    this.setData(readOverview())
+  },
+
+  // 读取全局蓝牙单例状态：一次连上，不退出小程序就一直保持
+  refreshBle() {
+    let linked = false
+    let name = ''
     try {
-      todos = wx.getStorageSync(STORAGE_KEY) || []
-    } catch (e) {
-      todos = []
+      const ble = WitBle.getShared()
+      linked = !!ble.connectedId
+      name = linked ? 'WT9011DCL' : ''
+    } catch (e) { /* 忽略 */ }
+    this.setData({ bleLinked: linked, bleLinkedName: name })
+  },
+
+  // 蓝牙连接：进专门的蓝牙页做扫描连接
+  goWit() {
+    if (this.data.bleLinked) {
+      speaker.speak('设备已连接，可查看传感器数据')
+    } else {
+      speaker.speak('请确认传感器已开机，蓝灯快闪后点击扫描设备')
     }
-    this.setData({ todos })
-    this.refreshView()
+    openPage('/pages/wit/wit')
   },
 
-  saveTodos() {
-    try {
-      wx.setStorageSync(STORAGE_KEY, this.data.todos)
-    } catch (e) {
-      wx.showToast({ title: '保存失败', icon: 'none' })
-    }
-  },
-
-  refreshView() {
-    const { todos, filter } = this.data
-    const filteredTodos = todos.filter((t) => {
-      if (filter === 'active') return !t.done
-      if (filter === 'done') return t.done
-      return true
-    })
-    const remaining = todos.filter((t) => !t.done).length
-    this.setData({ filteredTodos, remaining })
-  },
-
-  // ---------- 事件处理 ----------
-  onInput(e) {
-    this.setData({ inputValue: e.detail.value })
-  },
-
-  addTodo() {
-    const text = (this.data.inputValue || '').trim()
-    if (!text) {
-      wx.showToast({ title: '请输入内容', icon: 'none' })
-      return
-    }
-    const todos = this.data.todos.concat({
-      id: Date.now() + '_' + Math.floor(Math.random() * 1000),
-      text,
-      done: false,
-      createdAt: Date.now()
-    })
-    this.setData({ todos, inputValue: '' })
-    this.saveTodos()
-    this.refreshView()
-  },
-
-  toggleTodo(e) {
-    const id = e.currentTarget.dataset.id
-    const todos = this.data.todos.map((t) =>
-      t.id === id ? { ...t, done: !t.done } : t
-    )
-    this.setData({ todos })
-    this.saveTodos()
-    this.refreshView()
-  },
-
-  removeTodo(e) {
-    const id = e.currentTarget.dataset.id
-    wx.showModal({
-      title: '删除待办',
-      content: '确定要删除这条待办吗？',
-      success: (res) => {
-        if (!res.confirm) return
-        const todos = this.data.todos.filter((t) => t.id !== id)
-        this.setData({ todos })
-        this.saveTodos()
-        this.refreshView()
-      }
-    })
-  },
-
-  clearDone() {
-    const doneCount = this.data.todos.filter((t) => t.done).length
-    if (doneCount === 0) {
-      wx.showToast({ title: '没有已完成项', icon: 'none' })
-      return
-    }
-    wx.showModal({
-      title: '清除已完成',
-      content: `确定清除 ${doneCount} 条已完成的待办吗？`,
-      success: (res) => {
-        if (!res.confirm) return
-        const todos = this.data.todos.filter((t) => !t.done)
-        this.setData({ todos })
-        this.saveTodos()
-        this.refreshView()
-      }
-    })
-  },
-
-  setFilter(e) {
-    const filter = e.currentTarget.dataset.filter
-    this.setData({ filter })
-    this.refreshView()
-  },
-
-  // ---------- 页面跳转 ----------
-  goSensor() {
-    wx.navigateTo({ url: '/pages/sensor/sensor' })
+  // 康复训练是底部 tab 页，走 switchTab
+  goRehab() {
+    speaker.speak('请佩戴好传感器并连接，即可开始康复训练')
+    openPage('/pages/rehab/rehab')
   }
 })

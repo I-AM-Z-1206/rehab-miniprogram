@@ -1,0 +1,86 @@
+<!--wit.wxml-->
+<navigation-bar title="蓝牙传感器" back="{{true}}" color="black" background="#FFF"></navigation-bar>
+<scroll-view class="scrollarea" scroll-y type="list">
+  <view class="page-body">
+
+    <!-- 状态卡 -->
+    <view class="card status-card">
+      <view class="status-row">
+        <view class="status-dot {{status === 'connected' ? 'on' : (status === 'scanning' ? 'scan' : '')}}"></view>
+        <view class="status-text">{{statusText}}</view>
+        <view class="flex-spacer"></view>
+        <view class="packet-count">{{packets}} 帧</view>
+      </view>
+
+      <view class="btn-row">
+        <view
+          class="btn {{status === 'scanning' ? 'btn-stop' : ''}}"
+          bindtap="{{status === 'scanning' ? 'onStopScan' : 'startScan'}}"
+        >
+          {{status === 'scanning' ? '停止扫描' : '扫描设备'}}
+        </view>
+        <view class="btn btn-outline {{status !== 'connected' ? 'btn-disabled' : ''}}" bindtap="onDisconnectTap">断开</view>
+      </view>
+    </view>
+
+    <!-- 设备列表 -->
+    <view class="card" wx:if="{{status === 'scanning' || (devices.length > 0 && status !== 'connected')}}">
+      <view class="card-title">附近设备（WitMotion 置顶）</view>
+      <view class="dev-item" wx:for="{{devices}}" wx:key="deviceId" data-id="{{item.deviceId}}" bindtap="onPickDevice">
+        <view class="dev-info">
+          <view class="dev-name">{{item.name || '未命名设备'}}</view>
+          <view class="dev-id">{{item.deviceId}}</view>
+        </view>
+        <view class="dev-rssi">{{item.rssi}} dBm</view>
+        <view class="dev-connect">连接</view>
+      </view>
+      <view class="empty-tip" wx:if="{{devices.length === 0}}">正在搜索…请确认传感器已开机（蓝灯闪烁）</view>
+    </view>
+
+    <!-- 实时数据 -->
+    <view class="card">
+      <view class="card-title">加速度（g）</view>
+      <view class="val-grid">
+        <view class="val-cell"><view class="val-axis">X</view><view class="val-num mono">{{ax}}</view></view>
+        <view class="val-cell"><view class="val-axis">Y</view><view class="val-num mono">{{ay}}</view></view>
+        <view class="val-cell"><view class="val-axis">Z</view><view class="val-num mono">{{az}}</view></view>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="card-title">角速度（°/s）</view>
+      <view class="val-grid">
+        <view class="val-cell"><view class="val-axis">X</view><view class="val-num mono">{{wx}}</view></view>
+        <view class="val-cell"><view class="val-axis">Y</view><view class="val-num mono">{{wy}}</view></view>
+        <view class="val-cell"><view class="val-axis">Z</view><view class="val-num mono">{{wz}}</view></view>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="card-title">姿态角（°）Roll / Pitch / Yaw</view>
+      <view class="val-grid">
+        <view class="val-cell"><view class="val-axis">X</view><view class="val-num mono">{{roll}}</view></view>
+        <view class="val-cell"><view class="val-axis">Y</view><view class="val-num mono">{{pitch}}</view></view>
+        <view class="val-cell"><view class="val-axis">Z</view><view class="val-num mono">{{yaw}}</view></view>
+      </view>
+    </view>
+
+    <!-- 电量 / 温度 -->
+    <view class="card">
+      <view class="card-title">传感器状态</view>
+      <view class="stat-row">
+        <view class="stat-item">🔋 电量：<text class="mono">{{battery}}%</text><text class="bat-volt" wx:if="{{batVolt}}">（{{batVolt}}V）</text></view>
+        <view class="stat-item">🌡️ 温度：<text class="mono">{{temp}}℃</text></view>
+      </view>
+      <view class="btn-row">
+        <view class="btn btn-sub" bindtap="onQueryBattery">读电量</view>
+        <view class="btn btn-sub" bindtap="onQueryTemp">读温度</view>
+      </view>
+    </view>
+
+    <view class="help-tip">
+      使用说明：传感器开机后蓝灯快闪为广播状态；点击「扫描设备」，选择 WT9011DCL 连接。默认上传加速度+角速度+角度组合帧（0x55 0x61）；电量和温度需点击按钮查询。Android 真机需授予定位权限，iOS 需允许蓝牙使用。模拟器不支持 BLE，请用真机运行。
+    </view>
+
+  </view>
+</scroll-view>
