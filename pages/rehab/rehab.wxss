@@ -17,13 +17,14 @@ page {
   display: flex;
   flex-direction: column;
   position: relative;
+  overflow: hidden;
   /* 康复是 tab 页：底部有自定义 tabBar（104rpx 高），必须留出空间，
      否则底部的「连接传感器」按钮会被 tabBar 完全盖住 */
   padding-bottom: 104rpx;
   padding-bottom: calc(104rpx + env(safe-area-inset-bottom));
 }
 
-/* ---------- 顶部数据 ---------- */
+/* ---------- 顶部数据（大字号，适配脑卒中患者注意力） ---------- */
 .topbar {
   display: flex;
   flex-direction: row;
@@ -39,7 +40,7 @@ page {
 }
 
 .stat-num {
-  font-size: 60rpx;
+  font-size: 72rpx;
   font-weight: 800;
   color: #ffffff;
   line-height: 1.1;
@@ -50,14 +51,14 @@ page {
 }
 
 .stat-sub {
-  font-size: 34rpx;
+  font-size: 42rpx;
   color: #93a0b8;
 }
 
 .stat-label {
   margin-top: 4rpx;
-  font-size: 28rpx;
-  color: #93a0b8;
+  font-size: 34rpx;
+  color: #aeb8cc;
 }
 
 /* ---------- 舞台（占约 70% 屏幕） ---------- */
@@ -69,20 +70,22 @@ page {
   overflow: hidden;
 }
 
-/* 提示条为浮层：不占布局高度，把空间留给小人 */
+/* 提示条为浮层：不占布局高度，把空间留给小人；z-index 保证盖过小人
+   字号控制在一行能放下，避免两行大字占掉半个屏幕 */
 .tip-bar {
   position: absolute;
   left: 20rpx;
   right: 20rpx;
   top: 16rpx;
-  padding: 22rpx 24rpx;
-  border-radius: 24rpx;
+  padding: 22rpx 28rpx;
+  border-radius: 26rpx;
   text-align: center;
-  font-size: 46rpx;
+  font-size: 54rpx;
   font-weight: 800;
   line-height: 1.3;
   color: #ffffff;
   background-color: rgba(24, 35, 60, 0.94);
+  z-index: 10;
 }
 
 .tip-bar.ok {
@@ -96,9 +99,10 @@ page {
 .arrow {
   position: absolute;
   bottom: 60rpx;
-  font-size: 44rpx;
+  font-size: 56rpx;
   font-weight: 800;
   color: #5b6b8a;
+  z-index: 5;
 }
 
 .arrow.left {
@@ -123,98 +127,49 @@ page {
 .lean-badge {
   position: absolute;
   left: 24rpx;
-  top: 150rpx;
+  top: 190rpx;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  z-index: 5;
 }
 
 .lean-num {
-  font-size: 72rpx;
+  font-size: 96rpx;
   font-weight: 800;
   color: #2fd8c3;
   line-height: 1;
 }
 
 .lean-label {
-  margin-top: 6rpx;
-  font-size: 26rpx;
-  color: #93a0b8;
+  margin-top: 8rpx;
+  font-size: 34rpx;
+  color: #aeb8cc;
 }
 
-/* ---------- 小人 ---------- */
-.man-wrap {
+/* ---------- 3D 小人 canvas（占满舞台） ---------- */
+.man-canvas {
   position: absolute;
   left: 0;
-  right: 0;
-  bottom: 30rpx;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  transform-origin: 50% 100%;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
 }
 
-.man-head {
-  width: 140rpx;
-  height: 140rpx;
-  border-radius: 50%;
-  background-color: #ffdfae;
-  border: 8rpx solid #e8b56f;
-}
-
-.man-body {
-  width: 180rpx;
-  height: 350rpx;
-  margin-top: 14rpx;
-  border-radius: 66rpx 66rpx 40rpx 40rpx;
-  background-color: #14b8a6;
-  position: relative;
-}
-
-.man-arm {
-  position: absolute;
-  top: 26rpx;
-  width: 52rpx;
-  height: 225rpx;
-  border-radius: 26rpx;
-  background-color: #0f9384;
-}
-
-.arm-l {
-  left: -48rpx;
-  transform: rotate(10deg);
-}
-
-.arm-r {
-  right: -48rpx;
-  transform: rotate(-10deg);
-}
-
-.man-legs {
-  display: flex;
-  flex-direction: row;
-  margin-top: -8rpx;
-}
-
-.man-leg {
-  width: 60rpx;
-  height: 260rpx;
-  border-radius: 30rpx;
-  background-color: #3b5b8f;
-  margin: 0 10rpx;
-}
-
-/* ---------- 航空姿态仪 ---------- */
+/* ---------- 航空姿态仪（放大，飞机仪表盘更醒目） ---------- */
 .hud {
   position: absolute;
   right: 24rpx;
-  top: 150rpx;
-  width: 220rpx;
-  height: 220rpx;
+  top: 190rpx;
+  width: 280rpx;
+  height: 280rpx;
   border-radius: 50%;
   overflow: hidden;
-  border: 8rpx solid #2a3856;
+  border: 10rpx solid #2a3856;
   background-color: #0a1120;
+  box-shadow: 0 0 24rpx rgba(20, 184, 166, 0.25);
+  z-index: 5;
 }
 
 .hud-horizon {
@@ -251,9 +206,9 @@ page {
 }
 
 .hud-bar {
-  width: 150rpx;
-  height: 8rpx;
-  border-radius: 4rpx;
+  width: 190rpx;
+  height: 10rpx;
+  border-radius: 5rpx;
   background-color: #ffc34d;
 }
 
@@ -261,9 +216,9 @@ page {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 22rpx;
+  bottom: 26rpx;
   text-align: center;
-  font-size: 30rpx;
+  font-size: 40rpx;
   font-weight: 700;
   color: #ffffff;
 }
@@ -277,13 +232,13 @@ page {
   display: flex;
   flex-direction: row;
   align-items: center;
-  margin-bottom: 14rpx;
+  margin-bottom: 16rpx;
 }
 
 .panel-label {
-  width: 150rpx;
-  font-size: 30rpx;
-  color: #93a0b8;
+  width: 168rpx;
+  font-size: 34rpx;
+  color: #aeb8cc;
 }
 
 .seg {
@@ -298,9 +253,9 @@ page {
 .seg-item {
   flex: 1;
   text-align: center;
-  height: 68rpx;
-  line-height: 68rpx;
-  font-size: 30rpx;
+  height: 80rpx;
+  line-height: 80rpx;
+  font-size: 36rpx;
   color: #93a0b8;
   border-radius: 12rpx;
 }
@@ -313,10 +268,10 @@ page {
 
 .btn-flip {
   margin-left: 14rpx;
-  padding: 0 20rpx;
-  height: 68rpx;
-  line-height: 68rpx;
-  font-size: 26rpx;
+  padding: 0 22rpx;
+  height: 80rpx;
+  line-height: 80rpx;
+  font-size: 30rpx;
   color: #ffc34d;
   border: 2rpx solid #ffc34d;
   border-radius: 16rpx;
@@ -324,10 +279,10 @@ page {
 
 .btn-cal {
   margin-left: 14rpx;
-  padding: 0 24rpx;
-  height: 68rpx;
-  line-height: 68rpx;
-  font-size: 30rpx;
+  padding: 0 28rpx;
+  height: 80rpx;
+  line-height: 80rpx;
+  font-size: 36rpx;
   font-weight: 700;
   color: #ffffff;
   background-color: #14b8a6;
@@ -338,7 +293,7 @@ page {
   opacity: 0.45;
 }
 
-/* ---------- 底部连接（居中） ---------- */
+/* ---------- 底部连接（居中，醒目大按钮） ---------- */
 .dock {
   padding: 12rpx 24rpx 28rpx;
   display: flex;
@@ -351,9 +306,9 @@ page {
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  height: 104rpx;
-  padding: 0 56rpx;
-  border-radius: 52rpx;
+  height: 120rpx;
+  padding: 0 64rpx;
+  border-radius: 60rpx;
   background-color: #18233c;
   border: 4rpx solid #2a3856;
 }
@@ -369,10 +324,10 @@ page {
 }
 
 .dock-dot {
-  width: 28rpx;
-  height: 28rpx;
+  width: 34rpx;
+  height: 34rpx;
   border-radius: 50%;
-  margin-right: 20rpx;
+  margin-right: 24rpx;
   background-color: #93a0b8;
 }
 
@@ -386,15 +341,15 @@ page {
 }
 
 .dock-text {
-  font-size: 40rpx;
+  font-size: 48rpx;
   font-weight: 800;
   color: #ffffff;
 }
 
 .dock-sub {
-  margin-top: 14rpx;
-  font-size: 28rpx;
-  color: #93a0b8;
+  margin-top: 16rpx;
+  font-size: 34rpx;
+  color: #aeb8cc;
 }
 
 /* ---------- 金币飘字 ---------- */
@@ -402,7 +357,7 @@ page {
   position: absolute;
   right: 40rpx;
   top: 120rpx;
-  font-size: 56rpx;
+  font-size: 68rpx;
   font-weight: 800;
   color: #ffc34d;
   animation: gain-up 0.9s ease-out;
@@ -429,24 +384,45 @@ page {
   left: 0;
   right: 0;
   bottom: 0;
+  max-height: 62vh;
+  display: flex;
+  flex-direction: column;
   padding: 28rpx 24rpx 40rpx;
   border-radius: 32rpx 32rpx 0 0;
   background-color: #18233c;
-  transition: transform 0.25s;
+  /* 默认隐藏在屏幕外，仅 showDevices 时滑入（修复面板一直露在底部的问题） */
+  transform: translateY(105%);
+  transition: transform 0.25s ease-out;
+  z-index: 30;
+}
+
+.dev-panel.show {
+  transform: translateY(0);
+}
+
+.dev-list {
+  flex: 1;
+  max-height: 48vh;
+}
+
+.dev-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dev-title {
-  font-size: 36rpx;
+  font-size: 44rpx;
   font-weight: 800;
   color: #ffffff;
-  margin-bottom: 16rpx;
+  margin-bottom: 20rpx;
 }
 
 .dev-item {
   display: flex;
   flex-direction: row;
   align-items: center;
-  padding: 24rpx 0;
+  padding: 30rpx 0;
   border-bottom: 2rpx solid #26324e;
 }
 
@@ -455,29 +431,29 @@ page {
 }
 
 .dev-name {
-  font-size: 36rpx;
+  font-size: 42rpx;
   font-weight: 700;
   color: #ffffff;
 }
 
 .dev-id {
-  margin-top: 6rpx;
-  font-size: 26rpx;
-  color: #93a0b8;
+  margin-top: 8rpx;
+  font-size: 32rpx;
+  color: #aeb8cc;
 }
 
 .dev-go {
-  padding: 16rpx 40rpx;
-  border-radius: 40rpx;
+  padding: 20rpx 48rpx;
+  border-radius: 44rpx;
   background-color: #14b8a6;
   color: #ffffff;
-  font-size: 32rpx;
+  font-size: 38rpx;
   font-weight: 700;
 }
 
 .dev-empty {
-  padding: 30rpx 0;
+  padding: 36rpx 0;
   text-align: center;
-  font-size: 30rpx;
-  color: #93a0b8;
+  font-size: 36rpx;
+  color: #aeb8cc;
 }

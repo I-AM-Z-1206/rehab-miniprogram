@@ -44,6 +44,10 @@ class WitBle {
           ;(res.devices || []).forEach((d) => {
             if (!d.deviceId) return
             const name = d.name || d.localName || ''
+            // 无名广播（周围绝大多数无关设备）直接丢弃，不再显示「未命名设备」
+            if (!name) return
+            // 乱码过滤：部分广播把 advertisData 当名称（base64 特征或不可打印字符）
+            if (!/^[\x20-\x7e\u4e00-\u9fa5]{1,20}$/.test(name) || /[+/=]/.test(name)) return
             const prev = map[d.deviceId]
             if (prev) {
               prev.rssi = d.rssi !== 0 ? d.rssi : prev.rssi

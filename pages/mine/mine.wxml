@@ -57,6 +57,14 @@
         </view>
         <view class="ui-row-arrow">›</view>
       </view>
+      <view class="ui-row" bindtap="onSendEmail">
+        <view class="ui-row-icon">📧</view>
+        <view class="ui-row-main">
+          <view class="ui-row-title">发送训练数据到邮箱</view>
+          <view class="ui-row-desc">金币、连击与每轮训练记录</view>
+        </view>
+        <view class="ui-row-arrow">›</view>
+      </view>
       <view class="ui-row" bindtap="onEditNickname">
         <view class="ui-row-icon">✏️</view>
         <view class="ui-row-main"><view class="ui-row-title">修改昵称</view></view>

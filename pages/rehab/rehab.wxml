@@ -1,4 +1,4 @@
-<!--rehab.wxml—— 康复训练：胸前佩戴姿态检测 · 向左 / 向右侧倾-->
+<!--rehab.wxml—— 康复训练：3D 小人姿态跟随 · 胸前佩戴左右侧倾检测-->
 <navigation-bar title="康复训练" back="{{false}}" color="white" background="#0b1220"></navigation-bar>
 
 <view class="root">
@@ -19,7 +19,7 @@
     </view>
   </view>
 
-  <!-- 主舞台：小人占约 70% 屏幕 -->
+  <!-- 主舞台：3D 小人占约 70% 屏幕 -->
   <view class="stage">
     <!-- 大字提示（浮层，不占布局高度） -->
     <view class="tip-bar {{tipType}}">{{tip}}</view>
@@ -44,18 +44,13 @@
     <view class="arrow left {{targetDir === 'left' ? 'active' : ''}}">◀ 向左</view>
     <view class="arrow right {{targetDir === 'right' ? 'active' : ''}}">向右 ▶</view>
 
-    <!-- 会跟着一起倾的小人 -->
-    <view class="man-wrap" style="transform: rotate({{manRotate}}deg)">
-      <view class="man-head"></view>
-      <view class="man-body">
-        <view class="man-arm arm-l"></view>
-        <view class="man-arm arm-r"></view>
-      </view>
-      <view class="man-legs">
-        <view class="man-leg"></view>
-        <view class="man-leg"></view>
-      </view>
-    </view>
+    <!-- 3D 小人：WebGL canvas，占满舞台 -->
+    <canvas
+      type="webgl"
+      id="webgl"
+      class="man-canvas"
+      disable-scroll="true"
+    ></canvas>
   </view>
 
   <!-- 设置条：仅未开始训练时显示，训练中把空间全部留给小人 -->
@@ -103,14 +98,16 @@
   <view class="mask" wx:if="{{showDevices}}" bindtap="onCloseDevices"></view>
   <view class="dev-panel {{showDevices ? 'show' : ''}}">
     <view class="dev-title">选择要连接的传感器</view>
-    <view class="dev-item" wx:for="{{devices}}" wx:key="deviceId" data-id="{{item.deviceId}}" bindtap="onPickDevice">
-      <view class="dev-info">
-        <view class="dev-name">{{item.name || '未命名设备'}}</view>
-        <view class="dev-id">{{item.rssi}} dBm</view>
+    <scroll-view class="dev-list" scroll-y type="list">
+      <view class="dev-item" wx:for="{{devices}}" wx:key="deviceId" data-id="{{item.deviceId}}" bindtap="onPickDevice">
+        <view class="dev-info">
+          <view class="dev-name">{{item.name}}</view>
+          <view class="dev-id">{{item.rssi ? item.rssi : '--'}} dBm</view>
+        </view>
+        <view class="dev-go">连接</view>
       </view>
-      <view class="dev-go">连接</view>
-    </view>
-    <view class="dev-empty" wx:if="{{devices.length === 0}}">正在搜索…请确认传感器已开机（蓝灯快闪）</view>
+      <view class="dev-empty" wx:if="{{devices.length === 0}}">正在搜索…请确认传感器已开机（蓝灯快闪）</view>
+    </scroll-view>
   </view>
 
 </view>

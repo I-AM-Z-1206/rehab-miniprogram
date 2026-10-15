@@ -3,6 +3,7 @@
 
 const KEY_REHAB_COINS = 'rehab_coins'
 const KEY_REHAB_BEST = 'rehab_best'
+const KEY_REHAB_LOG = 'rehab_log'
 const KEY_NICKNAME = 'mine_nickname'
 
 // 底部 tab 页路径：这些页面不能用 navigateTo，必须走 switchTab
@@ -44,6 +45,24 @@ function readOverview() {
   return { rehabCoins, best }
 }
 
+// 追加一条训练记录（保留最近 100 条），供「发送到邮箱」导出
+function pushRehabLog(entry) {
+  try {
+    const list = wx.getStorageSync(KEY_REHAB_LOG) || []
+    list.push(entry)
+    while (list.length > 100) list.shift()
+    wx.setStorageSync(KEY_REHAB_LOG, list)
+  } catch (e) { /* 忽略 */ }
+}
+
+function readRehabLog() {
+  try {
+    return wx.getStorageSync(KEY_REHAB_LOG) || []
+  } catch (e) {
+    return []
+  }
+}
+
 function getNickname() {
   try {
     return wx.getStorageSync(KEY_NICKNAME) || '体验用户'
@@ -62,9 +81,12 @@ module.exports = {
   selectTab,
   openPage,
   readOverview,
+  pushRehabLog,
+  readRehabLog,
   getNickname,
   setNickname,
   KEY_REHAB_COINS,
   KEY_REHAB_BEST,
+  KEY_REHAB_LOG,
   KEY_NICKNAME
 }

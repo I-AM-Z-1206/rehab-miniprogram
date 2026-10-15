@@ -3,12 +3,46 @@ const {
   selectTab,
   openPage,
   readOverview,
+  readRehabLog,
   getNickname,
   setNickname,
   KEY_REHAB_COINS,
   KEY_REHAB_BEST
 } = require('../../utils/tab.js')
 const speaker = require('../../utils/speaker.js')
+
+// 数据服务器地址：只走 3000 端口（80 端口不通，已移除）
+const MAIL_ENDPOINTS = [
+  'http://47.112.18.198:3000/sendmail'
+]
+
+// 依次尝试多个服务器地址
+function requestMail(payload, onOk, onFail, idx) {
+  const i = idx || 0
+  if (i >= MAIL_ENDPOINTS.length) {
+    onFail()
+    return
+  }
+  wx.request({
+    url: MAIL_ENDPOINTS[i],
+    method: 'POST',
+    data: payload,
+    timeout: 15000,
+    success: (r) => {
+      if (r.statusCode === 200 && r.data && r.data.success) onOk()
+      else onFail((r.data && r.data.msg) || ('服务器返回 ' + r.statusCode))
+    },
+    fail: () => requestMail(payload, onOk, onFail, i + 1)
+  })
+}
+
+// 当前时间 yyyy-MM-dd HH:mm
+function formatNow() {
+  const d = new Date()
+  const p = (n) => (n < 10 ? '0' + n : '' + n)
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+    ' ' + p(d.getHours()) + ':' + p(d.getMinutes())
+}
 
 Page({
   data: {
@@ -81,6 +115,53 @@ Page({
   },
 
   // ---------- 数据管理 ----------
+  // 把训练数据通过自建服务器发到指定邮箱
+  onSendEmail() {
+    wx.showModal({
+      title: '发送训练数据',
+      editable: true,
+      placeholderText: '填写接收邮箱，如 123456@qq.com',
+      success: (res) => {
+        if (!res.confirm) return
+        const email = (res.content || '').trim()
+        if (!/^[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}$/.test(email)) {
+          wx.showToast({ title: '邮箱格式不正确', icon: 'none' })
+          return
+        }
+        const overview = readOverview()
+        const records = readRehabLog()
+        wx.showLoading({ title: '发送中…', mask: true })
+        requestMail(
+          {
+            to: email,
+            subject: '康复训练数据报告',
+            data: {
+              nickname: getNickname(),
+              rehabCoins: overview.rehabCoins,
+              best: overview.best,
+              recordCount: records.length,
+              records: records,
+              exportedAt: formatNow()
+            }
+          },
+          () => {
+            wx.hideLoading()
+            wx.showToast({ title: '已发送，请查收邮箱', icon: 'success' })
+          },
+          (msg) => {
+            wx.hideLoading()
+            wx.showModal({
+              title: '发送失败',
+              showCancel: false,
+              content: (msg || '无法连接数据服务器(47.112.18.198)') +
+                '\n请检查：① 服务器 node server.js 是否在运行 ② 安全组/防火墙是否放行端口 ③ 开发工具需勾选「不校验合法域名」'
+            })
+          }
+        )
+      }
+    })
+  },
+
   onClearRehab() {
     const that = this
     wx.showModal({

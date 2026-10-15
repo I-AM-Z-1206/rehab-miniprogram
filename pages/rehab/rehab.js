@@ -1,8 +1,9 @@
-// rehab.js —— 康复训练：传感器绑胸前，做「向左侧倾 / 向右侧倾」的上体位训练
-// 特点：大字幕、大号跟随运动的小人、航空姿态仪、全程语音提示
+// rehab.js —— 康复训练：3D 小人姿态跟随 · 胸前佩戴左右侧倾检测
+// 特点：Three.js 真 3D 小人、roll/pitch/yaw 三轴实时旋转、航空姿态仪、大字号、全程语音
 const WitBle = require('../../utils/witble.js')
 const speaker = require('../../utils/speaker.js')
-const { selectTab } = require('../../utils/tab.js')
+const { selectTab, pushRehabLog } = require('../../utils/tab.js')
+const man3d = require('../../utils/man3d.js')
 
 const STORE_COINS = 'rehab_coins'
 const STORE_BEST = 'rehab_best'
@@ -35,6 +36,14 @@ function clamp(v, min, max) {
   return v < min ? min : (v > max ? max : v)
 }
 
+// 当前时间 yyyy-MM-dd HH:mm
+function formatNow() {
+  const d = new Date()
+  const p = (n) => (n < 10 ? '0' + n : '' + n)
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+    ' ' + p(d.getHours()) + ':' + p(d.getMinutes())
+}
+
 Page({
   data: {
     // 连接
@@ -55,7 +64,6 @@ Page({
     tip: '请先将传感器佩戴在胸前',
     tipType: 'normal',
     leanText: '0',
-    manRotate: 0,
     hudRotate: 0,
     hudShift: 0,
 
@@ -71,12 +79,14 @@ Page({
 
   onLoad() {
     this.ble = WitBle.getShared() // 全局单例：跨页面保持连接
-    this.base = 0
+    this.baseRoll = 0
+    this.basePitch = 0
     this.hasBase = false
     this.lastDir = 'left'
     this.lastView = 0
     this.calibrating = false
     this.calSamples = []
+    this.manInited = false
 
     let coins = 0
     let best = 0
@@ -85,6 +95,41 @@ Page({
       best = wx.getStorageSync(STORE_BEST) || 0
     } catch (e) { /* 忽略 */ }
     this.setData({ coins, best })
+  },
+
+  onReady() {
+    this.initMan3d()
+  },
+
+  // 初始化 3D 小人 canvas：canvas 缓冲区必须匹配舞台实际宽高比，否则画面拉伸变形
+  initMan3d() {
+    const that = this
+    wx.createSelectorQuery()
+      .select('#webgl')
+      .node()
+      .exec((res) => {
+        const canvas = res && res[0] && res[0].node
+        if (!canvas) {
+          console.error('[rehab] webgl canvas 未找到')
+          return
+        }
+        const info = wx.getWindowInfo()
+        const dpr = info.pixelRatio || 2
+        // 延迟一帧量取舞台实际布局尺寸
+        wx.createSelectorQuery()
+          .select('.stage')
+          .boundingClientRect((rect) => {
+            const w = Math.round((rect && rect.width ? rect.width : info.windowWidth) * dpr)
+            const h = Math.round((rect && rect.height ? rect.height : info.windowWidth * 1.15) * dpr)
+            try {
+              canvas.width = w
+              canvas.height = h
+            } catch (e) { /* 忽略 */ }
+            man3d.init(canvas)
+            that.manInited = true
+          })
+          .exec()
+      })
   },
 
   onShow() {
@@ -99,7 +144,7 @@ Page({
       })
     } else if (!this.hasBase) {
       // 未连接时才提示佩戴，避免训练途中切回页面反复播报
-      this.setData({ tip: '请先将传感器佩戴在胸前，再连接' })
+      this.setData({ tip: '请先将传感器佩戴在胸前' })
       speaker.speak('请先将传感器佩戴在胸前')
     }
   },
@@ -108,10 +153,12 @@ Page({
     speaker.stop()
   },
 
-  // 离开页面只解绑回调，绝对不主动断开蓝牙
+  // 离开页面：释放 3D 资源 + 解绑回调（绝不主动断开蓝牙）
   onUnload() {
     speaker.stop()
     WitBle.detach(this.ble)
+    man3d.dispose()
+    this.manInited = false
   },
 
   attachHandlers() {
@@ -252,7 +299,6 @@ Page({
       return
     }
     speaker.speak('请坐直不动，马上为你标定基准')
-    // 完成一轮后再标定即为重开一轮
     if (this.data.phase === 'done') this.setData({ reps: 0, combo: 0 })
     this.calibrating = true
     this.calSamples = []
@@ -267,9 +313,16 @@ Page({
       this.setData({ tip: '没收到数据，请检查连接', tipType: 'warn' })
       return
     }
-    let sum = 0
-    this.calSamples.forEach((v) => { sum += v })
-    this.base = sum / this.calSamples.length
+    let sumRoll = 0
+    let sumPitch = 0
+    let n = 0
+    this.calSamples.forEach((s) => {
+      if (typeof s.roll === 'number') sumRoll += s.roll
+      if (typeof s.pitch === 'number') sumPitch += s.pitch
+      n++
+    })
+    this.baseRoll = n ? sumRoll / n : 0
+    this.basePitch = n ? sumPitch / n : 0
     this.hasBase = true
     this.lastDir = 'left'
     this.setData({
@@ -284,29 +337,38 @@ Page({
 
   // ---------- 数据帧 ----------
   onFrame(d) {
-    const ang = this.data.axis === 'roll' ? d.roll : d.pitch
-    if (typeof ang !== 'number') return
-
-    // 标定采样
+    // 标定采样：同时记录 roll 和 pitch，修复原来只记一个轴的 bug
     if (this.calibrating) {
-      this.calSamples.push(ang)
+      if (typeof d.roll === 'number' || typeof d.pitch === 'number') {
+        this.calSamples.push({ roll: d.roll, pitch: d.pitch })
+      }
       return
     }
 
-    const lean = wrap180(ang - this.base) * this.data.dirSign
+    const dirSign = this.data.dirSign
+    const leanRoll = typeof d.roll === 'number' ? wrap180(d.roll - this.baseRoll) * dirSign : 0
+    const leanPitch = typeof d.pitch === 'number' ? wrap180(d.pitch - this.basePitch) * dirSign : 0
 
+    // 训练判定使用当前选定轴
+    const lean = this.data.axis === 'roll' ? leanRoll : leanPitch
     if (this.hasBase) this.step(lean)
 
     // UI 节流
     const now = Date.now()
     if (now - this.lastView < VIEW_INTERVAL) return
     this.lastView = now
-    const pitch = typeof d.pitch === 'number' ? wrap180(d.pitch - this.base) : 0
+
+    // 3D 小人：三轴全喂，让小人姿态最自然（侧倾 roll + 俯仰 pitch + 偏航 yaw）
+    const yaw = typeof d.yaw === 'number' ? wrap180(d.yaw - (this.baseYaw || 0)) : 0
+    man3d.setPose({ roll: leanRoll, pitch: leanPitch, yaw: yaw })
+
+    // 航空姿态仪修复：
+    //   hudRotate 取消负号，天地线倾倒方向与身体一致
+    //   hudShift 用 pitch 的真实偏移（之前错用同一个 base）
     this.setData({
       leanText: Math.abs(lean).toFixed(0),
-      manRotate: clamp(lean, -38, 38).toFixed(1),
-      hudRotate: (-clamp(lean, -90, 90)).toFixed(1),
-      hudShift: clamp(pitch * 2, -70, 70).toFixed(1)
+      hudRotate: clamp(lean, -90, 90).toFixed(1),
+      hudShift: clamp(leanPitch * 2, -70, 70).toFixed(1)
     })
   },
 
@@ -319,18 +381,22 @@ Page({
       this.lastDir = 'left'
       speaker.speak('向左到位，非常好')
       wx.vibrateShort({ type: 'medium' })
+      man3d.setFlash(true)
     } else if (phase === 'right' && lean >= target) {
       this.setData({ phase: 'rightOk', tip: '很好！慢慢坐直回来', tipType: 'ok' })
       this.lastDir = 'right'
       speaker.speak('向右到位，非常好')
       wx.vibrateShort({ type: 'medium' })
+      man3d.setFlash(true)
     } else if (phase === 'leftOk' || phase === 'rightOk') {
-      if (Math.abs(lean) <= BACK_TOL) this.finishRep()
+      if (Math.abs(lean) <= BACK_TOL) {
+        man3d.setFlash(false)
+        this.finishRep()
+      }
     }
   },
 
   finishRep() {
-    const that = this
     let coins = this.data.coins
     let combo = this.data.combo
     let reps = this.data.reps + 1
@@ -360,6 +426,15 @@ Page({
     speaker.speak('很好，完成一次，继续保持')
 
     if (reps >= this.data.goal) {
+      // 一轮训练完成，落一条记录（供「我的」页发送到邮箱）
+      pushRehabLog({
+        time: formatNow(),
+        reps: reps,
+        goal: this.data.goal,
+        axis: this.data.axis,
+        bestCombo: best,
+        coins: coins
+      })
       this.setData({
         phase: 'done',
         targetDir: '',
