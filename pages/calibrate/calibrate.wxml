@@ -1,0 +1,80 @@
+<!-- calibrate.wxml —— 零点标定页 -->
+<navigation-bar title="零点标定" back="{{true}}" color="black" background="#FFF"></navigation-bar>
+<scroll-view class="scrollarea" scroll-y type="list">
+  <view class="page-body">
+
+    <!-- 状态卡 -->
+    <view class="card status-card">
+      <view class="status-row">
+        <view class="status-dot {{status === 'connected' ? 'on' : (status === 'scanning' ? 'scan' : '')}}"></view>
+        <view class="status-text">{{statusText}}</view>
+        <view class="flex-spacer"></view>
+        <view class="btn-mini {{status === 'scanning' ? 'btn-stop' : ''}}" bindtap="{{status === 'scanning' ? 'onStopScan' : 'startScan'}}">
+          {{status === 'scanning' ? '停止' : '扫描'}}
+        </view>
+      </view>
+
+      <!-- 设备列表 -->
+      <view wx:if="{{status === 'scanning' || (devices.length > 0 && status !== 'connected')}}">
+        <view class="dev-item" wx:for="{{devices}}" wx:key="deviceId" data-id="{{item.deviceId}}" bindtap="onPickDevice">
+          <view class="dev-info">
+            <view class="dev-name">{{item.name || '未命名设备'}}</view>
+            <view class="dev-id">{{item.deviceId}}</view>
+          </view>
+          <view class="dev-rssi">{{item.rssi}} dBm</view>
+          <view class="dev-connect">连接</view>
+        </view>
+        <view class="empty-tip" wx:if="{{devices.length === 0}}">正在搜索…请确认传感器已开机（蓝灯闪烁）</view>
+      </view>
+    </view>
+
+    <!-- 标定控制卡 -->
+    <view class="card">
+      <view class="card-title">零点标定</view>
+      <view class="cal-desc">传感器保持静止 5 秒，采集加速度并计算零点偏置，同时绘制加速度与速度曲线。</view>
+
+      <!-- 进度 -->
+      <view class="cal-status" wx:if="{{phase === 'calibrating'}}">
+        <view class="cal-count mono">{{remain}}s</view>
+        <view class="cal-bar"><view class="cal-bar-in" style="width: {{(5 - remain) * 20}}%"></view></view>
+        <view class="cal-tip">正在采样，请保持静止…</view>
+      </view>
+
+      <view class="cal-btn {{status === 'connected' ? '' : 'off'}} {{phase === 'calibrating' ? 'running' : ''}}" bindtap="onStartCalibrate">
+        {{phase === 'calibrating' ? '标定中…' : (phase === 'done' ? '重新标定' : '开始标定')}}
+      </view>
+    </view>
+
+    <!-- 结果卡 -->
+    <view class="card" wx:if="{{phase === 'done'}}">
+      <view class="card-title">零点偏置结果（采样 {{sampleCount}} 帧）</view>
+      <view class="val-grid">
+        <view class="val-cell"><view class="val-axis">X</view><view class="val-num mono">{{axOff}}</view></view>
+        <view class="val-cell"><view class="val-axis">Y</view><view class="val-num mono">{{ayOff}}</view></view>
+        <view class="val-cell"><view class="val-axis">Z（-1g）</view><view class="val-num mono">{{azOff}}</view></view>
+      </view>
+      <view class="res-tip">偏置单位为 g，已保存，供后续姿态解算扣除零点使用。</view>
+    </view>
+
+    <!-- 图表 -->
+    <view class="card" wx:if="{{phase === 'done'}}">
+      <view class="card-title">加速度 X（g）</view>
+      <view class="chart-box"><ec-canvas id="ecAx" canvas-id="ecAx" ec="{{ecAx}}"></ec-canvas></view>
+    </view>
+
+    <view class="card" wx:if="{{phase === 'done'}}">
+      <view class="card-title">加速度 Y（g）</view>
+      <view class="chart-box"><ec-canvas id="ecAy" canvas-id="ecAy" ec="{{ecAy}}"></ec-canvas></view>
+    </view>
+
+    <view class="card" wx:if="{{phase === 'done'}}">
+      <view class="card-title">标定期速度（m/s）</view>
+      <view class="chart-box"><ec-canvas id="ecVel" canvas-id="ecVel" ec="{{ecVel}}"></ec-canvas></view>
+    </view>
+
+    <view class="help-tip">
+      说明：零点标定用于测量传感器静止时的加速度零偏。静止时 X、Y 轴应接近 0，Z 轴接近 1g；速度曲线反映零偏造成的积分漂移，偏置越小曲线越平。标定结果会自动保存，供其它页面扣除零点。
+    </view>
+
+  </view>
+</scroll-view>

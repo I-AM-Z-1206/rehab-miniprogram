@@ -58,5 +58,10 @@ Page({
   goRehab() {
     speaker.speak('请佩戴好传感器并连接，即可开始康复训练')
     openPage('/pages/rehab/rehab')
+  },
+
+  // 零点标定：独立功能页
+  goCalibrate() {
+    openPage('/pages/calibrate/calibrate')
   }
 })

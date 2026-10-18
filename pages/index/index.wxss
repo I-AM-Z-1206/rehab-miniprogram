@@ -111,6 +111,24 @@ page {
   background-color: #07c160;
 }
 
+/* 零点标定入口卡（蓝紫主题，区别于康复青绿） */
+.cta.cal {
+  border-color: #e0e7ff;
+  box-shadow: 0 8rpx 24rpx rgba(47, 123, 214, 0.14);
+}
+
+.cta.cal .cta-icon {
+  background-color: #eef3ff;
+}
+
+.cta.cal .cta-title {
+  color: #2f7bd6;
+}
+
+.cta.cal .cta-go {
+  background-color: #2f7bd6;
+}
+
 /* 连接状态条 */
 .cta-state {
   display: flex;

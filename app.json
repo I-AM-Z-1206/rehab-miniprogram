@@ -3,7 +3,8 @@
     "pages/index/index",
     "pages/rehab/rehab",
     "pages/mine/mine",
-    "pages/wit/wit"
+    "pages/wit/wit",
+    "pages/calibrate/calibrate"
   ],
   "tabBar": {
     "custom": true,
