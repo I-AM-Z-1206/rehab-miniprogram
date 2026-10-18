@@ -1,0 +1,58 @@
+<!--games.wxml—— 游戏中心：5 款体感游戏入口（静态保持 3 款 + 动态 2 款）-->
+<navigation-bar title="游戏" back="{{false}}" color="black" background="#FFF"></navigation-bar>
+<scroll-view class="ui-scroll" scroll-y type="list">
+  <view class="ui-body">
+
+    <!-- 顶部横幅 -->
+    <view class="ui-banner game-banner">
+      <view class="ui-banner-icon">🎮</view>
+      <view class="ui-banner-main">
+        <view class="banner-count"><text class="banner-num">5</text> 款</view>
+        <view class="ui-banner-desc">静态保持 3 款 + 动态 2 款 · 佩戴传感器用身体玩游戏</view>
+      </view>
+    </view>
+
+    <!-- 静态保持训练 -->
+    <view class="ui-sec">静态保持训练<view class="ui-sec-line"></view></view>
+    <view class="ui-card">
+      <view
+        wx:for="{{staticGames}}"
+        wx:key="id"
+        class="ui-row {{index === staticGames.length - 1 ? 'ui-row-last' : ''}}"
+        data-id="{{item.id}}"
+        data-title="{{item.title}}"
+        bindtap="onGameTap"
+      >
+        <view class="ui-row-icon static">{{item.icon}}</view>
+        <view class="ui-row-main">
+          <view class="ui-row-title">{{item.title}}</view>
+          <view class="ui-row-desc">{{item.desc}}</view>
+        </view>
+        <view class="ui-row-arrow">›</view>
+      </view>
+    </view>
+
+    <!-- 动态训练 -->
+    <view class="ui-sec">动态训练<view class="ui-sec-line"></view></view>
+    <view class="ui-card">
+      <view
+        wx:for="{{dynamicGames}}"
+        wx:key="id"
+        class="ui-row {{index === dynamicGames.length - 1 ? 'ui-row-last' : ''}}"
+        data-id="{{item.id}}"
+        data-title="{{item.title}}"
+        bindtap="onGameTap"
+      >
+        <view class="ui-row-icon dynamic">{{item.icon}}</view>
+        <view class="ui-row-main">
+          <view class="ui-row-title">{{item.title}}</view>
+          <view class="ui-row-desc">{{item.desc}}</view>
+        </view>
+        <view class="ui-row-arrow">›</view>
+      </view>
+    </view>
+
+    <view class="ui-tip">游戏玩法开发中，连接传感器后即可用身体姿态控制游戏。</view>
+
+  </view>
+</scroll-view>

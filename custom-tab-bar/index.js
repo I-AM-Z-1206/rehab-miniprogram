@@ -9,7 +9,7 @@ Component({
     selectedColor: '#0f9c8c',
     list: [
       { pagePath: '/pages/index/index', text: '首页', icon: '🏠' },
-      { pagePath: '/pages/rehab/rehab', text: '康复', icon: '🏅' },
+      { pagePath: '/pages/games/games', text: '游戏', icon: '🎮' },
       { pagePath: '/pages/mine/mine', text: '我的', icon: '👤' }
     ]
   },

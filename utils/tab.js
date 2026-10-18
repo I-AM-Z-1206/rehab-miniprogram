@@ -1,15 +1,12 @@
-// utils/tab.js —— 底部导航选中态同步 + 本地训练数据读取 + 统一页面跳转
+// utils/tab.js —— 底部导航选中态同步 + 统一页面跳转
 // 自定义 tabBar 在 Skyline 下通过回调获取实例，在 WebView 下直接返回实例，这里两种都兼容
 
-const KEY_REHAB_COINS = 'rehab_coins'
-const KEY_REHAB_BEST = 'rehab_best'
-const KEY_REHAB_LOG = 'rehab_log'
 const KEY_NICKNAME = 'mine_nickname'
 
 // 底部 tab 页路径：这些页面不能用 navigateTo，必须走 switchTab
 const TAB_PAGES = [
   '/pages/index/index',
-  '/pages/rehab/rehab',
+  '/pages/games/games',
   '/pages/mine/mine'
 ]
 
@@ -34,35 +31,6 @@ function openPage(url) {
   }
 }
 
-// 读取康复模块落地的本地数据
-function readOverview() {
-  let rehabCoins = 0
-  let best = 0
-  try {
-    rehabCoins = wx.getStorageSync(KEY_REHAB_COINS) || 0
-    best = wx.getStorageSync(KEY_REHAB_BEST) || 0
-  } catch (e) { /* 读取失败按默认值处理 */ }
-  return { rehabCoins, best }
-}
-
-// 追加一条训练记录（保留最近 100 条），供「发送到邮箱」导出
-function pushRehabLog(entry) {
-  try {
-    const list = wx.getStorageSync(KEY_REHAB_LOG) || []
-    list.push(entry)
-    while (list.length > 100) list.shift()
-    wx.setStorageSync(KEY_REHAB_LOG, list)
-  } catch (e) { /* 忽略 */ }
-}
-
-function readRehabLog() {
-  try {
-    return wx.getStorageSync(KEY_REHAB_LOG) || []
-  } catch (e) {
-    return []
-  }
-}
-
 function getNickname() {
   try {
     return wx.getStorageSync(KEY_NICKNAME) || '体验用户'
@@ -80,13 +48,7 @@ function setNickname(name) {
 module.exports = {
   selectTab,
   openPage,
-  readOverview,
-  pushRehabLog,
-  readRehabLog,
   getNickname,
   setNickname,
-  KEY_REHAB_COINS,
-  KEY_REHAB_BEST,
-  KEY_REHAB_LOG,
   KEY_NICKNAME
 }

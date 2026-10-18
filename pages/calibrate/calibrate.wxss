@@ -159,20 +159,9 @@ page {
   color: #0f9c8c;
 }
 
-.cal-bar {
+.cal-progress {
   width: 100%;
-  height: 12rpx;
-  border-radius: 6rpx;
-  background-color: #eef0f3;
   margin: 16rpx 0 12rpx;
-  overflow: hidden;
-}
-
-.cal-bar-in {
-  height: 100%;
-  border-radius: 6rpx;
-  background: linear-gradient(90deg, #0e9484, #19b5a3);
-  transition: width 0.1s linear;
 }
 
 .cal-tip {
@@ -336,6 +325,33 @@ page {
 .chart-box {
   width: 100%;
   height: 360rpx;
+}
+
+/* 姿态实时曲线（Roll / Pitch 并排） */
+.zero-charts {
+  display: flex;
+  flex-direction: row;
+  margin: 8rpx 0 20rpx;
+}
+
+.zero-chart-item {
+  flex: 1;
+  min-width: 0;
+}
+
+.zero-chart-item + .zero-chart-item {
+  margin-left: 16rpx;
+}
+
+.zero-chart-label {
+  font-size: 22rpx;
+  color: #999;
+  margin-bottom: 6rpx;
+}
+
+.chart-box-sm {
+  width: 100%;
+  height: 200rpx;
 }
 
 /* ---------- 说明 ---------- */

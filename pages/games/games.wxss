@@ -1,0 +1,42 @@
+/**games.wxss—— 游戏中心页样式（复用 app.wxss 的 ui- 通用类）**/
+
+/* Skyline 下页面骨架：scroll-view 依赖 page 的 flex 布局撑开高度 */
+page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #f5f6fa;
+}
+
+/* 顶部横幅：游戏主题蓝紫渐变 */
+.game-banner {
+  background: linear-gradient(135deg, #eef0ff 0%, #eaf7f4 100%);
+}
+
+.ui-banner-main {
+  flex: 1;
+}
+
+/* 「5 款」大数字 */
+.banner-count {
+  font-size: 26rpx;
+  color: #7a7f8a;
+  display: flex;
+  align-items: baseline;
+}
+
+.banner-num {
+  font-size: 56rpx;
+  font-weight: 800;
+  color: #2f7bd6;
+  margin-right: 8rpx;
+}
+
+/* 分类图标底色：静态 / 动态区分 */
+.ui-row-icon.static {
+  background-color: #eaf3ff;
+}
+
+.ui-row-icon.dynamic {
+  background-color: #fff2e8;
+}

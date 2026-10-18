@@ -1,4 +1,4 @@
-<!--mine.wxml—— 我的：个人资料 / 数据总览 / 设置-->
+<!--mine.wxml—— 我的：个人资料 / 设置-->
 <navigation-bar title="我的" back="{{false}}" color="black" background="#FFF"></navigation-bar>
 <scroll-view class="ui-scroll" scroll-y type="list">
   <view class="ui-body">
@@ -13,31 +13,6 @@
       <view class="profile-btn" bindtap="onEditNickname">编辑</view>
     </view>
 
-    <!-- 数据总览 -->
-    <view class="ui-stats">
-      <view class="ui-stat">
-        <view class="ui-stat-num">{{rehabCoins}}</view>
-        <view class="ui-stat-label">康复金币</view>
-      </view>
-      <view class="ui-stat">
-        <view class="ui-stat-num">{{best}}</view>
-        <view class="ui-stat-label">最高连击</view>
-      </view>
-    </view>
-
-    <!-- 常用功能 -->
-    <view class="ui-sec">常用功能<view class="ui-sec-line"></view></view>
-    <view class="ui-card">
-      <view class="ui-row ui-row-last" bindtap="goRehab">
-        <view class="ui-row-icon">🏅</view>
-        <view class="ui-row-main">
-          <view class="ui-row-title">康复训练</view>
-          <view class="ui-row-desc">胸佩传感器做左右侧倾训练</view>
-        </view>
-        <view class="ui-row-arrow">›</view>
-      </view>
-    </view>
-
     <!-- 设置 -->
     <view class="ui-sec">设置<view class="ui-sec-line"></view></view>
     <view class="ui-card">
@@ -45,7 +20,7 @@
         <view class="ui-row-icon">🔊</view>
         <view class="ui-row-main">
           <view class="ui-row-title">语音播报</view>
-          <view class="ui-row-desc">蓝牙连接、佩戴设备、康复训练等节点语音提醒</view>
+          <view class="ui-row-desc">蓝牙连接、佩戴设备等节点语音提醒</view>
         </view>
         <switch checked="{{speechOn}}" bindchange="onSpeechChange" color="#0f9c8c" />
       </view>
@@ -57,23 +32,10 @@
         </view>
         <view class="ui-row-arrow">›</view>
       </view>
-      <view class="ui-row" bindtap="onSendEmail">
-        <view class="ui-row-icon">📧</view>
-        <view class="ui-row-main">
-          <view class="ui-row-title">发送训练数据到邮箱</view>
-          <view class="ui-row-desc">金币、连击与每轮训练记录</view>
-        </view>
-        <view class="ui-row-arrow">›</view>
-      </view>
-      <view class="ui-row" bindtap="onEditNickname">
+      <view class="ui-row ui-row-last" bindtap="onEditNickname">
         <view class="ui-row-icon">✏️</view>
         <view class="ui-row-main"><view class="ui-row-title">修改昵称</view></view>
         <view class="ui-row-value">{{nickname}}</view>
-        <view class="ui-row-arrow">›</view>
-      </view>
-      <view class="ui-row ui-row-last" bindtap="onClearRehab">
-        <view class="ui-row-icon">🗑️</view>
-        <view class="ui-row-main"><view class="ui-row-title">清空康复记录</view></view>
         <view class="ui-row-arrow">›</view>
       </view>
     </view>
@@ -94,7 +56,7 @@
       </view>
     </view>
 
-    <view class="ui-tip">训练数据保存在本机，清空后不可恢复。</view>
+    <view class="ui-tip">数据保存在本机。</view>
 
   </view>
 </scroll-view>

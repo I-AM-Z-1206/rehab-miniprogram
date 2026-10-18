@@ -6,8 +6,9 @@ const zero = require('../../utils/zero.js')
 const echarts = require('../../components/ec-canvas/echarts.js')
 
 const CAL_TIME = 5000 // 标定时长（毫秒）：5 秒
-const ZERO_TIME = 1200 // 姿态虚拟零点采样时长（毫秒）
+const ZERO_TIME = 3000 // 姿态虚拟零点采样时长（毫秒）：3 秒，取平均值
 const VIEW_INTERVAL = 100 // 实时数值刷新节流(ms)
+const RT_POINTS = 60 // 实时曲线保留点数（约 6 秒）
 const G = 9.81 // 重力加速度，用于把 g 换算成 m/s² 再做速度积分
 const KEY_ZERO = 'zero_offset'
 
@@ -21,6 +22,7 @@ Page({
     // 标定
     phase: 'idle', // idle / calibrating / done
     remain: 5, // 剩余秒数
+    calBar: 0, // 进度条百分比（在 JS 里算好，避免 wxml 内联表达式告警）
     sampleCount: 0,
 
     // 结果（零点偏置）
@@ -33,6 +35,7 @@ Page({
     zeroPitch: '0.00',
     zeroSet: false,
     zeroCalibrating: false,
+    zeroRemain: 0,
     curRoll: '--',
     curPitch: '--',
     rawRoll: '--',
@@ -41,13 +44,18 @@ Page({
     // 图表（懒加载，标定完成后手动 init）
     ecAx: { lazyLoad: true },
     ecAy: { lazyLoad: true },
-    ecVel: { lazyLoad: true }
+    ecVel: { lazyLoad: true },
+
+    // 姿态实时曲线（懒加载，页面 onReady 初始化）
+    ecRoll: { lazyLoad: true },
+    ecPitch: { lazyLoad: true }
   },
 
   onLoad() {
     this.ble = WitBle.getShared()
     this.zeroSamples = null
     this.lastView = 0
+    this.rtBuf = []
   },
 
   onShow() {
@@ -58,9 +66,16 @@ Page({
     }
   },
 
+  // 视图就绪后再初始化 ECharts，否则 selectComponent 取不到组件
+  onReady() {
+    if (wx.nextTick) wx.nextTick(() => this.initPoseCharts())
+    else setTimeout(() => this.initPoseCharts(), 50)
+  },
+
   onUnload() {
     speaker.stop()
     if (this.calTimer) clearInterval(this.calTimer)
+    if (this.zeroTimer) { clearInterval(this.zeroTimer); this.zeroTimer = null }
     this.zeroSamples = null
     WitBle.detach(this.ble)
   },
@@ -144,6 +159,7 @@ Page({
     this.setData({
       phase: 'calibrating',
       remain: 5,
+      calBar: 0,
       sampleCount: 0,
       axOff: '--',
       ayOff: '--',
@@ -154,7 +170,7 @@ Page({
     this.calTimer = setInterval(() => {
       const elapsed = Date.now() - this.startAt
       const remain = Math.max(0, Math.ceil((CAL_TIME - elapsed) / 1000))
-      this.setData({ remain })
+      this.setData({ remain, calBar: (5 - remain) * 20 })
       if (elapsed >= CAL_TIME) this.finishCalibrate()
     }, 100)
   },
@@ -169,7 +185,7 @@ Page({
     })
   },
 
-  // 重新标定零点：保持佩戴姿势静止 1.2 秒，把当前的 roll / pitch 定义为 0°
+  // 重新标定零点：把手动触发的这一刻起 3 秒内的 roll / pitch 取平均，作为新零点
   onZeroCalibrate() {
     if (!this.ble.connectedId) {
       speaker.speak('请先连接传感器')
@@ -177,15 +193,27 @@ Page({
       return
     }
     if (this.data.zeroCalibrating) return
+
+    const that = this
+    const startAt = Date.now()
+    const total = Math.ceil(ZERO_TIME / 1000)
     this.zeroSamples = []
-    this.setData({ zeroCalibrating: true })
+    this.setData({ zeroCalibrating: true, zeroRemain: total })
     speaker.speak('请保持静止，正在标定零点')
+
+    if (this.zeroTimer) clearInterval(this.zeroTimer)
+    this.zeroTimer = setInterval(() => {
+      const left = Math.max(0, total - Math.floor((Date.now() - startAt) / 1000))
+      if (left !== that.data.zeroRemain) that.setData({ zeroRemain: left })
+    }, 200)
+
     setTimeout(() => {
-      const samples = this.zeroSamples || []
-      this.zeroSamples = null
+      if (that.zeroTimer) { clearInterval(that.zeroTimer); that.zeroTimer = null }
+      const samples = that.zeroSamples || []
+      that.zeroSamples = null
       const z = zero.setFromSamples(samples)
-      this.setData({ zeroCalibrating: false })
-      this.refreshZero()
+      that.setData({ zeroCalibrating: false, zeroRemain: 0 })
+      that.refreshZero()
       if (!z) {
         wx.showToast({ title: '没收到姿态数据', icon: 'none' })
         return
@@ -231,6 +259,7 @@ Page({
           rawRoll: fmt(p.rawRoll),
           rawPitch: fmt(p.rawPitch)
         })
+        this.pushPosePoint(p.roll, p.pitch)
       }
     }
 
@@ -287,6 +316,67 @@ Page({
     }, () => this.renderCharts())
   },
 
+  // ---------- 姿态实时曲线（Roll / Pitch） ----------
+  initPoseCharts() {
+    this.rtBuf = []
+    this.rollChart = null
+    this.pitchChart = null
+    this.initLineChart('ecRoll', 'Roll', '#0f9c8c', 'rgba(15, 156, 140, 0.08)', (c) => { this.rollChart = c })
+    this.initLineChart('ecPitch', 'Pitch', '#2f7bd6', 'rgba(47, 123, 214, 0.08)', (c) => { this.pitchChart = c })
+  },
+
+  initLineChart(ecId, name, color, areaColor, onInit, retry) {
+    const comp = this.selectComponent('#' + ecId)
+    if (!comp) {
+      // 页面刚渲染完时子组件可能还没 ready，最多重试 3 次
+      if ((retry || 0) < 3) {
+        setTimeout(() => {
+          this.initLineChart(ecId, name, color, areaColor, onInit, (retry || 0) + 1)
+        }, 300)
+      } else {
+        console.error('[calibrate] 找不到组件 #' + ecId + '，检查 calibrate.json 是否注册 ec-canvas')
+      }
+      return
+    }
+    console.log('[calibrate] init chart ' + ecId)
+    comp.init((canvas, width, height, dpr) => {
+      console.log('[calibrate] chart ready ' + ecId + ' ' + width + 'x' + height + ' dpr=' + dpr)
+      const chart = echarts.init(canvas, null, {
+        width: width,
+        height: height,
+        devicePixelRatio: dpr
+      })
+      canvas.setChart(chart)
+      chart.setOption(makeRealtimeOption(name, color, areaColor))
+      if (onInit) onInit(chart)
+      return chart
+    })
+  },
+
+  // 实时曲线：只更新 xAxis/data，不重建图表
+  pushPosePoint(roll, pitch) {
+    if (typeof roll !== 'number' && typeof pitch !== 'number') return
+    if (!this.rtBuf) this.rtBuf = []
+    this.rtBuf.push({ t: Date.now(), roll: roll, pitch: pitch })
+    while (this.rtBuf.length > RT_POINTS) this.rtBuf.shift()
+
+    const t0 = this.rtBuf[0].t
+    const times = []
+    const rs = []
+    const ps = []
+    this.rtBuf.forEach((pt) => {
+      times.push(((pt.t - t0) / 1000).toFixed(1))
+      rs.push(typeof pt.roll === 'number' ? Math.round(pt.roll * 10) / 10 : null)
+      ps.push(typeof pt.pitch === 'number' ? Math.round(pt.pitch * 10) / 10 : null)
+    })
+    if (this.rollChart) {
+      this.rollChart.setOption({ xAxis: { data: times }, series: [{ data: rs }] })
+    }
+    if (this.pitchChart) {
+      this.pitchChart.setOption({ xAxis: { data: times }, series: [{ data: ps }] })
+    }
+  },
+
   // ---------- 图表 ----------
   renderCharts() {
     const s = this.samples
@@ -323,6 +413,43 @@ Page({
     })
   }
 })
+
+// 实时曲线 option：无动画、隐藏 x 轴刻度，只保留趋势
+function makeRealtimeOption(name, color, areaColor) {
+  return {
+    animation: false,
+    grid: { left: 6, right: 10, top: 12, bottom: 4, containLabel: true },
+    tooltip: { trigger: 'axis', confine: true, formatter: '{c}°' },
+    xAxis: {
+      type: 'category',
+      data: [],
+      boundaryGap: false,
+      axisLine: { lineStyle: { color: '#e5e7eb' } },
+      axisLabel: { show: false },
+      axisTick: { show: false },
+      splitLine: { show: false }
+    },
+    yAxis: {
+      type: 'value',
+      scale: true,
+      name: '°',
+      nameTextStyle: { color: '#999', fontSize: 10 },
+      axisLine: { show: false },
+      axisLabel: { color: '#999', fontSize: 10 },
+      splitLine: { lineStyle: { color: '#f2f3f5' } }
+    },
+    series: [{
+      name: name,
+      type: 'line',
+      showSymbol: false,
+      smooth: false,
+      data: [],
+      lineStyle: { width: 2, color: color },
+      itemStyle: { color: color },
+      areaStyle: { color: areaColor || 'rgba(15, 156, 140, 0.08)' }
+    }]
+  }
+}
 
 // 生成折线图 option（时间轴 + 一条/多条曲线 + 可选零点参考线）
 function makeLineOption(times, seriesArr, unit, showZeroLine) {

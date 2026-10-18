@@ -117,6 +117,7 @@ Component({
           }
           const canvasNode = res[0].node
           this.canvasNode = canvasNode
+          console.log('[ec-canvas] node ok ' + res[0].width + 'x' + res[0].height + ' (' + this.data.canvasId + ')')
 
           const canvasDpr = (wx.getWindowInfo && wx.getWindowInfo().pixelRatio) || 2
           const canvasWidth = res[0].width

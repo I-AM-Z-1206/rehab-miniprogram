@@ -1,4 +1,4 @@
-<!--index.wxml—— 首页：蓝牙连接（主位）+ 康复训练 + 数据总览-->
+<!--index.wxml—— 首页：蓝牙连接（主位）+ 功能入口-->
 <navigation-bar title="首页" back="{{false}}" color="black" background="#FFF"></navigation-bar>
 <scroll-view class="ui-scroll" scroll-y type="list">
   <view class="ui-body">
@@ -24,16 +24,6 @@
       <view class="cta-state-text">{{bleLinked ? '蓝牙已连接' + (bleLinkedName ? ' · ' + bleLinkedName : '') : '蓝牙未连接'}}</view>
     </view>
 
-    <!-- 康复训练入口 -->
-    <view class="cta" bindtap="goRehab">
-      <view class="cta-icon">🏅</view>
-      <view class="cta-main">
-        <view class="cta-title">开始康复训练</view>
-        <view class="cta-desc">佩戴好后点「标定零点」，向左 / 向右侧倾即可计数</view>
-      </view>
-      <view class="cta-go">进入 ›</view>
-    </view>
-
     <!-- 零点标定入口 -->
     <view class="cta cal" bindtap="goCalibrate">
       <view class="cta-icon">🎯</view>
@@ -44,20 +34,8 @@
       <view class="cta-go">进入 ›</view>
     </view>
 
-    <!-- 数据总览 -->
-    <view class="ui-stats">
-      <view class="ui-stat">
-        <view class="ui-stat-num">{{rehabCoins}}</view>
-        <view class="ui-stat-label">康复金币</view>
-      </view>
-      <view class="ui-stat">
-        <view class="ui-stat-num">{{best}}</view>
-        <view class="ui-stat-label">最高连击</view>
-      </view>
-    </view>
-
     <view class="ui-tip">
-      用法：① 传感器开机（蓝灯快闪）→ ② 点上方「连接蓝牙传感器」→ ③ 把传感器绑在胸前 → ④ 进底部「康复」页训练。连接成功后，不出小程序就不会自动断开。
+      用法：① 传感器开机（蓝灯快闪）→ ② 点上方「连接蓝牙传感器」→ ③ 把传感器绑在胸前即可查看姿态数据。连接成功后，不出小程序就不会自动断开。
     </view>
 
   </view>

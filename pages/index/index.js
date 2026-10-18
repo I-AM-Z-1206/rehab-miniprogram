@@ -1,5 +1,5 @@
-// index.js —— 首页：蓝牙连接（主位）+ 康复训练入口 + 数据总览
-const { selectTab, readOverview, openPage } = require('../../utils/tab.js')
+// index.js —— 首页：蓝牙连接（主位）+ 功能入口
+const { selectTab, openPage } = require('../../utils/tab.js')
 const speaker = require('../../utils/speaker.js')
 const WitBle = require('../../utils/witble.js')
 
@@ -8,15 +8,12 @@ let welcomed = false
 
 Page({
   data: {
-    rehabCoins: 0,
-    best: 0,
     bleLinked: false, // 蓝牙是否已连接（全局单例，任何页面连上都生效）
     bleLinkedName: ''
   },
 
   onShow() {
     selectTab(this, 0)
-    this.loadOverview()
     this.refreshBle()
     if (!welcomed) {
       welcomed = true
@@ -26,10 +23,6 @@ Page({
 
   onUnload() {
     speaker.stop()
-  },
-
-  loadOverview() {
-    this.setData(readOverview())
   },
 
   // 读取全局蓝牙单例状态：一次连上，不退出小程序就一直保持
@@ -52,12 +45,6 @@ Page({
       speaker.speak('请确认传感器已开机，蓝灯快闪后点击扫描设备')
     }
     openPage('/pages/wit/wit')
-  },
-
-  // 康复训练是底部 tab 页，走 switchTab
-  goRehab() {
-    speaker.speak('请佩戴好传感器并连接，即可开始康复训练')
-    openPage('/pages/rehab/rehab')
   },
 
   // 零点标定：独立功能页

@@ -36,7 +36,7 @@ page {
   opacity: 0.9;
 }
 
-/* ---------- 蓝牙连接（主位）/ 康复训练入口 ---------- */
+/* ---------- 蓝牙连接（主位） ---------- */
 .cta {
   display: flex;
   flex-direction: row;
@@ -111,7 +111,7 @@ page {
   background-color: #07c160;
 }
 
-/* 零点标定入口卡（蓝紫主题，区别于康复青绿） */
+/* 零点标定入口卡（蓝紫主题） */
 .cta.cal {
   border-color: #e0e7ff;
   box-shadow: 0 8rpx 24rpx rgba(47, 123, 214, 0.14);

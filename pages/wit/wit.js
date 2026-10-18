@@ -1,6 +1,6 @@
 // wit.js —— 蓝牙传感器连接 / 数据页
-// 重要：本页与「康复」页共用同一个全局蓝牙单例（WitBle.getShared），
-// 任意一页连上后，另一页立刻可用；离开页面只解绑回调，绝不主动断开。
+// 说明：本页使用全局蓝牙单例（WitBle.getShared），
+// 任意页面连上后全局可用；离开页面只解绑回调，绝不主动断开。
 const WitBle = require('../../utils/witble.js')
 const speaker = require('../../utils/speaker.js')
 

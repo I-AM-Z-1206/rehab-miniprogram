@@ -31,7 +31,7 @@
     <!-- 姿态虚拟零点（两个全局变量：zeroRoll / zeroPitch） -->
     <view class="card">
       <view class="card-title">姿态虚拟零点（Roll / Pitch）</view>
-      <view class="cal-desc">在传感器 roll / pitch 上叠加一个固定偏移量，让当前佩戴姿势读数归零。偏移量全局生效，重启小程序仍保留，可随时重新标定。</view>
+      <view class="cal-desc">在传感器 roll / pitch 上叠加一个固定偏移量，让当前佩戴姿势读数归零。点「重新标定零点」后保持静止 3 秒，取这 3 秒的平均值作为零点；偏移量全局生效，重启小程序仍保留，可随时手动重新标定。</view>
 
       <view class="zero-grid">
         <view class="zero-cell">
@@ -48,26 +48,42 @@
         </view>
       </view>
 
+      <!-- Roll / Pitch 实时曲线（ECharts） -->
+      <view class="zero-charts">
+        <view class="zero-chart-item">
+          <view class="zero-chart-label">Roll 实时曲线（°）</view>
+          <view class="chart-box-sm">
+            <ec-canvas id="ecRoll" canvas-id="ecRoll" ec="{{ecRoll}}"></ec-canvas>
+          </view>
+        </view>
+        <view class="zero-chart-item">
+          <view class="zero-chart-label">Pitch 实时曲线（°）</view>
+          <view class="chart-box-sm">
+            <ec-canvas id="ecPitch" canvas-id="ecPitch" ec="{{ecPitch}}"></ec-canvas>
+          </view>
+        </view>
+      </view>
+
       <view class="zero-state {{zeroSet ? 'on' : ''}}">
         <text class="zero-state-dot"></text>
         <text>{{zeroSet ? '零点已标定 · 所有页面共用' : '尚未标定零点 · 当前使用传感器原始角度'}}</text>
       </view>
 
       <view class="btn-row">
-        <view class="cal-btn2 {{status === 'connected' ? '' : 'off'}} {{zeroCalibrating ? 'running' : ''}}" bindtap="onZeroCalibrate">{{zeroCalibrating ? '标定中…' : '重新标定零点'}}</view>
+        <view class="cal-btn2 {{status === 'connected' ? '' : 'off'}} {{zeroCalibrating ? 'running' : ''}}" bindtap="onZeroCalibrate">{{zeroCalibrating ? '标定中 ' + zeroRemain + 's' : '重新标定零点'}}</view>
         <view class="cal-btn2 ghost" bindtap="onZeroClear">清除零点</view>
       </view>
     </view>
 
     <!-- 标定控制卡 -->
     <view class="card">
-      <view class="card-title">加速度零点标定（5 秒采样）</view>
+      <view class="card-title">加速度（5 秒采样）</view>
       <view class="cal-desc">传感器保持静止 5 秒，采集加速度并计算零点偏置，同时绘制加速度与速度曲线。</view>
 
       <!-- 进度 -->
       <view class="cal-status" wx:if="{{phase === 'calibrating'}}">
         <view class="cal-count mono">{{remain}}s</view>
-        <view class="cal-bar"><view class="cal-bar-in" style="width: {{(5 - remain) * 20}}%"></view></view>
+        <progress class="cal-progress" percent="{{calBar}}" stroke-width="6" borderRadius="6" activeColor="#0f9c8c" backgroundColor="#eef0f3" />
         <view class="cal-tip">正在采样，请保持静止…</view>
       </view>
 

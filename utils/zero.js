@@ -10,7 +10,7 @@
 // 因此反复标定不会累加（标定永远基于原始值算偏移）。
 //
 // 持久化：wx 本地存储 wt_zero_v1，重启小程序依然有效，直到下次重新标定或清除。
-// 标定入口：pages/calibrate（零点标定页）与 pages/rehab（康复页「标定零点」按钮）。
+// 标定入口：pages/calibrate（零点标定页）。
 
 const KEY = 'wt_zero_v1'
 const DEF = { roll: 0, pitch: 0, set: false }
