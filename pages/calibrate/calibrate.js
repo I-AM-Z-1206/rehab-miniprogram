@@ -1,9 +1,13 @@
 // calibrate.js —— 零点标定页：静止 5 秒采样加速度，算出零点偏置，并用 ECharts 绘制曲线
+//               另含「姿态虚拟零点」：两个全局偏移量（roll / pitch），点一下即可重新标定
 const WitBle = require('../../utils/witble.js')
 const speaker = require('../../utils/speaker.js')
+const zero = require('../../utils/zero.js')
 const echarts = require('../../components/ec-canvas/echarts.js')
 
 const CAL_TIME = 5000 // 标定时长（毫秒）：5 秒
+const ZERO_TIME = 1200 // 姿态虚拟零点采样时长（毫秒）
+const VIEW_INTERVAL = 100 // 实时数值刷新节流(ms)
 const G = 9.81 // 重力加速度，用于把 g 换算成 m/s² 再做速度积分
 const KEY_ZERO = 'zero_offset'
 
@@ -24,6 +28,16 @@ Page({
     ayOff: '--',
     azOff: '--',
 
+    // 姿态虚拟零点（全局两个变量：zeroRoll / zeroPitch）
+    zeroRoll: '0.00',
+    zeroPitch: '0.00',
+    zeroSet: false,
+    zeroCalibrating: false,
+    curRoll: '--',
+    curPitch: '--',
+    rawRoll: '--',
+    rawPitch: '--',
+
     // 图表（懒加载，标定完成后手动 init）
     ecAx: { lazyLoad: true },
     ecAy: { lazyLoad: true },
@@ -32,10 +46,13 @@ Page({
 
   onLoad() {
     this.ble = WitBle.getShared()
+    this.zeroSamples = null
+    this.lastView = 0
   },
 
   onShow() {
     this.attach()
+    this.refreshZero()
     if (this.ble.connectedId) {
       this.setData({ status: 'connected', statusText: '已连接 · 接收数据中' })
     }
@@ -44,6 +61,7 @@ Page({
   onUnload() {
     speaker.stop()
     if (this.calTimer) clearInterval(this.calTimer)
+    this.zeroSamples = null
     WitBle.detach(this.ble)
   },
 
@@ -141,7 +159,81 @@ Page({
     }, 100)
   },
 
+  // ---------- 姿态虚拟零点（两个全局变量：zeroRoll / zeroPitch） ----------
+  refreshZero() {
+    const z = zero.get()
+    this.setData({
+      zeroRoll: (z.roll >= 0 ? '+' : '') + z.roll.toFixed(2),
+      zeroPitch: (z.pitch >= 0 ? '+' : '') + z.pitch.toFixed(2),
+      zeroSet: !!z.set
+    })
+  },
+
+  // 重新标定零点：保持佩戴姿势静止 1.2 秒，把当前的 roll / pitch 定义为 0°
+  onZeroCalibrate() {
+    if (!this.ble.connectedId) {
+      speaker.speak('请先连接传感器')
+      wx.showToast({ title: '请先连接传感器', icon: 'none' })
+      return
+    }
+    if (this.data.zeroCalibrating) return
+    this.zeroSamples = []
+    this.setData({ zeroCalibrating: true })
+    speaker.speak('请保持静止，正在标定零点')
+    setTimeout(() => {
+      const samples = this.zeroSamples || []
+      this.zeroSamples = null
+      const z = zero.setFromSamples(samples)
+      this.setData({ zeroCalibrating: false })
+      this.refreshZero()
+      if (!z) {
+        wx.showToast({ title: '没收到姿态数据', icon: 'none' })
+        return
+      }
+      wx.showToast({ title: '零点已标定', icon: 'success' })
+      speaker.speak('零点标定完成')
+      wx.vibrateShort({ type: 'medium' })
+    }, ZERO_TIME)
+  },
+
+  // 清除零点：恢复传感器原始角度
+  onZeroClear() {
+    zero.reset()
+    this.refreshZero()
+    wx.showToast({ title: '零点已清除', icon: 'none' })
+    speaker.speak('零点已清除，使用传感器原始角度')
+  },
+
   onData(d) {
+    // 姿态实时值（roll / pitch 已在蓝牙层叠加过全局零点，原始值在 rawRoll / rawPitch）
+    if (typeof d.roll === 'number' || typeof d.rawRoll === 'number') {
+      this.pose = {
+        roll: d.roll,
+        pitch: d.pitch,
+        rawRoll: d.rawRoll,
+        rawPitch: d.rawPitch
+      }
+    }
+    // 虚拟零点采样：用传感器原始角度，多次标定不会互相累加
+    if (this.zeroSamples && (typeof d.rawRoll === 'number' || typeof d.rawPitch === 'number')) {
+      this.zeroSamples.push({ roll: d.rawRoll, pitch: d.rawPitch })
+    }
+
+    const tView = Date.now()
+    if (tView - this.lastView >= VIEW_INTERVAL) {
+      this.lastView = tView
+      const p = this.pose
+      if (p) {
+        const fmt = (v) => (typeof v === 'number' ? v.toFixed(1) : '--')
+        this.setData({
+          curRoll: fmt(p.roll),
+          curPitch: fmt(p.pitch),
+          rawRoll: fmt(p.rawRoll),
+          rawPitch: fmt(p.rawPitch)
+        })
+      }
+    }
+
     if (this.data.phase !== 'calibrating') return
     if (typeof d.ax !== 'number' && typeof d.ay !== 'number') return
 

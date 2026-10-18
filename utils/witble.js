@@ -8,6 +8,9 @@
 const NUS_NOTIFY = '6e400003'
 const NUS_WRITE = '6e400002'
 
+// 全局虚拟零点：所有页面拿到的 roll / pitch 统一在这里叠加零点偏移
+const zero = require('./zero.js')
+
 function s16(lo, hi) {
   let v = (hi << 8) | lo
   if (v >= 0x8000) v -= 0x10000
@@ -240,7 +243,10 @@ class WitBle {
   }
 
   emit(d) {
-    if (this.handlers.onData) this.handlers.onData(d)
+    // 统一叠加全局虚拟零点：d.roll / d.pitch 是「相对零点」的角度，
+    // 传感器原始角度保留在 d.rawRoll / d.rawPitch（重新标定时用，避免反复累加）
+    const frame = zero.apply(d)
+    if (this.handlers.onData) this.handlers.onData(frame)
   }
 
   parseCombo(f) {

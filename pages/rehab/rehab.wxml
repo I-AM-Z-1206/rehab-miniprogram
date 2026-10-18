@@ -79,7 +79,14 @@
           bindtap="onTargetChange"
         >{{item.label}}</view>
       </view>
-      <view class="btn-cal {{status === 'connected' ? '' : 'off'}}" bindtap="onCalibrate">设定基准</view>
+      <view class="btn-cal {{status === 'connected' ? '' : 'off'}}" bindtap="onCalibrate">标定零点</view>
+    </view>
+    <!-- 全局虚拟零点：标定后所有页面的 roll / pitch 都在此偏移量基础上加减 -->
+    <view class="zero-line" bindtap="onCalibrate">
+      <text class="zero-k">全局零点</text>
+      <text class="zero-v">Roll {{zeroRoll}}°</text>
+      <text class="zero-v">Pitch {{zeroPitch}}°</text>
+      <text class="zero-state {{zeroSet ? 'on' : ''}}">{{zeroSet ? '已标定' : '未标定'}}</text>
     </view>
   </view>
 

@@ -29,7 +29,7 @@
       <view class="cta-icon">🏅</view>
       <view class="cta-main">
         <view class="cta-title">开始康复训练</view>
-        <view class="cta-desc">坐直设定基准后，向左 / 向右侧倾即可计数</view>
+        <view class="cta-desc">佩戴好后点「标定零点」，向左 / 向右侧倾即可计数</view>
       </view>
       <view class="cta-go">进入 ›</view>
     </view>
@@ -39,7 +39,7 @@
       <view class="cta-icon">🎯</view>
       <view class="cta-main">
         <view class="cta-title">零点标定</view>
-        <view class="cta-desc">静止 5 秒标定加速度零点，查看 X / Y 与速度曲线</view>
+        <view class="cta-desc">一键标定姿态虚拟零点（Roll / Pitch），并可查看加速度曲线</view>
       </view>
       <view class="cta-go">进入 ›</view>
     </view>

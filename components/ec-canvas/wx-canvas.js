@@ -31,6 +31,16 @@ class WxCanvas {
     // noop
   }
 
+  // zrender 初始化时会把 canvas 当 DOM 元素用，这里补齐最小 DOM 能力，避免
+  // "r.addEventListener is not a function"。触摸事件由 ec-canvas 组件手动 dispatch
+  addEventListener() { /* noop */ }
+  removeEventListener() { /* noop */ }
+  setAttribute() { /* noop */ }
+  removeAttribute() { /* noop */ }
+  getBoundingClientRect() {
+    return { left: 0, top: 0, right: this.width, bottom: this.height, width: this.width, height: this.height }
+  }
+
   _initStyle(ctx) {
     const styles = ['fillStyle', 'strokeStyle', 'globalAlpha',
       'textAlign', 'textBaseAlign', 'shadow', 'lineWidth',

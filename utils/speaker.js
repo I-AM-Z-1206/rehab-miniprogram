@@ -66,7 +66,7 @@ function setEnabled(on) {
 function stop() {
   if (!audio) return
   try {
-    audio.stop()
+    audio.pause() // 用 pause 而非 stop：对未播放实例 stop 会报 access denied
     audio.destroy()
   } catch (e) { /* 忽略 */ }
   audio = null
@@ -75,6 +75,11 @@ function stop() {
 function release(ctx) {
   if (audio === ctx) audio = null
   try { ctx.destroy() } catch (e) { /* 忽略 */ }
+}
+
+// src 刚赋值就 play，真机会报 operateAudio fail，必须等 onCanplay
+function safePlay(ctx) {
+  try { ctx.play() } catch (e) { /* 忽略 */ }
 }
 
 function playUrl(url, fallbackText) {
@@ -87,13 +92,13 @@ function playUrl(url, fallbackText) {
   }
   const ctx = wx.createInnerAudioContext()
   audio = ctx
-  ctx.src = url
+  ctx.onCanplay(() => { if (audio === ctx) safePlay(ctx) })
   ctx.onEnded(() => release(ctx))
   ctx.onError(() => {
     release(ctx)
     if (fallbackText) speakByPlugin(fallbackText)
   })
-  ctx.play()
+  ctx.src = url
 }
 
 // 播放本地语音包：mp3 找不到再试 wav，都没有才回落插件
@@ -117,13 +122,13 @@ function playLocal(file, fallbackText) {
     }
     const ctx = wx.createInnerAudioContext()
     audio = ctx
-    ctx.src = url
+    ctx.onCanplay(() => { if (audio === ctx) safePlay(ctx) })
     ctx.onEnded(() => release(ctx))
     ctx.onError(() => {
       release(ctx)
       tryNext()
     })
-    ctx.play()
+    ctx.src = url
   }
   tryNext()
 }

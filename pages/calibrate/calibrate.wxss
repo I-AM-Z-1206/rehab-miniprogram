@@ -200,6 +200,106 @@ page {
   color: #6b4a00;
 }
 
+/* ---------- 姿态虚拟零点 ---------- */
+.zero-grid {
+  display: flex;
+  flex-direction: row;
+  padding: 6rpx 0 18rpx;
+}
+
+.zero-cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.zero-label {
+  font-size: 20rpx;
+  color: #9aa0a6;
+  margin-bottom: 8rpx;
+  text-align: center;
+}
+
+.zero-val {
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #333;
+  white-space: nowrap;
+}
+
+.zero-val.accent {
+  color: #0f9c8c;
+}
+
+.zero-state {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 12rpx 20rpx;
+  border-radius: 14rpx;
+  background-color: #f5f6fa;
+  font-size: 22rpx;
+  color: #9aa0a6;
+  margin-bottom: 20rpx;
+}
+
+.zero-state.on {
+  background-color: #e8f6f4;
+  color: #0f9c8c;
+}
+
+.zero-state-dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 50%;
+  background-color: #c9cdd4;
+  margin-right: 12rpx;
+}
+
+.zero-state.on .zero-state-dot {
+  background-color: #0f9c8c;
+}
+
+.btn-row {
+  display: flex;
+  flex-direction: row;
+}
+
+.cal-btn2 {
+  flex: 1;
+  height: 84rpx;
+  line-height: 84rpx;
+  text-align: center;
+  border-radius: 42rpx;
+  background-color: #0f9c8c;
+  color: #fff;
+  font-size: 28rpx;
+  font-weight: 700;
+  margin-right: 16rpx;
+}
+
+.cal-btn2:last-child {
+  margin-right: 0;
+}
+
+.cal-btn2.off {
+  background-color: #c9cdd4;
+}
+
+.cal-btn2.running {
+  background-color: #ffc34d;
+  color: #6b4a00;
+}
+
+.cal-btn2.ghost {
+  background-color: #f5f6fa;
+  color: #666;
+  font-weight: 600;
+  border: 2rpx solid #e4e6eb;
+  box-sizing: border-box;
+}
+
 /* ---------- 结果 ---------- */
 .val-grid {
   display: flex;

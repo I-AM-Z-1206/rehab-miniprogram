@@ -205,6 +205,12 @@ page {
   font-family: monospace;
 }
 
+.raw-line {
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  color: #a3a9b4;
+}
+
 /* ---------- 传感器状态 ---------- */
 .stat-row {
   display: flex;

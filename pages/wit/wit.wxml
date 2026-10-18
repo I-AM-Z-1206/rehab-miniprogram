@@ -57,12 +57,13 @@
     </view>
 
     <view class="card">
-      <view class="card-title">姿态角（°）Roll / Pitch / Yaw</view>
+      <view class="card-title">姿态角（°）Roll / Pitch / Yaw · 已叠加零点</view>
       <view class="val-grid">
         <view class="val-cell"><view class="val-axis">X</view><view class="val-num mono">{{roll}}</view></view>
         <view class="val-cell"><view class="val-axis">Y</view><view class="val-num mono">{{pitch}}</view></view>
         <view class="val-cell"><view class="val-axis">Z</view><view class="val-num mono">{{yaw}}</view></view>
       </view>
+      <view class="raw-line">传感器原始值：Roll {{rawRoll}}° · Pitch {{rawPitch}}°（可在「零点标定」页重新标定）</view>
     </view>
 
     <!-- 电量 / 温度 -->

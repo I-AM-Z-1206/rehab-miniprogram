@@ -1,9 +1,17 @@
-// rehab.js —— 康复训练：3D 小人姿态跟随 · 胸前佩戴左右侧倾检测
+// rehab.js —— 康复训练：3D 小人姿态跟随 · 左右侧倾检测
 // 特点：Three.js 真 3D 小人、roll/pitch/yaw 三轴实时旋转、航空姿态仪、大字号、全程语音
+//
+// 【佩戴姿态与建系】
+// 正确佩戴时传感器基本水平（roll≈0°、pitch≈0°、yaw 为任意航向基准），
+// 即身体三轴与传感器三轴一一对应：身体侧倾←roll、身体俯仰←pitch、身体偏航←yaw。
+// 每次佩戴的安装角度都有几度偏差，由「全局虚拟零点」统一扣掉：
+// utils/zero.js 的两个全局变量 zeroRoll / zeroPitch 在蓝牙解析层统一叠加，
+// 所有页面共用一份；本页「标定零点」按钮会重新标定它。
 const WitBle = require('../../utils/witble.js')
 const speaker = require('../../utils/speaker.js')
 const { selectTab, pushRehabLog } = require('../../utils/tab.js')
 const man3d = require('../../utils/man3d.js')
+const zero = require('../../utils/zero.js')
 
 const STORE_COINS = 'rehab_coins'
 const STORE_BEST = 'rehab_best'
@@ -67,6 +75,11 @@ Page({
     hudRotate: 0,
     hudShift: 0,
 
+    // 全局虚拟零点（utils/zero.js 的两个变量）
+    zeroRoll: '+0.00',
+    zeroPitch: '+0.00',
+    zeroSet: false,
+
     // 数据
     coins: 0,
     reps: 0,
@@ -79,8 +92,7 @@ Page({
 
   onLoad() {
     this.ble = WitBle.getShared() // 全局单例：跨页面保持连接
-    this.baseRoll = 0
-    this.basePitch = 0
+    this.baseYaw = 0 // 航向基准：只用于让 3D 小人朝向正前方
     this.hasBase = false
     this.lastDir = 'left'
     this.lastView = 0
@@ -95,6 +107,17 @@ Page({
       best = wx.getStorageSync(STORE_BEST) || 0
     } catch (e) { /* 忽略 */ }
     this.setData({ coins, best })
+    this.refreshZero()
+  },
+
+  // 同步全局零点显示（在零点标定页改过零点，回到本页也要刷新）
+  refreshZero() {
+    const z = zero.get()
+    this.setData({
+      zeroRoll: (z.roll >= 0 ? '+' : '') + z.roll.toFixed(2),
+      zeroPitch: (z.pitch >= 0 ? '+' : '') + z.pitch.toFixed(2),
+      zeroSet: !!z.set
+    })
   },
 
   onReady() {
@@ -135,12 +158,13 @@ Page({
   onShow() {
     selectTab(this, 1) // 康复是第 2 个 tab
     this.attachHandlers()
+    this.refreshZero()
     // 回到本页时恢复连接态（连接不会被自动断开）
     if (this.ble.connectedId) {
       this.setData({
         status: 'connected',
         dockText: '已连接 · 传感器',
-        tip: this.hasBase ? this.data.tip : '请佩戴好后点「设定基准」'
+        tip: this.hasBase ? this.data.tip : '请佩戴好后点「标定零点」'
       })
     } else if (!this.hasBase) {
       // 未连接时才提示佩戴，避免训练途中切回页面反复播报
@@ -291,7 +315,7 @@ Page({
     speaker.speak(item ? item.voice : '目标角度已设为二十度')
   },
 
-  // ---------- 标定 ----------
+  // ---------- 标定：重新标定全局虚拟零点 ----------
   onCalibrate() {
     if (!this.ble.connectedId) {
       speaker.speak('请先连接传感器')
@@ -302,7 +326,7 @@ Page({
     if (this.data.phase === 'done') this.setData({ reps: 0, combo: 0 })
     this.calibrating = true
     this.calSamples = []
-    this.setData({ tip: '正在标定，请保持坐直…', tipType: 'normal' })
+    this.setData({ tip: '正在标定零点，请保持坐直…', tipType: 'normal' })
     setTimeout(() => this.finishCalibrate(), BASE_SAMPLES)
   },
 
@@ -313,16 +337,21 @@ Page({
       this.setData({ tip: '没收到数据，请检查连接', tipType: 'warn' })
       return
     }
-    let sumRoll = 0
-    let sumPitch = 0
-    let n = 0
+
+    // 1) 全局虚拟零点：把当前静止姿势的 roll / pitch 定义为 0°（两个变量，全 App 生效）
+    const z = zero.setFromSamples(this.calSamples)
+
+    // 2) 航向基准：只让 3D 小人朝向正前方，不参与倾斜判定
+    let sumYaw = 0
+    let ny = 0
     this.calSamples.forEach((s) => {
-      if (typeof s.roll === 'number') sumRoll += s.roll
-      if (typeof s.pitch === 'number') sumPitch += s.pitch
-      n++
+      if (typeof s.yaw === 'number') {
+        sumYaw += s.yaw
+        ny++
+      }
     })
-    this.baseRoll = n ? sumRoll / n : 0
-    this.basePitch = n ? sumPitch / n : 0
+    this.baseYaw = ny ? sumYaw / ny : 0
+
     this.hasBase = true
     this.lastDir = 'left'
     this.setData({
@@ -332,22 +361,27 @@ Page({
       tip: '请向左侧倾斜身体',
       tipType: 'normal'
     })
+    this.refreshZero()
+    wx.showToast({ title: z ? '零点已标定' : '零点标定失败', icon: z ? 'success' : 'none' })
     speaker.speak('标定完成，请向左侧倾斜身体')
   },
 
   // ---------- 数据帧 ----------
   onFrame(d) {
-    // 标定采样：同时记录 roll 和 pitch，修复原来只记一个轴的 bug
+    // 标定采样：记录「原始」roll / pitch（重新计算零点偏移用，多次标定不累加）与 yaw（小人朝向基准）
     if (this.calibrating) {
-      if (typeof d.roll === 'number' || typeof d.pitch === 'number') {
-        this.calSamples.push({ roll: d.roll, pitch: d.pitch })
+      const rr = typeof d.rawRoll === 'number' ? d.rawRoll : d.roll
+      const rp = typeof d.rawPitch === 'number' ? d.rawPitch : d.pitch
+      if (typeof rr === 'number' || typeof rp === 'number') {
+        this.calSamples.push({ roll: rr, pitch: rp, yaw: d.yaw })
       }
       return
     }
 
     const dirSign = this.data.dirSign
-    const leanRoll = typeof d.roll === 'number' ? wrap180(d.roll - this.baseRoll) * dirSign : 0
-    const leanPitch = typeof d.pitch === 'number' ? wrap180(d.pitch - this.basePitch) * dirSign : 0
+    // d.roll / d.pitch 已在蓝牙解析层叠加过全局虚拟零点，这里直接就是「相对零点」的身体角度
+    const leanRoll = typeof d.roll === 'number' ? wrap180(d.roll) * dirSign : 0
+    const leanPitch = typeof d.pitch === 'number' ? wrap180(d.pitch) * dirSign : 0
 
     // 训练判定使用当前选定轴
     const lean = this.data.axis === 'roll' ? leanRoll : leanPitch

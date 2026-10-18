@@ -293,6 +293,40 @@ page {
   opacity: 0.45;
 }
 
+/* ---------- 全局虚拟零点状态 ---------- */
+.zero-line {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 4rpx 8rpx 10rpx;
+}
+
+.zero-k {
+  font-size: 30rpx;
+  color: #6f7d96;
+  margin-right: 16rpx;
+}
+
+.zero-v {
+  font-size: 30rpx;
+  color: #93a0b8;
+  margin-right: 18rpx;
+}
+
+.zero-state {
+  margin-left: auto;
+  font-size: 26rpx;
+  color: #aeb8cc;
+  padding: 4rpx 16rpx;
+  border-radius: 999rpx;
+  background-color: #18233c;
+}
+
+.zero-state.on {
+  color: #14b8a6;
+  background-color: rgba(20, 184, 166, 0.14);
+}
+
 /* ---------- 底部连接（居中，醒目大按钮） ---------- */
 .dock {
   padding: 12rpx 24rpx 28rpx;
