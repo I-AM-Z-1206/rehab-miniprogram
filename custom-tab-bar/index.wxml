@@ -9,7 +9,7 @@
     bindtap="switchTab"
   >
     <view class="tab-icon-wrap {{selected === index ? 'on' : ''}}">
-      <view class="tab-icon">{{item.icon}}</view>
+      <image class="tab-icon" src="{{selected === index ? item.iconOn : item.icon}}" mode="aspectFit" />
     </view>
     <view class="tab-text {{selected === index ? 'on' : ''}}">{{item.text}}</view>
   </view>

@@ -1,7 +1,6 @@
 {
   "renderer": "webview",
   "usingComponents": {
-    "navigation-bar": "/components/navigation-bar/navigation-bar",
-    "ec-canvas": "/components/ec-canvas/ec-canvas"
+    "navigation-bar": "/components/navigation-bar/navigation-bar"
   }
 }

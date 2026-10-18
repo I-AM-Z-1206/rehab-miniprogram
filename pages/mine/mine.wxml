@@ -5,7 +5,7 @@
 
     <!-- 个人资料 -->
     <view class="profile">
-      <view class="profile-avatar">{{avatar}}</view>
+      <view class="profile-avatar"><image class="ico" style="width:60rpx;height:60rpx" src="/assets/icons/user-round-white.png" mode="aspectFit" /></view>
       <view class="profile-info">
         <view class="profile-name">{{nickname}}</view>
         <view class="profile-sub">{{levelText}}</view>
@@ -17,7 +17,7 @@
     <view class="ui-sec">设置<view class="ui-sec-line"></view></view>
     <view class="ui-card">
       <view class="ui-row">
-        <view class="ui-row-icon">🔊</view>
+        <view class="ui-row-icon"><image class="ico ico-sm" src="/assets/icons/volume-2-teal.png" mode="aspectFit" /></view>
         <view class="ui-row-main">
           <view class="ui-row-title">语音播报</view>
           <view class="ui-row-desc">蓝牙连接、佩戴设备等节点语音提醒</view>
@@ -25,18 +25,18 @@
         <switch checked="{{speechOn}}" bindchange="onSpeechChange" color="#0f9c8c" />
       </view>
       <view class="ui-row" bindtap="onTestVoice">
-        <view class="ui-row-icon">▶️</view>
+        <view class="ui-row-icon"><image class="ico ico-sm" src="/assets/icons/play-teal.png" mode="aspectFit" /></view>
         <view class="ui-row-main">
           <view class="ui-row-title">试听语音播报</view>
           <view class="ui-row-desc">确认手机音量已打开</view>
         </view>
-        <view class="ui-row-arrow">›</view>
+        <image class="ui-row-arrow-ico" src="/assets/icons/chevron-right-light.png" mode="aspectFit" />
       </view>
       <view class="ui-row ui-row-last" bindtap="onEditNickname">
-        <view class="ui-row-icon">✏️</view>
+        <view class="ui-row-icon"><image class="ico ico-sm" src="/assets/icons/pencil-teal.png" mode="aspectFit" /></view>
         <view class="ui-row-main"><view class="ui-row-title">修改昵称</view></view>
         <view class="ui-row-value">{{nickname}}</view>
-        <view class="ui-row-arrow">›</view>
+        <image class="ui-row-arrow-ico" src="/assets/icons/chevron-right-light.png" mode="aspectFit" />
       </view>
     </view>
 
@@ -44,15 +44,15 @@
     <view class="ui-sec">关于<view class="ui-sec-line"></view></view>
     <view class="ui-card">
       <view class="ui-row" bindtap="onGuide">
-        <view class="ui-row-icon">📖</view>
+        <view class="ui-row-icon"><image class="ico ico-sm" src="/assets/icons/book-open-teal.png" mode="aspectFit" /></view>
         <view class="ui-row-main"><view class="ui-row-title">使用说明</view></view>
-        <view class="ui-row-arrow">›</view>
+        <image class="ui-row-arrow-ico" src="/assets/icons/chevron-right-light.png" mode="aspectFit" />
       </view>
       <view class="ui-row ui-row-last" bindtap="onAbout">
-        <view class="ui-row-icon">ℹ️</view>
+        <view class="ui-row-icon"><image class="ico ico-sm" src="/assets/icons/info-teal.png" mode="aspectFit" /></view>
         <view class="ui-row-main"><view class="ui-row-title">关于本程序</view></view>
         <view class="ui-row-value">{{version}}</view>
-        <view class="ui-row-arrow">›</view>
+        <image class="ui-row-arrow-ico" src="/assets/icons/chevron-right-light.png" mode="aspectFit" />
       </view>
     </view>
 

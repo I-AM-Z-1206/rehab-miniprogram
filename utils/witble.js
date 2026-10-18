@@ -8,6 +8,21 @@
 const NUS_NOTIFY = '6e400003'
 const NUS_WRITE = '6e400002'
 
+// 输出频率档位（JY/WT 协议寄存器 0x03）：模块只支持这些离散值
+const OUTPUT_RATE_CODES = { 0.2: 0x01, 0.5: 0x02, 1: 0x03, 2: 0x04, 5: 0x05, 10: 0x06, 20: 0x07, 50: 0x08, 100: 0x09, 200: 0x0a }
+
+function nearestOutputRate(hz) {
+  const list = [0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200]
+  const v = Number(hz) || 100
+  let best = list[0]
+  let diff = Infinity
+  for (let i = 0; i < list.length; i++) {
+    const d = Math.abs(list[i] - v)
+    if (d < diff) { diff = d; best = list[i] }
+  }
+  return best
+}
+
 // 全局虚拟零点：所有页面拿到的 roll / pitch 统一在这里叠加零点偏移
 const zero = require('./zero.js')
 
@@ -29,6 +44,7 @@ class WitBle {
     this.writeScore = 0
     this.buf = []
     this.handlers = {}
+    this.outputRateHz = 0
   }
 
   log(msg) {
@@ -287,6 +303,27 @@ class WitBle {
       fail: (err) => this.log('指令发送失败：' + (err.errMsg || ''))
     })
     return true
+  }
+
+  // ---------- 输出频率（寄存器 0x03） ----------
+  // WT9011DCL / JY901 只支持离散档位：0.2 / 0.5 / 1 / 2 / 5 / 10 / 20 / 50 / 100 / 200 Hz。
+  // 想让游戏拿到 ≥60Hz 的数据，就设到 100Hz，再由引擎按固定 60Hz 采样消费。
+  setOutputRate(hz) {
+    const rate = nearestOutputRate(hz)
+    if (!this.connectedId) {
+      this.log('未连接传感器，跳过输出频率设置')
+      return null
+    }
+    const code = OUTPUT_RATE_CODES[rate]
+    const unlock = [0xff, 0xaa, 0x69, 0x88, 0xb5]
+    const cmd = [0xff, 0xaa, 0x03, code, 0x00]
+    const save = [0xff, 0xaa, 0x00, 0x00, 0x00]
+    this.write(unlock)
+    setTimeout(() => this.write(cmd), 120)
+    setTimeout(() => this.write(save), 260)
+    this.outputRateHz = rate
+    this.log('已请求输出频率 ' + rate + 'Hz（寄存器 0x03=0x0' + code.toString(16) + '）')
+    return rate
   }
 
   parseLegacy(flag, f) {

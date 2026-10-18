@@ -4,7 +4,8 @@
     "pages/games/games",
     "pages/mine/mine",
     "pages/wit/wit",
-    "pages/calibrate/calibrate"
+    "pages/calibrate/calibrate",
+    "pages/shoot/shoot"
   ],
   "tabBar": {
     "custom": true,

@@ -18,8 +18,8 @@ Page({
     packets: 0,
     ax: '0.000', ay: '0.000', az: '0.000', // g
     wx: '0.0', wy: '0.0', wz: '0.0', // °/s
-    roll: '0.0', pitch: '0.0', yaw: '0.0', // °（已叠加全局虚拟零点）
-    rawRoll: '--', rawPitch: '--', // °（传感器原始角度）
+    roll: '0.00', pitch: '0.00', yaw: '0.00', // °（已叠加全局虚拟零点，保留 2 位小数）
+    rawRoll: '--', rawPitch: '--', // °（传感器原始角度，保留 2 位小数）
     battery: '--',
     batVolt: '',
     temp: '--'
@@ -175,11 +175,12 @@ Page({
         wx: pick(l.wx, that.data.wx, 1),
         wy: pick(l.wy, that.data.wy, 1),
         wz: pick(l.wz, that.data.wz, 1),
-        roll: pick(l.roll, that.data.roll, 1),
-        pitch: pick(l.pitch, that.data.pitch, 1),
-        yaw: pick(l.yaw, that.data.yaw, 1),
-        rawRoll: pick(l.rawRoll, that.data.rawRoll, 1),
-        rawPitch: pick(l.rawPitch, that.data.rawPitch, 1),
+        // 姿态角统一保留小数点后 2 位（传感器分辨率约 0.0055°，2 位足够观察细微变化）
+        roll: pick(l.roll, that.data.roll, 2),
+        pitch: pick(l.pitch, that.data.pitch, 2),
+        yaw: pick(l.yaw, that.data.yaw, 2),
+        rawRoll: pick(l.rawRoll, that.data.rawRoll, 2),
+        rawPitch: pick(l.rawPitch, that.data.rawPitch, 2),
         battery: l.battery === undefined ? that.data.battery : String(l.battery),
         batVolt: l.batVolt === undefined ? that.data.batVolt : l.batVolt,
         temp: pick(l.temp, that.data.temp, 1)

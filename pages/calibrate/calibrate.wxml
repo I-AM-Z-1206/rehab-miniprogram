@@ -53,13 +53,13 @@
         <view class="zero-chart-item">
           <view class="zero-chart-label">Roll 实时曲线（°）</view>
           <view class="chart-box-sm">
-            <ec-canvas id="ecRoll" canvas-id="ecRoll" ec="{{ecRoll}}"></ec-canvas>
+            <canvas type="2d" id="chartRoll" class="chart-canvas"></canvas>
           </view>
         </view>
         <view class="zero-chart-item">
           <view class="zero-chart-label">Pitch 实时曲线（°）</view>
           <view class="chart-box-sm">
-            <ec-canvas id="ecPitch" canvas-id="ecPitch" ec="{{ecPitch}}"></ec-canvas>
+            <canvas type="2d" id="chartPitch" class="chart-canvas"></canvas>
           </view>
         </view>
       </view>
@@ -106,17 +106,17 @@
     <!-- 图表 -->
     <view class="card" wx:if="{{phase === 'done'}}">
       <view class="card-title">加速度 X（g）</view>
-      <view class="chart-box"><ec-canvas id="ecAx" canvas-id="ecAx" ec="{{ecAx}}"></ec-canvas></view>
+      <view class="chart-box"><canvas type="2d" id="chartAx" class="chart-canvas"></canvas></view>
     </view>
 
     <view class="card" wx:if="{{phase === 'done'}}">
       <view class="card-title">加速度 Y（g）</view>
-      <view class="chart-box"><ec-canvas id="ecAy" canvas-id="ecAy" ec="{{ecAy}}"></ec-canvas></view>
+      <view class="chart-box"><canvas type="2d" id="chartAy" class="chart-canvas"></canvas></view>
     </view>
 
     <view class="card" wx:if="{{phase === 'done'}}">
       <view class="card-title">标定期速度（m/s）</view>
-      <view class="chart-box"><ec-canvas id="ecVel" canvas-id="ecVel" ec="{{ecVel}}"></ec-canvas></view>
+      <view class="chart-box"><canvas type="2d" id="chartVel" class="chart-canvas"></canvas></view>
     </view>
 
     <view class="help-tip">

@@ -1,9 +1,9 @@
-// calibrate.js —— 零点标定页：静止 5 秒采样加速度，算出零点偏置，并用 ECharts 绘制曲线
+// calibrate.js —— 零点标定页：静止 5 秒采样加速度，算出零点偏置，并用自绘折线图展示曲线
 //               另含「姿态虚拟零点」：两个全局偏移量（roll / pitch），点一下即可重新标定
 const WitBle = require('../../utils/witble.js')
 const speaker = require('../../utils/speaker.js')
 const zero = require('../../utils/zero.js')
-const echarts = require('../../components/ec-canvas/echarts.js')
+const { LineChart } = require('../../utils/lightchart.js')
 
 const CAL_TIME = 5000 // 标定时长（毫秒）：5 秒
 const ZERO_TIME = 3000 // 姿态虚拟零点采样时长（毫秒）：3 秒，取平均值
@@ -39,16 +39,7 @@ Page({
     curRoll: '--',
     curPitch: '--',
     rawRoll: '--',
-    rawPitch: '--',
-
-    // 图表（懒加载，标定完成后手动 init）
-    ecAx: { lazyLoad: true },
-    ecAy: { lazyLoad: true },
-    ecVel: { lazyLoad: true },
-
-    // 姿态实时曲线（懒加载，页面 onReady 初始化）
-    ecRoll: { lazyLoad: true },
-    ecPitch: { lazyLoad: true }
+    rawPitch: '--'
   },
 
   onLoad() {
@@ -66,10 +57,10 @@ Page({
     }
   },
 
-  // 视图就绪后再初始化 ECharts，否则 selectComponent 取不到组件
+  // 视图就绪后再取 canvas 节点（此时宽高才有效）
   onReady() {
-    if (wx.nextTick) wx.nextTick(() => this.initPoseCharts())
-    else setTimeout(() => this.initPoseCharts(), 50)
+    if (wx.nextTick) wx.nextTick(() => this.initRealtimeCharts())
+    else setTimeout(() => this.initRealtimeCharts(), 50)
   },
 
   onUnload() {
@@ -252,7 +243,7 @@ Page({
       this.lastView = tView
       const p = this.pose
       if (p) {
-        const fmt = (v) => (typeof v === 'number' ? v.toFixed(1) : '--')
+        const fmt = (v) => (typeof v === 'number' ? v.toFixed(2) : '--')
         this.setData({
           curRoll: fmt(p.roll),
           curPitch: fmt(p.pitch),
@@ -317,49 +308,64 @@ Page({
   },
 
   // ---------- 姿态实时曲线（Roll / Pitch） ----------
-  initPoseCharts() {
-    this.rtBuf = []
-    this.rollChart = null
-    this.pitchChart = null
-    this.initLineChart('ecRoll', 'Roll', '#0f9c8c', 'rgba(15, 156, 140, 0.08)', (c) => { this.rollChart = c })
-    this.initLineChart('ecPitch', 'Pitch', '#2f7bd6', 'rgba(47, 123, 214, 0.08)', (c) => { this.pitchChart = c })
+  initRealtimeCharts() {
+    this.createChart('chartRoll', {
+      series: [{ color: '#0f9c8c', fill: 'rgba(15, 156, 140, 0.08)' }],
+      unit: '°'
+    }).then((c) => { this.rollChart = c; this.drawRealtime() })
+    this.createChart('chartPitch', {
+      series: [{ color: '#2f7bd6', fill: 'rgba(47, 123, 214, 0.08)' }],
+      unit: '°'
+    }).then((c) => { this.pitchChart = c; this.drawRealtime() })
   },
 
-  initLineChart(ecId, name, color, areaColor, onInit, retry) {
-    const comp = this.selectComponent('#' + ecId)
-    if (!comp) {
-      // 页面刚渲染完时子组件可能还没 ready，最多重试 3 次
-      if ((retry || 0) < 3) {
-        setTimeout(() => {
-          this.initLineChart(ecId, name, color, areaColor, onInit, (retry || 0) + 1)
-        }, 300)
-      } else {
-        console.error('[calibrate] 找不到组件 #' + ecId + '，检查 calibrate.json 是否注册 ec-canvas')
-      }
-      return
-    }
-    console.log('[calibrate] init chart ' + ecId)
-    comp.init((canvas, width, height, dpr) => {
-      console.log('[calibrate] chart ready ' + ecId + ' ' + width + 'x' + height + ' dpr=' + dpr)
-      const chart = echarts.init(canvas, null, {
-        width: width,
-        height: height,
-        devicePixelRatio: dpr
+  /** 取 canvas 节点并创建轻量折线图（节点未就绪时重试） */
+  createChart(id, options, retry) {
+    return new Promise((resolve) => {
+      wx.createSelectorQuery().in(this).select('#' + id).fields({ node: true, size: true }).exec((res) => {
+        const info = res && res[0]
+        if (!info || !info.node) {
+          if ((retry || 0) < 3) {
+            setTimeout(() => {
+              this.createChart(id, options, (retry || 0) + 1).then(resolve)
+            }, 200)
+          } else {
+            console.warn('[calibrate] 找不到画布 #' + id)
+            resolve(null)
+          }
+          return
+        }
+        const chart = new LineChart(info.node, options)
+        chart.setSize(info.width, info.height, this.getDpr())
+        resolve(chart)
       })
-      canvas.setChart(chart)
-      chart.setOption(makeRealtimeOption(name, color, areaColor))
-      if (onInit) onInit(chart)
-      return chart
     })
   },
 
-  // 实时曲线：只更新 xAxis/data，不重建图表
+  getDpr() {
+    try {
+      if (wx.getWindowInfo) return wx.getWindowInfo().pixelRatio || 2
+      return wx.getSystemInfoSync().pixelRatio || 2
+    } catch (e) {
+      return 2
+    }
+  },
+
+  // 实时曲线：缓冲最近 60 点，100ms 节流重绘
   pushPosePoint(roll, pitch) {
     if (typeof roll !== 'number' && typeof pitch !== 'number') return
     if (!this.rtBuf) this.rtBuf = []
     this.rtBuf.push({ t: Date.now(), roll: roll, pitch: pitch })
     while (this.rtBuf.length > RT_POINTS) this.rtBuf.shift()
 
+    const now = Date.now()
+    if (now - (this.lastChartAt || 0) < 100) return
+    this.lastChartAt = now
+    this.drawRealtime()
+  },
+
+  drawRealtime() {
+    if (!this.rtBuf || !this.rtBuf.length) return
     const t0 = this.rtBuf[0].t
     const times = []
     const rs = []
@@ -369,132 +375,35 @@ Page({
       rs.push(typeof pt.roll === 'number' ? Math.round(pt.roll * 10) / 10 : null)
       ps.push(typeof pt.pitch === 'number' ? Math.round(pt.pitch * 10) / 10 : null)
     })
-    if (this.rollChart) {
-      this.rollChart.setOption({ xAxis: { data: times }, series: [{ data: rs }] })
-    }
-    if (this.pitchChart) {
-      this.pitchChart.setOption({ xAxis: { data: times }, series: [{ data: ps }] })
-    }
+    if (this.rollChart) this.rollChart.setData(times, [rs])
+    if (this.pitchChart) this.pitchChart.setData(times, [ps])
   },
 
-  // ---------- 图表 ----------
+  // ---------- 标定结果图表 ----------
   renderCharts() {
-    const s = this.samples
-    const times = s.map(x => Math.round(x.t * 100) / 100)
-    const ax = s.map(x => Math.round(x.ax * 10000) / 10000)
-    const ay = s.map(x => Math.round(x.ay * 10000) / 10000)
-    const vx = s.map(x => Math.round(x.vx * 10000) / 10000)
-    const vy = s.map(x => Math.round(x.vy * 10000) / 10000)
+    const s = this.samples || []
+    if (!s.length) return
+    const times = s.map((x) => Math.round(x.t * 100) / 100)
+    const ax = s.map((x) => Math.round(x.ax * 10000) / 10000)
+    const ay = s.map((x) => Math.round(x.ay * 10000) / 10000)
+    const vx = s.map((x) => Math.round(x.vx * 10000) / 10000)
+    const vy = s.map((x) => Math.round(x.vy * 10000) / 10000)
 
-    this.initChart('ecAx', makeLineOption(times, [
-      { name: '加速度X', data: ax, color: '#0f9c8c' }
-    ], 'g', true))
-    this.initChart('ecAy', makeLineOption(times, [
-      { name: '加速度Y', data: ay, color: '#2f7bd6' }
-    ], 'g', true))
-    this.initChart('ecVel', makeLineOption(times, [
-      { name: '速度X', data: vx, color: '#0f9c8c' },
-      { name: '速度Y', data: vy, color: '#2f7bd6' }
-    ], 'm/s', false))
-  },
+    this.createChart('chartAx', {
+      series: [{ color: '#0f9c8c', fill: 'rgba(15, 156, 140, 0.08)' }],
+      unit: 'g',
+      zeroLine: true
+    }).then((c) => { this.axChart = c; if (c) c.setData(times, [ax]) })
 
-  initChart(ecId, option) {
-    const comp = this.selectComponent('#' + ecId)
-    if (!comp) return
-    comp.init((canvas, width, height, dpr) => {
-      const chart = echarts.init(canvas, null, {
-        width: width,
-        height: height,
-        devicePixelRatio: dpr
-      })
-      canvas.setChart(chart)
-      chart.setOption(option)
-      return chart
-    })
+    this.createChart('chartAy', {
+      series: [{ color: '#2f7bd6', fill: 'rgba(47, 123, 214, 0.08)' }],
+      unit: 'g',
+      zeroLine: true
+    }).then((c) => { this.ayChart = c; if (c) c.setData(times, [ay]) })
+
+    this.createChart('chartVel', {
+      series: [{ color: '#0f9c8c' }, { color: '#2f7bd6' }],
+      unit: 'm/s'
+    }).then((c) => { this.velChart = c; if (c) c.setData(times, [vx, vy]) })
   }
 })
-
-// 实时曲线 option：无动画、隐藏 x 轴刻度，只保留趋势
-function makeRealtimeOption(name, color, areaColor) {
-  return {
-    animation: false,
-    grid: { left: 6, right: 10, top: 12, bottom: 4, containLabel: true },
-    tooltip: { trigger: 'axis', confine: true, formatter: '{c}°' },
-    xAxis: {
-      type: 'category',
-      data: [],
-      boundaryGap: false,
-      axisLine: { lineStyle: { color: '#e5e7eb' } },
-      axisLabel: { show: false },
-      axisTick: { show: false },
-      splitLine: { show: false }
-    },
-    yAxis: {
-      type: 'value',
-      scale: true,
-      name: '°',
-      nameTextStyle: { color: '#999', fontSize: 10 },
-      axisLine: { show: false },
-      axisLabel: { color: '#999', fontSize: 10 },
-      splitLine: { lineStyle: { color: '#f2f3f5' } }
-    },
-    series: [{
-      name: name,
-      type: 'line',
-      showSymbol: false,
-      smooth: false,
-      data: [],
-      lineStyle: { width: 2, color: color },
-      itemStyle: { color: color },
-      areaStyle: { color: areaColor || 'rgba(15, 156, 140, 0.08)' }
-    }]
-  }
-}
-
-// 生成折线图 option（时间轴 + 一条/多条曲线 + 可选零点参考线）
-function makeLineOption(times, seriesArr, unit, showZeroLine) {
-  const series = seriesArr.map(s => ({
-    name: s.name,
-    type: 'line',
-    showSymbol: false,
-    smooth: false,
-    data: s.data,
-    lineStyle: { width: 2, color: s.color },
-    itemStyle: { color: s.color },
-    markLine: showZeroLine ? {
-      silent: true,
-      symbol: 'none',
-      label: { show: false },
-      lineStyle: { color: '#ff6b6b', type: 'dashed', width: 1 },
-      data: [{ yAxis: 0 }]
-    } : undefined
-  }))
-
-  return {
-    animation: false,
-    grid: { left: 10, right: 14, top: 16, bottom: 6, containLabel: true },
-    tooltip: { trigger: 'axis', confine: true },
-    xAxis: {
-      type: 'category',
-      data: times,
-      boundaryGap: false,
-      name: 's',
-      nameLocation: 'end',
-      nameTextStyle: { color: '#999' },
-      axisLine: { lineStyle: { color: '#d5d7dc' } },
-      axisLabel: { color: '#999', fontSize: 10 },
-      axisTick: { show: false },
-      splitLine: { show: false }
-    },
-    yAxis: {
-      type: 'value',
-      scale: true,
-      name: unit,
-      nameTextStyle: { color: '#999' },
-      axisLine: { show: false },
-      axisLabel: { color: '#999', fontSize: 10 },
-      splitLine: { lineStyle: { color: '#eef0f3' } }
-    },
-    series
-  }
-}

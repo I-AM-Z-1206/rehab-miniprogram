@@ -322,6 +322,12 @@ page {
 }
 
 /* ---------- 图表 ---------- */
+.chart-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
 .chart-box {
   width: 100%;
   height: 360rpx;

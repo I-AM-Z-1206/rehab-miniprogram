@@ -20,10 +20,11 @@ page {
 /* ---------- 卡片 / 分区 ---------- */
 .ui-card {
   background-color: #fff;
-  border-radius: 24rpx;
+  border-radius: 28rpx;
   padding: 8rpx 28rpx;
   margin-bottom: 24rpx;
-  box-shadow: 0 6rpx 20rpx rgba(17, 24, 39, 0.05);
+  box-shadow: 0 8rpx 28rpx rgba(15, 40, 70, 0.06);
+  border: 1rpx solid #f0f2f5;
 }
 
 .ui-sec {
@@ -53,7 +54,7 @@ page {
   display: flex;
   flex-direction: row;
   align-items: center;
-  border-radius: 24rpx;
+  border-radius: 28rpx;
   padding: 24rpx 28rpx;
   margin-bottom: 24rpx;
   background: linear-gradient(135deg, #eef6ff 0%, #eaf7f4 100%);
@@ -122,13 +123,13 @@ page {
 .ui-row-icon {
   width: 72rpx;
   height: 72rpx;
-  border-radius: 20rpx;
+  border-radius: 22rpx;
   margin-right: 24rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 36rpx;
   background-color: #eaf6f3;
+  flex-shrink: 0;
 }
 
 .ui-row-main {
@@ -145,12 +146,6 @@ page {
   margin-top: 6rpx;
   font-size: 23rpx;
   color: #8b8f9a;
-}
-
-.ui-row-arrow {
-  margin-left: 12rpx;
-  font-size: 40rpx;
-  color: #c8c9cc;
 }
 
 .ui-row-value {
@@ -233,4 +228,38 @@ page {
   font-size: 23rpx;
   line-height: 1.8;
   color: #9aa0a6;
+}
+
+/* ---------- 线性图标（Lucide，见 assets/icons/CREDITS.md） ---------- */
+.ico {
+  display: block;
+  flex-shrink: 0;
+}
+
+.ico-xs {
+  width: 28rpx;
+  height: 28rpx;
+}
+
+.ico-sm {
+  width: 34rpx;
+  height: 34rpx;
+}
+
+.ico-md {
+  width: 40rpx;
+  height: 40rpx;
+}
+
+.ico-lg {
+  width: 52rpx;
+  height: 52rpx;
+}
+
+/* 列表行右侧箭头（替代文字 ›，更锐利） */
+.ui-row-arrow-ico {
+  width: 32rpx;
+  height: 32rpx;
+  margin-left: 12rpx;
+  flex-shrink: 0;
 }

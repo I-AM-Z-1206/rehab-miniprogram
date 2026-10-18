@@ -24,7 +24,32 @@
   "compileType": "miniprogram",
   "simulatorPluginLibVersion": {},
   "packOptions": {
-    "ignore": [],
+    "ignore": [
+      {
+        "type": "folder",
+        "value": "assets/icons/src"
+      },
+      {
+        "type": "folder",
+        "value": "tools"
+      },
+      {
+        "type": "folder",
+        "value": "docs"
+      },
+      {
+        "type": "file",
+        "value": "assets/icons/CREDITS.md"
+      },
+      {
+        "type": "file",
+        "value": "assets/games/shoot/CREDITS.md"
+      },
+      {
+        "type": "file",
+        "value": "audio/game/CREDITS.md"
+      }
+    ],
     "include": []
   },
   "appid": "wx345984238e3c0176",

@@ -5,7 +5,7 @@
 
     <!-- 顶部横幅 -->
     <view class="ui-banner game-banner">
-      <view class="ui-banner-icon">🎮</view>
+      <view class="ui-banner-icon"><image class="ico ico-md" src="/assets/icons/gamepad-2-teal.png" mode="aspectFit" /></view>
       <view class="ui-banner-main">
         <view class="banner-count"><text class="banner-num">5</text> 款</view>
         <view class="ui-banner-desc">静态保持 3 款 + 动态 2 款 · 佩戴传感器用身体玩游戏</view>
@@ -23,12 +23,12 @@
         data-title="{{item.title}}"
         bindtap="onGameTap"
       >
-        <view class="ui-row-icon static">{{item.icon}}</view>
+        <view class="ui-row-icon static"><image class="ico ico-sm" src="{{item.icon}}" mode="aspectFit" /></view>
         <view class="ui-row-main">
-          <view class="ui-row-title">{{item.title}}</view>
+          <view class="ui-row-title">{{item.title}}<text class="game-ready" wx:if="{{item.ready}}">可训练</text></view>
           <view class="ui-row-desc">{{item.desc}}</view>
         </view>
-        <view class="ui-row-arrow">›</view>
+        <image class="ui-row-arrow-ico" src="/assets/icons/chevron-right-light.png" mode="aspectFit" />
       </view>
     </view>
 
@@ -43,16 +43,16 @@
         data-title="{{item.title}}"
         bindtap="onGameTap"
       >
-        <view class="ui-row-icon dynamic">{{item.icon}}</view>
+        <view class="ui-row-icon dynamic"><image class="ico ico-sm" src="{{item.icon}}" mode="aspectFit" /></view>
         <view class="ui-row-main">
           <view class="ui-row-title">{{item.title}}</view>
           <view class="ui-row-desc">{{item.desc}}</view>
         </view>
-        <view class="ui-row-arrow">›</view>
+        <image class="ui-row-arrow-ico" src="/assets/icons/chevron-right-light.png" mode="aspectFit" />
       </view>
     </view>
 
-    <view class="ui-tip">游戏玩法开发中，连接传感器后即可用身体姿态控制游戏。</view>
+    <view class="ui-tip">射击训练已上线：连接传感器后，用身体左右倾斜瞄准并保持姿态完成训练。其余玩法开发中。</view>
 
   </view>
 </scroll-view>

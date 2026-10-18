@@ -8,7 +8,7 @@ page {
 
 /* ---------- 顶部横幅 ---------- */
 .hero {
-  border-radius: 28rpx;
+  border-radius: 32rpx;
   padding: 36rpx 32rpx;
   margin-bottom: 24rpx;
   color: #fff;
@@ -16,12 +16,25 @@ page {
   box-shadow: 0 12rpx 28rpx rgba(15, 156, 140, 0.22);
 }
 
+.hero-tag-row {
+  display: flex;
+  flex-direction: row;
+}
+
 .hero-tag {
-  display: inline-block;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
   padding: 6rpx 18rpx;
   border-radius: 999rpx;
   font-size: 22rpx;
   background-color: rgba(255, 255, 255, 0.22);
+}
+
+.hero-tag-ico {
+  width: 24rpx;
+  height: 24rpx;
+  margin-right: 8rpx;
 }
 
 .hero-title {
@@ -43,20 +56,26 @@ page {
   align-items: center;
   padding: 32rpx 28rpx;
   margin-bottom: 24rpx;
-  border-radius: 28rpx;
+  border-radius: 32rpx;
   background-color: #ffffff;
-  box-shadow: 0 8rpx 24rpx rgba(7, 193, 96, 0.16);
-  border: 3rpx solid #d6f5e3;
+  box-shadow: 0 10rpx 30rpx rgba(15, 60, 90, 0.08);
+  border: 2rpx solid #eef1f5;
+  transition: transform 0.15s ease;
+}
+
+.cta:active {
+  transform: scale(0.985);
 }
 
 .cta-icon {
   width: 104rpx;
   height: 104rpx;
-  border-radius: 26rpx;
-  text-align: center;
-  line-height: 104rpx;
-  font-size: 52rpx;
+  border-radius: 28rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background-color: #eafaf0;
+  flex-shrink: 0;
 }
 
 .cta-main {

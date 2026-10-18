@@ -70,8 +70,17 @@
     <view class="card">
       <view class="card-title">传感器状态</view>
       <view class="stat-row">
-        <view class="stat-item">🔋 电量：<text class="mono">{{battery}}%</text><text class="bat-volt" wx:if="{{batVolt}}">（{{batVolt}}V）</text></view>
-        <view class="stat-item">🌡️ 温度：<text class="mono">{{temp}}℃</text></view>
+        <view class="stat-item">
+          <image class="stat-ico" src="/assets/icons/battery-gray.png" mode="aspectFit" />
+          <text class="stat-label">电量</text>
+          <text class="mono">{{battery}}%</text>
+          <text class="bat-volt" wx:if="{{batVolt}}">（{{batVolt}}V）</text>
+        </view>
+        <view class="stat-item">
+          <image class="stat-ico" src="/assets/icons/thermometer-gray.png" mode="aspectFit" />
+          <text class="stat-label">温度</text>
+          <text class="mono">{{temp}}℃</text>
+        </view>
       </view>
       <view class="btn-row">
         <view class="btn btn-sub" bindtap="onQueryBattery">读电量</view>
