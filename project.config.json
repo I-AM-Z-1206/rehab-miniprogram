@@ -38,6 +38,14 @@
         "value": "docs"
       },
       {
+        "type": "folder",
+        "value": ".cloudbase"
+      },
+      {
+        "type": "folder",
+        "value": ".workbuddy"
+      },
+      {
         "type": "file",
         "value": "assets/icons/CREDITS.md"
       },
@@ -48,6 +56,10 @@
       {
         "type": "file",
         "value": "audio/game/CREDITS.md"
+      },
+      {
+        "type": "file",
+        "value": "race/README.md"
       }
     ],
     "include": []

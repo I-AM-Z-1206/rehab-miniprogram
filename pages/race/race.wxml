@@ -1,0 +1,22 @@
+<!--race.wxml —— 体感赛车（原生横屏：page.json 的 pageOrientation: landscape）-->
+<view class="page">
+  <canvas
+    type="2d"
+    id="raceCanvas"
+    class="race-canvas"
+    bindtouchstart="onTouchStart"
+    bindtouchmove="onTouchMove"
+    bindtouchend="onTouchEnd"
+    bindtouchcancel="onTouchCancel"
+  ></canvas>
+
+  <!-- 返回：横屏左上角 -->
+  <view class="back-btn" catchtap="onBack">
+    <image class="back-ico" src="/assets/icons/chevron-right-light.png" mode="aspectFit" />
+  </view>
+
+  <!-- 首次进入提示 -->
+  <view class="race-hint" wx:if="{{showHint}}">
+    {{hintText}}
+  </view>
+</view>

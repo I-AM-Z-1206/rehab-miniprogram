@@ -5,7 +5,8 @@
     "pages/mine/mine",
     "pages/wit/wit",
     "pages/calibrate/calibrate",
-    "pages/shoot/shoot"
+    "pages/shoot/shoot",
+    "pages/race/race"
   ],
   "tabBar": {
     "custom": true,

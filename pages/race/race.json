@@ -1,0 +1,7 @@
+{
+  "renderer": "webview",
+  "navigationStyle": "custom",
+  "disableScroll": true,
+  "pageOrientation": "landscape",
+  "usingComponents": {}
+}

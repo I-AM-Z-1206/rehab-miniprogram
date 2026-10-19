@@ -1,0 +1,67 @@
+/*race.wxss —— 原生横屏（pageOrientation: landscape），页面即游戏舞台*/
+page {
+  height: 100%;
+  width: 100%;
+  background-color: #05000f;
+  overflow: hidden;
+}
+
+.page {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #05000f;
+  overflow: hidden;
+}
+
+.race-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* 返回按钮：横屏左上角，避开刘海/胶囊 */
+.back-btn {
+  position: absolute;
+  left: calc(20rpx + env(safe-area-inset-left));
+  top: calc(20rpx + env(safe-area-inset-top));
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(8, 10, 24, 0.55);
+  border: 1rpx solid rgba(120, 200, 255, 0.35);
+  z-index: 10;
+}
+
+.back-btn:active {
+  background-color: rgba(8, 10, 24, 0.85);
+}
+
+.back-ico {
+  width: 34rpx;
+  height: 34rpx;
+  transform: rotate(180deg);
+}
+
+/* 首次进入提示 */
+.race-hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(36rpx + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  padding: 12rpx 30rpx;
+  border-radius: 999rpx;
+  font-size: 24rpx;
+  color: #bff3ff;
+  background-color: rgba(8, 10, 24, 0.72);
+  border: 1rpx solid rgba(120, 200, 255, 0.3);
+  z-index: 10;
+}

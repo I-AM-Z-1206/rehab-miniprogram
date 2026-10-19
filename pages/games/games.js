@@ -13,7 +13,7 @@ Page({
     ],
     // 动态训练：通过主动位移完成挑战
     dynamicGames: [
-      { id: 'racing', icon: '/assets/icons/car-orange.png', title: '赛车', desc: '通过前后左右位移控制车辆' },
+      { id: 'racing', icon: '/assets/icons/car-orange.png', title: '赛车', desc: '前后左右位移驾驶赛车，霓虹赛道', ready: true },
       { id: 'rhythm', icon: '/assets/icons/music-orange.png', title: '节奏训练', desc: '随音乐节奏左右移动接取音符' }
     ]
   },
@@ -24,11 +24,15 @@ Page({
 
   onGameTap(e) {
     const { id, title } = e.currentTarget.dataset
-    if (id === 'shooting') {
+    const routes = {
+      shooting: '/pages/shoot/shoot',
+      racing: '/pages/race/race'
+    }
+    if (routes[id]) {
       wx.navigateTo({
-        url: '/pages/shoot/shoot',
+        url: routes[id],
         fail: (err) => {
-          console.error('navigateTo shoot fail:', err)
+          console.error('navigateTo fail:', id, err)
           wx.showToast({ title: '页面打开失败', icon: 'none' })
         }
       })
