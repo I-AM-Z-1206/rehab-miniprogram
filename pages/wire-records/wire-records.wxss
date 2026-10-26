@@ -1,0 +1,395 @@
+/*wire-records.wxss —— 走钢丝训练记录*/
+
+page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f5f6fa;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  padding: 20rpx 24rpx 60rpx;
+}
+
+/* ---------------- 概览 ---------------- */
+.summary {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 28rpx 0;
+  border-radius: 28rpx;
+  background: linear-gradient(135deg, #eaf6f3 0%, #eef4fb 100%);
+  border: 1rpx solid rgba(15, 156, 140, 0.10);
+  margin-bottom: 18rpx;
+}
+
+.sum-cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.sum-num {
+  font-size: 38rpx;
+  font-weight: 700;
+  color: #13293a;
+}
+
+.sum-num.ok {
+  color: #0a7e72;
+}
+
+.sum-num.warn {
+  color: #e39a32;
+}
+
+.sum-label {
+  margin-top: 6rpx;
+  font-size: 21rpx;
+  color: #8b8f9a;
+}
+
+.sum-line {
+  width: 1rpx;
+  height: 44rpx;
+  background: rgba(19, 41, 58, 0.08);
+}
+
+/* ---------------- 提示条 ---------------- */
+.banner {
+  padding: 20rpx 24rpx;
+  border-radius: 22rpx;
+  background: #fdf6ea;
+  border: 1rpx solid rgba(227, 154, 50, 0.22);
+  margin-bottom: 18rpx;
+}
+
+.banner.ok {
+  background: #eaf7f4;
+  border-color: rgba(15, 156, 140, 0.2);
+}
+
+.banner-title {
+  display: block;
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #9a6414;
+}
+
+.banner.ok .banner-title {
+  color: #0a7e72;
+}
+
+.banner-desc {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 21rpx;
+  line-height: 1.6;
+  color: #9a8a72;
+}
+
+.banner.ok .banner-desc {
+  color: #6b8a86;
+}
+
+/* ---------------- 操作 ---------------- */
+.actions {
+  display: flex;
+  flex-direction: row;
+  margin-bottom: 18rpx;
+}
+
+.act {
+  flex: 1;
+  height: 76rpx;
+  line-height: 76rpx;
+  text-align: center;
+  border-radius: 22rpx;
+  font-size: 25rpx;
+  font-weight: 600;
+  color: #0a7e72;
+  background: #fff;
+  border: 1rpx solid rgba(15, 156, 140, 0.25);
+}
+
+.act:active {
+  background: #eef8f6;
+}
+
+/* ---------------- 空态 ---------------- */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 140rpx 40rpx;
+}
+
+.empty-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #566472;
+}
+
+.empty-desc {
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  color: #9aa0a6;
+  text-align: center;
+}
+
+/* ---------------- 记录卡 ---------------- */
+.card {
+  padding: 8rpx 26rpx 20rpx;
+  margin-bottom: 18rpx;
+  border-radius: 28rpx;
+  background: #fff;
+  border: 1rpx solid #f0f2f5;
+  box-shadow: 0 8rpx 26rpx rgba(15, 40, 70, 0.05);
+}
+
+.row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 22rpx 0 16rpx;
+}
+
+.row-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.row-head {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.row-score {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #13293a;
+}
+
+.row-diff {
+  margin-left: 12rpx;
+  padding: 4rpx 12rpx;
+  font-size: 19rpx;
+  color: #0a7e72;
+  background: #e9f7f4;
+  border-radius: 8rpx;
+}
+
+.row-sim {
+  margin-left: 8rpx;
+  padding: 4rpx 12rpx;
+  font-size: 19rpx;
+  color: #9a6414;
+  background: #fdf2e0;
+  border-radius: 8rpx;
+}
+
+.row-abort {
+  margin-left: 8rpx;
+  padding: 4rpx 12rpx;
+  font-size: 19rpx;
+  color: #b8492f;
+  background: #fdeeeb;
+  border-radius: 8rpx;
+}
+
+.row-time {
+  margin-top: 8rpx;
+  font-size: 21rpx;
+  color: #9aa0a6;
+}
+
+.row-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.state {
+  font-size: 20rpx;
+  color: #8b8f9a;
+}
+
+.state.uploaded {
+  color: #0a7e72;
+}
+
+.state.failed {
+  color: #b8492f;
+}
+
+.state.unconfigured,
+.state.skipped {
+  color: #b08a4a;
+}
+
+.chev {
+  margin-top: 10rpx;
+  font-size: 21rpx;
+  color: #0f9c8c;
+}
+
+/* ---------------- KPI ---------------- */
+.row-kpi {
+  display: flex;
+  flex-direction: row;
+  padding: 14rpx 0 4rpx;
+  border-top: 1rpx solid #f4f6f8;
+}
+
+.kpi {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.kpi-num {
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #2c3e4d;
+}
+
+.kpi-label {
+  margin-top: 4rpx;
+  font-size: 19rpx;
+  color: #a3aab2;
+}
+
+/* ---------------- 详情 ---------------- */
+.detail {
+  margin-top: 12rpx;
+  padding-top: 14rpx;
+  border-top: 1rpx dashed #eef1f4;
+}
+
+.d-row {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  padding: 10rpx 0;
+}
+
+.d-key {
+  font-size: 22rpx;
+  color: #8b95a1;
+}
+
+.d-val {
+  font-size: 22rpx;
+  font-weight: 600;
+  color: #2c3e4d;
+}
+
+.sway {
+  margin-top: 12rpx;
+}
+
+.sway-title {
+  font-size: 21rpx;
+  color: #8b95a1;
+}
+
+.sway-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  height: 120rpx;
+  margin-top: 10rpx;
+}
+
+.sway-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.sway-track {
+  width: 36rpx;
+  height: 84rpx;
+  border-radius: 8rpx;
+  background: #f2f5f7;
+  display: flex;
+  flex-direction: column-reverse;
+  overflow: hidden;
+}
+
+.sway-fill {
+  width: 100%;
+  border-radius: 8rpx;
+  background: linear-gradient(180deg, #43c3af 0%, #0f9c8c 100%);
+}
+
+.sway-label {
+  margin-top: 8rpx;
+  font-size: 17rpx;
+  color: #a3aab2;
+}
+
+.d-note {
+  display: block;
+  margin-top: 14rpx;
+  font-size: 19rpx;
+  line-height: 1.7;
+  color: #b0b6bd;
+}
+
+.d-actions {
+  display: flex;
+  flex-direction: row;
+  margin-top: 16rpx;
+}
+
+.d-btn {
+  flex: 1;
+  height: 68rpx;
+  line-height: 68rpx;
+  margin-right: 12rpx;
+  text-align: center;
+  font-size: 24rpx;
+  font-weight: 600;
+  color: #0a7e72;
+  background: #eef8f6;
+  border-radius: 18rpx;
+}
+
+.d-btn:last-child {
+  margin-right: 0;
+}
+
+.d-btn.danger {
+  color: #b8492f;
+  background: #fdeeeb;
+}
+
+/* ---------------- 底部 ---------------- */
+.clear {
+  margin: 10rpx 0 20rpx;
+  height: 76rpx;
+  line-height: 76rpx;
+  text-align: center;
+  font-size: 24rpx;
+  color: #98a1a9;
+  border-radius: 22rpx;
+  background: #fff;
+  border: 1rpx solid #eef1f4;
+}
+
+.foot {
+  padding: 10rpx 30rpx 40rpx;
+  font-size: 20rpx;
+  line-height: 1.8;
+  color: #b0b6bd;
+  text-align: center;
+}

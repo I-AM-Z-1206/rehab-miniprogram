@@ -73,6 +73,55 @@ function patchScreens(src) {
   return src
 }
 
+/**
+ * src/motion/KalmanFilter.js：把姿态滤波调「跟手」。
+ * 原参数 q=0.02 / r=1.6 的稳态卡尔曼增益只有 ~0.10，等效时间常数 10 个样本，
+ * 50Hz 下换算成约 210ms 的纯滞后，再叠一层 WMA 就到 250ms+——
+ * 患者侧屈后要小半秒车才有反应，这就是「不跟手、不精准」的主因。
+ * 改成 q=0.3 / r=1.0：增益 ~0.30，90% 响应从 330ms 降到约 100ms，
+ * 噪声抑制仍有 ~0.2×（WT9011 角度噪声本身只有 ±0.2° 量级，够用）。
+ */
+function patchFilter(src) {
+  return replaceOnce(
+    src,
+    '    this.kalman = new Kalman1D(0.02, 1.6, initial)\n',
+    [
+      '    // 康复调优：原 0.02 / 1.6 的滞后太大（~210ms @50Hz），改为 0.3 / 1.0',
+      '    this.kalman = new Kalman1D(0.3, 1.0, initial)',
+      ''
+    ].join('\n'),
+    'KalmanFilter 参数'
+  )
+}
+
+/** src/core/Player.js：巡航油门 + 低速也保留转向能力 */
+function patchPlayer(src) {
+  // 转向：原来横向速度正比于 speedPct，起步/慢速时几乎打不动方向
+  src = replaceOnce(
+    src,
+    '    const dx = dt * PHYSICS.steerRate * speedPct\n',
+    [
+      '    // 康复模式：低速也保留一半转向能力，避免「打了方向车不拐」的失控感',
+      '    const steerPct = Math.max(speedPct, 0.5)',
+      '    const dx = dt * PHYSICS.steerRate * steerPct',
+      ''
+    ].join('\n'),
+    'Player 低速转向'
+  )
+  return replaceOnce(
+    src,
+    '    const accel = control.throttle * PHYSICS.accelFactor\n',
+    [
+      '    // 康复模式：油门带基础巡航，患者不倾身也缓慢前进；前倾在此基础上继续加速',
+      '    const _cruise = 0.14',
+      '    const _th = _cruise + (1 - _cruise) * clamp(control.throttle, 0, 1)',
+      '    const accel = _th * PHYSICS.accelFactor',
+      ''
+    ].join('\n'),
+    'Player 基础巡航油门'
+  )
+}
+
 /** src/ui/HUD.js：左上角状态改为体感角度，不显示蓝牙连接信息 */
 function patchHud(src) {
   src = replaceOnce(
@@ -92,12 +141,20 @@ function patchHud(src) {
 }
 
 function patchEngine(src) {
-  return replaceOnce(
+  src = replaceOnce(
     src,
     "'Debug 模式：方向键 / 触摸 模拟躯干位移'",
     "'模拟模式：手指拖动模拟躯干位移'",
     '模拟模式提示'
   )
+  // 开局给一定初速度：车不等患者发力就先滑出去
+  src = replaceOnce(
+    src,
+    '    this.score.start(this.diff)\n    this.obstacles.reset()\n    this.player.reset()\n',
+    '    this.score.start(this.diff)\n    this.obstacles.reset()\n    this.player.reset()\n    this.player.speed = this.diff.maxSpeed * 0.3\n',
+    '开局初速度'
+  )
+  return src
 }
 
 function externalBlePlugin() {
@@ -116,6 +173,14 @@ function externalBlePlugin() {
       }))
       build.onLoad({ filter: /[\\/]core[\\/]GameEngine\.js$/ }, (args) => ({
         contents: patchEngine(fs.readFileSync(args.path, 'utf8')),
+        loader: 'js'
+      }))
+      build.onLoad({ filter: /[\\/]core[\\/]Player\.js$/ }, (args) => ({
+        contents: patchPlayer(fs.readFileSync(args.path, 'utf8')),
+        loader: 'js'
+      }))
+      build.onLoad({ filter: /[\\/]motion[\\/]KalmanFilter\.js$/ }, (args) => ({
+        contents: patchFilter(fs.readFileSync(args.path, 'utf8')),
         loader: 'js'
       }))
     }
@@ -169,6 +234,11 @@ async function main() {
   }
   if (code.indexOf('侧屈 ') < 0) {
     console.error('HUD 改造未生效（找不到「侧屈」）')
+    process.exit(1)
+  }
+  // 滤波器参数：压缩后写成 new Me(.3,1,...)，旧值 .02,1.6 必须消失
+  if (code.indexOf('.02,1.6') >= 0) {
+    console.error('滤波参数未替换（仍是 q=0.02 / r=1.6）')
     process.exit(1)
   }
 

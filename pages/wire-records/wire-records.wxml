@@ -1,0 +1,126 @@
+<!--wire-records.wxml —— 走钢丝训练记录-->
+<navigation-bar title="走钢丝 · 训练记录" back="{{true}}" color="black" background="#FFFFFF"></navigation-bar>
+
+<scroll-view class="body" scroll-y>
+  <!-- 概览 -->
+  <view class="summary">
+    <view class="sum-cell">
+      <text class="sum-num">{{stats.total}}</text>
+      <text class="sum-label">总记录</text>
+    </view>
+    <view class="sum-line"></view>
+    <view class="sum-cell">
+      <text class="sum-num ok">{{stats.uploaded}}</text>
+      <text class="sum-label">已上报</text>
+    </view>
+    <view class="sum-line"></view>
+    <view class="sum-cell">
+      <text class="sum-num warn">{{stats.pending}}</text>
+      <text class="sum-label">待上报</text>
+    </view>
+  </view>
+
+  <!-- 上报状态 -->
+  <view class="banner {{uploadReady ? 'ok' : ''}}">
+    <text class="banner-title">{{uploadReady ? '上报接口已配置' : '上报接口未配置'}}</text>
+    <text class="banner-desc">{{uploadReady ? '记录可逐条或批量发送到训练平台' : '记录只保存在本机，管理员可在训练设置中填写接口地址'}}</text>
+  </view>
+
+  <view class="actions" wx:if="{{list.length}}">
+    <view class="act" bindtap="onUploadAll">批量上报（{{pendingCount}}）</view>
+  </view>
+
+  <!-- 空态 -->
+  <view class="empty" wx:if="{{!list.length}}">
+    <text class="empty-title">还没有训练记录</text>
+    <text class="empty-desc">完成一局走钢丝后，成绩会自动保存在这里</text>
+  </view>
+
+  <!-- 列表 -->
+  <view class="card" wx:for="{{list}}" wx:key="recordId">
+    <view class="row" data-id="{{item.recordId}}" bindtap="onToggle">
+      <view class="row-main">
+        <view class="row-head">
+          <text class="row-score">{{item.score}} 分</text>
+          <text class="row-diff">第 {{item.difficulty}} 档</text>
+          <text class="row-sim" wx:if="{{item.isSim}}">模拟</text>
+          <text class="row-abort" wx:if="{{item.aborted}}">未完成</text>
+        </view>
+        <text class="row-time">{{item.time}} · {{item.duration}}</text>
+      </view>
+      <view class="row-right">
+        <text class="state {{item.state}}">{{item.stateText}}</text>
+        <text class="chev">{{expanded === item.recordId ? '收起' : '详情'}}</text>
+      </view>
+    </view>
+
+    <view class="row-kpi">
+      <view class="kpi">
+        <text class="kpi-num">{{item.distance}}</text>
+        <text class="kpi-label">米</text>
+      </view>
+      <view class="kpi">
+        <text class="kpi-num">{{item.stable}}</text>
+        <text class="kpi-label">稳定秒</text>
+      </view>
+      <view class="kpi">
+        <text class="kpi-num">{{item.offCount}}</text>
+        <text class="kpi-label">偏离</text>
+      </view>
+      <view class="kpi">
+        <text class="kpi-num">{{item.rope}}</text>
+        <text class="kpi-label">保险绳</text>
+      </view>
+      <view class="kpi">
+        <text class="kpi-num">{{item.grade}}</text>
+        <text class="kpi-label">评级</text>
+      </view>
+    </view>
+
+    <!-- 展开详情 -->
+    <view class="detail" wx:if="{{expanded === item.recordId}}">
+      <view class="d-row">
+        <text class="d-key">最高连击</text>
+        <text class="d-val">x{{item.combo}}</text>
+      </view>
+      <view class="d-row">
+        <text class="d-key">轨迹长度（归一化代理）</text>
+        <text class="d-val">{{item.pathLength}}</text>
+      </view>
+      <view class="d-row">
+        <text class="d-key">平均运动速率（代理）</text>
+        <text class="d-val">{{item.avgRate}} /秒</text>
+      </view>
+      <view class="d-row">
+        <text class="d-key">数据中断</text>
+        <text class="d-val">{{item.interrupted}}</text>
+      </view>
+      <view class="d-row">
+        <text class="d-key">数据来源</text>
+        <text class="d-val">{{item.source}}</text>
+      </view>
+
+      <view class="sway" wx:if="{{item.sway.length}}">
+        <text class="sway-title">摆动幅度分布</text>
+        <view class="sway-row">
+          <view class="sway-item" wx:for="{{item.sway}}" wx:key="label" wx:for-item="s">
+            <view class="sway-track">
+              <view class="sway-fill" style="height: {{s.pct}}%"></view>
+            </view>
+            <text class="sway-label">{{s.label}}</text>
+          </view>
+        </view>
+      </view>
+
+      <text class="d-note">轨迹与摆动为姿态代理指标，不是真实位移；成绩仅用于训练对比。</text>
+
+      <view class="d-actions">
+        <view class="d-btn" wx:if="{{item.canUpload && item.state !== 'uploaded'}}" data-id="{{item.recordId}}" bindtap="onUpload">上报</view>
+        <view class="d-btn danger" data-id="{{item.recordId}}" bindtap="onDelete">删除</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="clear" wx:if="{{list.length}}" bindtap="onClearAll">清空本机记录</view>
+  <view class="foot">训练数据属于敏感健康相关信息，仅在你确认后才会发送。</view>
+</scroll-view>

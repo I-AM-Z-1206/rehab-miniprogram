@@ -38,6 +38,8 @@ let viewSize = { width: 844, height: 390 }
 let resizeHandlers = []
 let bleCalls = 0
 
+const store = {}
+
 global.wx = {
   getWindowInfo: () => ({
     windowWidth: viewSize.width,
@@ -50,9 +52,9 @@ global.wx = {
     pixelRatio: 2,
     platform: 'devtools'
   }),
-  getStorageSync: () => null,
-  setStorageSync: () => {},
-  removeStorageSync: () => {},
+  getStorageSync: (k) => (k in store ? store[k] : ''),
+  setStorageSync: (k, v) => { store[k] = v },
+  removeStorageSync: (k) => { delete store[k] },
   vibrateShort: () => {},
   request: () => {},
   showToast: () => {},
@@ -149,12 +151,60 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms))
   // 传感器：走小程序侧单例，游戏不自己连蓝牙
   pass('游戏未自己发起蓝牙连接', bleCalls === 0, 'bleCalls=' + bleCalls)
   pass('页面已接管传感器 handlers', !!(pageObj.wit && pageObj.wit.handlers.onData))
-  pageObj.wit.handlers.onData({ roll: 12, pitch: 4, yaw: 0, ax: 0, ay: 0, az: 1 })
+  let injected = null
+  const rawInject = engine.ble.injectSample.bind(engine.ble)
+  engine.ble.injectSample = (sample) => { injected = sample; rawInject(sample) }
+  pageObj.wit.handlers.onData({ roll: 12, pitch: 4, yaw: 0, ax: 0.1, ay: 0.2, az: 1, wx: 5, wy: 6, wz: 7 })
   const motion = engine.motion
   pass('样本已注入引擎（轴已按佩戴方式对调）',
     Math.abs(motion.raw.roll - 4) < 1e-6 && Math.abs(motion.raw.pitch - 12) < 1e-6,
     'roll=' + motion.raw.roll + ' pitch=' + motion.raw.pitch)
   pass('姿态被标记为已连接', motion.connected === true)
+  pass('只注入角度（不带加速度/角速度）',
+    !!injected && !!injected.angle && injected.gyro === undefined && injected.accel === undefined,
+    JSON.stringify(injected))
+
+  // 康复参数：小角度就该有明显响应
+  const mp = engine.motion.params
+  pass('灵敏度已调到康复档',
+    mp.maxAngle === 10 && mp.deadZone === 1.5 && mp.smoothing === 0.18 && mp.assist === 0,
+    'maxAngle=' + mp.maxAngle + ' deadZone=' + mp.deadZone + ' smoothing=' + mp.smoothing + ' assist=' + mp.assist)
+  pass('左右已反转', mp.invertRoll === true)
+  pass('不设刹车（后倾只减速到巡航）', mp.brakeAngle > 90, 'brakeAngle=' + mp.brakeAngle)
+  const seeded = JSON.parse(store['nrr_therapist_params_v1'] || '{}')
+  pass('参数已落盘给治疗师面板复用',
+    seeded.maxAngle === 10 && seeded.invertRoll === true)
+
+  // 延迟：阶跃输入后转向要多久跟上（滤波链条太慢 = 实机「不跟手」）
+  {
+    const m = engine.motion
+    m.rollFilter.reset(0)
+    m.pitchFilter.reset(0)
+    m.neutral = { roll: 0, pitch: 0 }
+    engine.ble.injectSample({ angle: { roll: 0, pitch: 0, yaw: 0 } })
+    for (let i = 0; i < 40; i++) m.update(1 / 60)   // 先稳到 0
+
+    engine.ble.injectSample({ angle: { roll: 8, pitch: 0, yaw: 0 } })
+    // 8° 侧屈的理论满舵量：sign * (8-1.5)/(10-1.5) * 1.1，再乘 -1（invertRoll）
+    const goal = (8 - 1.5) / (10 - 1.5) * 1.1
+    let t90 = -1
+    for (let i = 1; i <= 60; i++) {
+      m.update(1 / 60)
+      if (t90 < 0 && Math.abs(m.control.steer) >= goal * 0.9) t90 = i / 60 * 1000
+    }
+    pass('侧屈后转向响应 <160ms（改前约 330ms）',
+      t90 > 0 && t90 < 160, 't90=' + (t90 < 0 ? '未达到' : Math.round(t90) + 'ms'))
+    pass('满舵幅度与角度换算一致',
+      Math.abs(Math.abs(m.control.steer) - goal) < 0.02,
+      'steer=' + m.control.steer.toFixed(3) + ' 期望≈' + (-goal).toFixed(3))
+  }
+
+  // 50Hz：连上之后要设一次输出频率
+  let rateCalled = 0
+  pageObj.wit.setOutputRate = (hz) => { rateCalled = hz; return hz }
+  pageObj.wit.connectedId = 'stub-device'
+  pageObj.wit.handlers.onReady()
+  pass('传感器输出频率设为 50Hz', rateCalled === 50, 'hz=' + rateCalled)
 
   // 断开：引擎状态回落
   pageObj.wit.handlers.onDisconnected()
@@ -174,14 +224,20 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 
   // 切后台 / 回前台（先进入对局，验证会自动暂停）
   engine.setState('play')
+  engine.audio.master = { gain: { value: 0.35 } }
+  engine.audio.bgmTimer = setInterval(() => {}, 20)
   pageObj.onHide()
+  pass('切后台停掉 BGM', engine.audio.bgmTimer === null)
+  pass('切后台音量归零', engine.audio.master.gain.value === 0)
   pass('切后台停帧并暂停', pageObj.raf === 0 && engine.state === 'pause')
   pageObj.onShow()
   await wait(60)
   pass('回前台恢复循环', pageObj.raf !== 0)
 
+  engine.audio.bgmTimer = setInterval(() => {}, 20)
   const handlersBefore = resizeHandlers.length
   pageObj.onUnload()
+  pass('卸载后音频彻底静音', engine.audio.bgmTimer === null && engine.audio.master.gain.value === 0)
   pass('卸载后清空引用', pageObj.engine === null && pageObj.raf === 0)
   pass('卸载后解绑旋转监听', resizeHandlers.length === handlersBefore - 1,
     handlersBefore + ' → ' + resizeHandlers.length)
@@ -189,6 +245,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms))
   const bundle = require('fs').readFileSync(path.join(__dirname, '..', 'race', 'engine.js'), 'utf8')
   pass('引擎产物无蓝牙入口文案', bundle.indexOf('连接 WT9011 传感器') < 0)
   pass('引擎产物 HUD 已换成体感角度', bundle.indexOf('侧屈 ') >= 0)
+  pass('引擎产物已注入开局初速度', bundle.indexOf('this.diff.maxSpeed*.3') >= 0)
 
   console.log('\n' + (bad ? '存在 ' + bad + ' 项失败' : '全部通过'))
   process.exit(bad ? 1 : 0)

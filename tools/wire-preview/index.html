@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>走钢丝 · 画面预览</title>
+<style>
+  :root {
+    --ink: #13293a;
+    --ink-soft: #4a6072;
+    --mute: #7c8fa0;
+    --teal: #0f9c8c;
+    --card: #ffffff;
+    --bg: #eef2f5;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    min-height: 100%;
+    font-family: "PingFang SC", "Helvetica Neue", "Microsoft YaHei", Arial, sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(1200px 600px at 15% -10%, #e6f4f9 0%, rgba(230,244,249,0) 60%),
+      radial-gradient(900px 500px at 90% 0%, #eefaf6 0%, rgba(238,250,246,0) 55%),
+      #eef2f5;
+  }
+  .wrap {
+    display: flex;
+    gap: 28px;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 28px 24px 40px;
+    flex-wrap: wrap;
+  }
+  .phone {
+    position: relative;
+    padding: 10px;
+    border-radius: 42px;
+    background: linear-gradient(160deg, #1b2d3c 0%, #0e1c28 100%);
+    box-shadow: 0 30px 70px rgba(13, 35, 51, 0.32), 0 6px 14px rgba(13, 35, 51, 0.18);
+  }
+  .screen {
+    position: relative;
+    width: 390px;
+    height: 844px;
+    border-radius: 34px;
+    overflow: hidden;
+    background: #cfe1dd;
+  }
+  #stage { display: block; }
+  .notch {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 108px;
+    height: 22px;
+    border-radius: 12px;
+    background: #0e1c28;
+    opacity: .9;
+    pointer-events: none;
+  }
+  .panel {
+    width: 340px;
+    padding: 24px 22px 26px;
+    border-radius: 24px;
+    background: var(--card);
+    border: 1px solid #e7edf1;
+    box-shadow: 0 18px 40px rgba(15, 40, 70, 0.08);
+  }
+  h1 {
+    margin: 0 0 4px;
+    font-size: 18px;
+    letter-spacing: .5px;
+  }
+  .sub {
+    margin: 0 0 18px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--mute);
+  }
+  .group { margin-bottom: 16px; }
+  .label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .6px;
+    text-transform: uppercase;
+    color: var(--mute);
+  }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  button {
+    flex: 1 1 auto;
+    min-width: 92px;
+    padding: 10px 12px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink);
+    background: #f4f7f9;
+    border: 1px solid #e5ecf0;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: transform .12s ease, background .12s ease;
+  }
+  button:hover { background: #eaf4f2; border-color: #cfe6e1; }
+  button:active { transform: scale(.97); }
+  button.primary {
+    color: #fff;
+    background: linear-gradient(135deg, #25b7a3, #0a8b7e);
+    border-color: transparent;
+    box-shadow: 0 8px 18px rgba(15, 156, 140, .25);
+  }
+  button.warn { color: #8a5a16; background: #fdf4e6; border-color: #f2e2c6; }
+  .slider { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .slider span:first-child { width: 42px; font-size: 12px; color: var(--ink-soft); }
+  .slider output { width: 42px; text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--teal); font-weight: 700; }
+  input[type=range] { flex: 1; accent-color: var(--teal); }
+  .status {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: #f7fafb;
+    border: 1px dashed #dde8ec;
+    font-size: 12px;
+    color: var(--ink-soft);
+  }
+  .status b { color: var(--teal); }
+  .foot {
+    margin-top: 14px;
+    font-size: 11px;
+    line-height: 1.7;
+    color: #9aa6b2;
+  }
+  @media (max-width: 820px) {
+    .wrap { padding: 16px; }
+    .panel { width: 390px; }
+    .phone { transform: scale(.92); transform-origin: top center; }
+  }
+
+  /* ?bare=1 —— 只留 390×844 的游戏画面，便于 headless 截图逐像素核对 */
+  body.bare { background: #cfe1dd; }
+  body.bare .wrap { padding: 0; gap: 0; display: block; }
+  body.bare .panel, body.bare .notch { display: none !important; }
+  body.bare .phone {
+    padding: 0; border-radius: 0; background: none; box-shadow: none; transform: none;
+  }
+  body.bare .screen { border-radius: 0; width: 390px; height: 844px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="phone">
+    <div class="screen">
+      <canvas id="stage" width="780" height="1688"></canvas>
+      <div class="notch"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h1>走钢丝 · 画面预览</h1>
+    <p class="sub">这里跑的是小程序里同一套 <code>games/wire</code> 渲染与引擎代码，只是把 <code>wx</code> 换成浏览器桩。用于检查透视、角色动作、HUD 与保险绳表现。</p>
+
+    <div class="group">
+      <span class="label">界面</span>
+      <div class="row">
+        <button id="btn-intro">介绍页</button>
+        <button id="btn-prepare">设备准备</button>
+        <button id="btn-play" class="primary">开始游戏</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button id="btn-pause">暂停 / 继续</button>
+        <button id="btn-result">结束结算</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <span class="label">模拟身体偏移</span>
+      <div class="slider">
+        <span>左右</span>
+        <input id="sim-x" type="range" min="-1" max="1" step="0.02" value="0" />
+        <output id="sim-x-val">0.00</output>
+      </div>
+      <div class="slider">
+        <span>前后</span>
+        <input id="sim-y" type="range" min="-1" max="1" step="0.02" value="0" />
+        <output id="sim-y-val">0.00</output>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button id="btn-center">回中</button>
+        <button id="btn-rope" class="warn">拉到边界（看保险绳）</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <span class="label">运行状态</span>
+      <div class="status">
+        <div>当前界面：<b id="state">介绍页</b></div>
+        <div id="live">—</div>
+      </div>
+    </div>
+
+    <p class="foot">
+      提示：直接在画布上点击也能操作（按钮热区由渲染层注册）。<br />
+      预览页只用于看效果，训练记录、蓝牙、语音在真机上验证。
+    </p>
+  </div>
+</div>
+
+<script>
+  // ?bare=1：去掉手机外框与右侧面板，只留游戏画面
+  if (/[?&]bare=1/.test(location.search)) document.body.classList.add('bare')
+</script>
+<script src="./bundle.js"></script>
+</body>
+</html>

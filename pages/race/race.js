@@ -28,6 +28,27 @@ const HINT_MS = 2600
 // （射击页实测确认过）。赛车引擎约定 roll=转向、pitch=油门，
 // 因此注入前把两轴对调；若你的佩戴方式相反，把它改成 false。
 const SWAP_AXES = true
+
+// 传感器输出频率（WT9011 只支持离散档位，50 是其中之一；越高越跟手，但功耗/丢包也高）
+const SENSOR_HZ = 50
+
+// 康复姿态参数：脑卒中患者活动范围小、稳定性差，这里整体调「小角度就有明显响应」。
+// 数值会覆盖引擎默认值（引擎自己的治疗师面板仍可在此基础上继续微调）。
+// 引擎自身的治疗师参数存储键（与 D:/Desktop/sc/src/utils/Storage.js 保持一致）
+const ENGINE_PARAM_KEY = 'nrr_therapist_params_v1'
+// 种子标记：改了 MOTION_TUNE 就把它升个版本，才会重新写入
+const ENGINE_SEED_KEY = 'race_motion_seed_v2'
+
+const MOTION_TUNE = {
+  maxAngle: 10,        // 打满方向盘所需侧屈角度：默认 20° → 10°
+  deadZone: 1.5,       // 死区：默认 3.5° → 1.5°（别把有效动作当抖动吃掉，也不至于被呼吸带得乱晃）
+  brakeAngle: 999,     // 康复期不设刹车：后倾只是把油门收回，车仍有巡航速度，不会停死
+  smoothing: 0.18,     // 滤波：默认 0.35 → 0.18（越小越跟手，延迟更低）
+  assist: 0,           // 回正辅助关掉：它会削弱小幅度输入，影响精度
+  rollSensitivity: 1.1,
+  pitchSensitivity: 1.1,
+  invertRoll: true     // 实机左右颠倒 → 反转转向轴
+}
 // 油门方向：引擎里 pitch 正 = 加速、负 = 刹车。若实机「前倾反而减速」，
 // 把这里改成 true 即可（只翻转油门，不影响转向）。
 const INVERT_THROTTLE = false
@@ -47,6 +68,8 @@ Page({
     this.retryTimers = []
     this.wit = WitBle.getShared()
     this.sensorReady = false
+    this.rateSet = false
+    this.motionSeeded = this.seedMotionParams()
     this.bindResize()
   },
 
@@ -57,6 +80,7 @@ Page({
   onShow() {
     // 从后台回来/从别的页面返回时恢复循环
     if (this.engine && !this.raf) this.startLoop()
+    this.unmuteAudio()
     // 别的页面可能重设过 handlers，回来时重新接管
     if (this.engine) this.attachSensor()
   },
@@ -64,6 +88,7 @@ Page({
   onHide() {
     // 切后台：停帧循环，对局中则暂停，避免体感数据继续累积
     this.stopLoop()
+    this.muteAudio()
     if (this.engine && this.engine.state === 'play') {
       try { this.engine.setState('pause') } catch (e) { /* 忽略 */ }
     }
@@ -71,6 +96,7 @@ Page({
 
   onUnload() {
     this.stopLoop()
+    this.muteAudio(true)
     this.unbindResize()
     if (this.hintTimer) clearTimeout(this.hintTimer)
     this.hintTimer = null
@@ -129,6 +155,7 @@ Page({
       const engine = new GameEngine(this.canvas)
       this.engine = engine
       this.fit(info.width, info.height, dpr)
+      this.applyMotionTune()
       this.startLoop()
       this.attachSensor()
       setTimeout(() => this.noticeSensor(), 500)
@@ -233,6 +260,41 @@ Page({
     return Math.min(info.pixelRatio || 2, MAX_DPR)
   },
 
+  // ---------------------------------------------------------------- 音频
+  /**
+   * 静音：引擎的 BGM 是 setInterval 调度的合成音，页面卸载时不会自己停，
+   * 不显式处理就会出现「退出后音乐还在响」。
+   */
+  muteAudio(close) {
+    const a = this.engine && this.engine.audio
+    if (!a) return
+    try { a.stopBgm() } catch (e) { /* 忽略 */ }
+    try { if (a.master) a.master.gain.value = 0 } catch (e) { /* 忽略 */ }
+    try { if (a.ctx && a.ctx.suspend) a.ctx.suspend() } catch (e) { /* 忽略 */ }
+    try {
+      const srcs = a.sources || {}
+      Object.keys(srcs).forEach((k) => {
+        const s = srcs[k]
+        if (s && s.stop) s.stop()
+        if (close && s && s.destroy) s.destroy()
+      })
+    } catch (e) { /* 忽略 */ }
+    // 页面卸载：直接把 WebAudio 上下文关掉，彻底没有残留声音
+    if (close) {
+      try { if (a.ctx && a.ctx.close) a.ctx.close() } catch (e) { /* 忽略 */ }
+    }
+  },
+
+  unmuteAudio() {
+    const a = this.engine && this.engine.audio
+    if (!a) return
+    try { if (a.ctx && a.ctx.resume) a.ctx.resume() } catch (e) { /* 忽略 */ }
+    try { if (a.master) a.master.gain.value = a.enabled === false ? 0 : 0.35 } catch (e) { /* 忽略 */ }
+    try {
+      if (this.engine.state === 'play' && a.musicEnabled) a.startBgm()
+    } catch (e) { /* 忽略 */ }
+  },
+
   // ---------------------------------------------------------------- 传感器
   /**
    * 接管小程序蓝牙数据。WitBle 是全页面共享的单例，handlers 只有一个对象，
@@ -243,7 +305,10 @@ Page({
     if (!this.wit) return
     this.wit.handlers = {
       onData: (d) => that.feedSensor(d),
-      onReady: () => { that.sensorReady = true },
+      onReady: () => {
+        that.sensorReady = true
+        that.ensureRate()
+      },
       onDisconnected: () => {
         that.sensorReady = false
         if (that.engine && that.engine.ble) that.engine.ble.state = 'idle'
@@ -253,6 +318,46 @@ Page({
     }
     this.sensorReady = !!this.wit.connectedId
     if (this.sensorReady && this.engine && this.engine.ble) this.engine.ble.state = 'connected'
+    this.ensureRate()
+  },
+
+  /** 把传感器输出频率设成 50Hz（只设一次；未连接时等 onReady 再设） */
+  ensureRate() {
+    if (this.rateSet || !this.wit || !this.wit.connectedId) return
+    this.rateSet = true
+    const hz = this.wit.setOutputRate(SENSOR_HZ)
+    if (hz) console.log('[race] 传感器输出频率已设为 ' + hz + 'Hz')
+  },
+
+  /**
+   * 把康复参数写进引擎自己的治疗师存储（只写一次）。
+   * 写进存储而不是每次强行覆盖，是因为治疗师在游戏内面板调过之后
+   * 会存进同一个键，下次进来应当以他调的为准。
+   */
+  seedMotionParams() {
+    try {
+      if (wx.getStorageSync(ENGINE_SEED_KEY)) return true
+      let cur = wx.getStorageSync(ENGINE_PARAM_KEY)
+      if (typeof cur === 'string') {
+        try { cur = JSON.parse(cur) } catch (e) { cur = null }
+      }
+      if (!cur || typeof cur !== 'object') cur = {}
+      const merged = Object.assign({}, cur, MOTION_TUNE)
+      wx.setStorageSync(ENGINE_PARAM_KEY, JSON.stringify(merged))
+      wx.setStorageSync(ENGINE_SEED_KEY, 1)
+      // 校验真的落盘了（个别环境 setStorageSync 静默失败）
+      return !!wx.getStorageSync(ENGINE_SEED_KEY)
+    } catch (e) {
+      return false
+    }
+  },
+
+  /** 存储不可用时的兜底：直接覆盖引擎内存参数，保证本局灵敏度到位 */
+  applyMotionTune() {
+    const engine = this.engine
+    if (!engine || !engine.motion || !engine.motion.params) return
+    if (this.motionSeeded) return
+    Object.assign(engine.motion.params, MOTION_TUNE)
   },
 
   detachSensor() {
@@ -283,14 +388,10 @@ Page({
     let throttle = SWAP_AXES ? roll : pitch     // 引擎 pitch = 油门
     if (INVERT_THROTTLE) throttle = -throttle
 
+    // 只取 roll / pitch（yaw 留 0），加速度、角速度、磁场一律不参与，
+    // 少一层对象创建也少一点每帧开销
     engine.ble.injectSample({
-      angle: {
-        roll: steer,
-        pitch: throttle,
-        yaw: typeof d.yaw === 'number' ? d.yaw : 0
-      },
-      gyro: { x: d.wx || 0, y: d.wy || 0, z: d.wz || 0 },
-      accel: { x: d.ax || 0, y: d.ay || 0, z: typeof d.az === 'number' ? d.az : 1 }
+      angle: { roll: steer, pitch: throttle, yaw: 0 }
     })
   },
 

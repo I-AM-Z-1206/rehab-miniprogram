@@ -4,7 +4,7 @@
 
 小游戏与小程序运行时不同，不能直接 `require game.js`，这里做了三件事：
 
-1. **esbuild 打包**：`src/**` → 单文件 CommonJS `race/engine.js`（约 82KB）
+1. **esbuild 打包**：`src/**` → 单文件 CommonJS `race/engine.js`（约 78KB）
 2. **画布替换**：页面 `<canvas type="2d">` 节点替代 `wx.createCanvas()`
 3. **输入桥接**：页面 touch → `engine.onPointerDown/Move/Up`，坐标直接交给 `engine.toDesign()`
 
@@ -17,6 +17,17 @@ npm i esbuild
 node tools/build_race.js            # 默认读 D:/Desktop/sc
 SC_DIR=/path/to/sc node tools/build_race.js
 ```
+
+esbuild 不在项目里时，可以装到托管工作区再用 `NODE_PATH` 指过去：
+
+```bash
+npm --prefix ~/.workbuddy/binaries/node/workspace i esbuild
+NODE_PATH=~/.workbuddy/binaries/node/workspace/node_modules node tools/build_race.js
+```
+
+打包时会做这些「产物改造」（源码工程保持原样）：去掉 BLE 菜单与状态文案、
+HUD 换成 `侧屈 ±X°`、回调滤波参数、注入巡航油门/初速度/低速转向。
+全部用字符串精确匹配，源码结构一变就报错，不会悄悄失效；产物出厂前还会自检。
 
 ## 传感器：不用游戏自带的蓝牙
 
@@ -35,16 +46,37 @@ this.wit = WitBle.getShared()
 this.wit.handlers = { onData: (d) => this.feedSensor(d), ... }
 
 feedSensor(d) {
+  // 只取 roll / pitch（yaw 固定 0），加速度、角速度、磁场一概不参与
   engine.ble.injectSample({
-    angle: { roll, pitch, yaw },   // roll/pitch 已由 utils/zero.js 扣过零点
-    gyro: { x: d.wx, y: d.wy, z: d.wz },
-    accel: { x: d.ax, y: d.ay, z: d.az }
+    angle: { roll: steer, pitch: throttle, yaw: 0 }
   })
 }
 ```
 
+> `d.roll / d.pitch` 已在 `utils/witble.js` 里扣过全局零点（`utils/zero.js`），
+> 与引擎内部 `neutral = {roll:0, pitch:0}` 口径一致，进游戏不需要再标定一次。
+> 之所以不再传 gyro/accel：引擎这两个值只用于 HUD 的抖动评估，本项目用不到，
+> 少构造两个对象也少一点每帧开销。
+
 `injectSample()` → `_commit()` → `emit('sample')` → `MotionController.onSample()`，
 和游戏自己收蓝牙时的路径完全一致，所以滤波、标定、治疗师面板参数都照旧生效。
+
+### 滤波：为什么改了卡尔曼参数
+
+`src/motion/KalmanFilter.js` 原参数 `q = 0.02 / r = 1.6`，稳态卡尔曼增益只有 **~0.10**，
+等效时间常数约 10 个样本——50Hz 下就是 **210ms 纯滞后**，再叠一层 WMA 到 **250ms+**。
+患者侧屈完要小半秒车才有反应，这是实机「不跟手 / 不精准」的主因。
+
+打包时改成 `q = 0.3 / r = 1.0`（增益 ~0.30）：
+
+| | 63% | 90% | 95% |
+| --- | --- | --- | --- |
+| 改前 | 133ms | 333ms | 433ms |
+| 改后 | **50ms** | **117ms** | **130ms** |
+
+（`tools/race_page_test.js` 里有阶跃响应断言，超过 160ms 会失败。）
+噪声抑制仍有 ~0.2×，而 WT9011 角度噪声本身只有 ±0.2° 量级，画面上看不出抖动。
+觉得还不够跟手就继续调大 `q`（0.6 → 约 83ms），觉得画面发抖就调小。
 
 ### 轴映射（SWAP_AXES）
 
@@ -54,6 +86,58 @@ feedSensor(d) {
 ```js
 const SWAP_AXES = true   // 佩戴方向相反时改成 false
 ```
+
+### 康复参数（`MOTION_TUNE`）
+
+脑卒中患者活动范围小，默认档位「要很大角度才有反应」，所以页面进来自动覆盖：
+
+| 参数 | 默认 | 本项目 | 说明 |
+| --- | --- | --- | --- |
+| `maxAngle` | 20° | **10°** | 侧屈 10° 即打满方向 |
+| `deadZone` | 3.5° | **1.5°** | 死区，别把有效动作当抖动过滤掉 |
+| `brakeAngle` | 8° | **999** | 康复期不设刹车，后倾只是收油门，车不会停死 |
+| `smoothing` | 0.35 | **0.18** | 滤波更跟手（WMA 窗口 5 个样本） |
+| `assist` | 0.18 | **0** | 回正辅助会削弱小幅输入，康复期直接关掉 |
+| `rollSensitivity` | 1 | **1.1** | 转向略放大 |
+| `pitchSensitivity` | 1 | **1.1** | 油门略放大 |
+| `invertRoll` | false | **true** | 实机左右颠倒，翻转转向 |
+
+写入方式：**一次性种子**（`seedMotionParams()`）写进引擎自己的
+`nrr_therapist_params_v1`，之后治疗师在游戏内面板调的值会正常保存、不被覆盖。
+改了 `MOTION_TUNE` 记得把 `race_motion_seed_v2` 升个版本才会重新播种
+（v1 是 20°/3.5° 那版，升到 v2 是为了让已经装过老版本的手机重新写一次）。
+
+### 油门方向
+
+引擎里 `pitch > 0 = 加速`。若实机「身体前倾反而减速」，把 `race.js` 顶部的
+`INVERT_THROTTLE` 改成 `true`（只翻转油门，不影响转向）。
+
+### 车速：巡航 + 初速度
+
+- `Player.update` 的油门改成 `0.14 + 0.86 × throttle`（打包时注入）：
+  不倾身也有基础油门，稳态约 **1/3 最高速**；前倾在此基础上继续加速。
+- `startSession` 里开局给 `maxSpeed × 0.3` 初速度，车不等患者发力就先滑出去。
+- 侧向位移改成 `dx = dt × steerRate × max(speedPct, 0.5)`：原来正比于 `speedPct`，
+  起步/慢速时几乎打不动方向，是「左右倾斜没用」的另一个隐藏原因。
+
+### 退出时静音
+
+引擎的 BGM 是 `setInterval` 调度的合成音，页面卸载不会自己停，
+实机表现就是**退出赛车页音乐还在响**。`race.js` 显式处理：
+
+| 时机 | 处理 |
+| --- | --- |
+| `onHide` | `stopBgm()` + `master.gain = 0` + `ctx.suspend()` |
+| `onShow` | `ctx.resume()` + `master.gain = 0.35`，对局中则 `startBgm()` |
+| `onUnload` | 上面全部 + 停掉所有 source + `ctx.close()` |
+
+`engine.js` 是单例产物的普通 require，音频上下文不会因为页面销毁而自动回收，
+所以 `onUnload` 必须 `close()`，否则返回上一页还能听到残留音。
+
+### 输出频率
+
+进页面时把传感器输出频率设成 **50Hz**（`wit.setOutputRate(50)`，只设一次，
+未连接则等 `onReady` 再设）。WT9011 只支持离散档位，50 兼顾跟手与稳定。
 
 ### 页面切换
 

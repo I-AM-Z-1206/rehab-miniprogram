@@ -8,7 +8,7 @@ Page({
     // 静态保持训练：保持身体姿态在目标范围内
     staticGames: [
       { id: 'shooting', icon: '/assets/icons/target-blue.png', title: '射击', desc: '保持身体在目标范围内瞄准得分', ready: true },
-      { id: 'wire', icon: '/assets/icons/waves-blue.png', title: '走钢丝', desc: '动态平衡，保险绳容错' },
+      { id: 'wire', icon: '/assets/icons/waves-blue.png', title: '走钢丝', desc: '动态平衡，保险绳容错', ready: true },
       { id: 'fruit', icon: '/assets/icons/apple-blue.png', title: '接水果', desc: '保持自身位置于有效范围内接取水果' }
     ],
     // 动态训练：通过主动位移完成挑战
@@ -26,7 +26,8 @@ Page({
     const { id, title } = e.currentTarget.dataset
     const routes = {
       shooting: '/pages/shoot/shoot',
-      racing: '/pages/race/race'
+      racing: '/pages/race/race',
+      wire: '/pages/wire/wire'
     }
     if (routes[id]) {
       wx.navigateTo({

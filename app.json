@@ -6,7 +6,10 @@
     "pages/wit/wit",
     "pages/calibrate/calibrate",
     "pages/shoot/shoot",
-    "pages/race/race"
+    "pages/race/race",
+    "pages/wire/wire",
+    "pages/wire-settings/wire-settings",
+    "pages/wire-records/wire-records"
   ],
   "tabBar": {
     "custom": true,
