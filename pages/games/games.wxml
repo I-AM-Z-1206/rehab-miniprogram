@@ -1,4 +1,4 @@
-<!--games.wxml—— 游戏中心：5 款体感游戏入口（静态保持 3 款 + 动态 2 款）-->
+<!--games.wxml—— 游戏中心：5 款体感游戏入口（静态保持 2 款 + 动态 3 款）-->
 <navigation-bar title="游戏" back="{{false}}" color="black" background="#FFF"></navigation-bar>
 <scroll-view class="ui-scroll" scroll-y type="list">
   <view class="ui-body">
@@ -8,7 +8,7 @@
       <view class="ui-banner-icon"><image class="ico ico-md" src="/assets/icons/gamepad-2-teal.png" mode="aspectFit" /></view>
       <view class="ui-banner-main">
         <view class="banner-count"><text class="banner-num">5</text> 款</view>
-        <view class="ui-banner-desc">静态保持 3 款 + 动态 2 款 · 佩戴传感器用身体玩游戏</view>
+        <view class="ui-banner-desc">静态保持 2 款 + 动态 3 款 · 佩戴传感器用身体玩游戏</view>
       </view>
     </view>
 
@@ -52,7 +52,7 @@
       </view>
     </view>
 
-    <view class="ui-tip">射击训练与走钢丝已上线：连接传感器后，用身体左右偏移控制角色，保持平衡完成训练。其余玩法开发中。</view>
+    <view class="ui-tip">射击、走钢丝、接水果、节奏训练已上线：连接传感器后，用身体动作控制游戏，完成训练目标。赛车可继续体验。</view>
 
   </view>
 </scroll-view>

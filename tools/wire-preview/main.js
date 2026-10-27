@@ -6,8 +6,8 @@ import { installWx } from './wx-stub.js'
 installWx()
 
 const { getStore } = require('../../utils/wire-config.js')
-const { WireEngine } = require('../../games/wire/engine.js')
-const { WireRenderer } = require('../../games/wire/renderer.js')
+const { WireEngine } = require('../../pkgWire/games/wire/engine.js')
+const { WireRenderer } = require('../../pkgWire/games/wire/renderer.js')
 
 const params = new URLSearchParams(window.location.search)
 const CSS_W = Math.max(280, Number(params.get('w')) || 390)

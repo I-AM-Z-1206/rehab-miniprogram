@@ -1,0 +1,18 @@
+<!--rhythm.wxml —— 节奏训练：整页 Canvas 渲染（场景 / HUD / 按钮 / 面板都在画布里）-->
+<view class="wrap">
+  <canvas
+    type="2d"
+    id="rhythmCanvas"
+    class="cv"
+    disable-scroll="true"
+    bindtouchstart="onTouchStart"
+    bindtouchend="onTouchEnd"
+    bindtouchcancel="onTouchCancel"
+  ></canvas>
+
+  <!-- 首帧兜底：画布初始化完成前显示，避免白屏 -->
+  <view class="boot" wx:if="{{!canvasReady}}">
+    <view class="boot-dot"></view>
+    <text class="boot-text">正在准备节拍…</text>
+  </view>
+</view>

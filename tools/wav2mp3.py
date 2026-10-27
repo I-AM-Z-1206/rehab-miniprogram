@@ -79,14 +79,24 @@ def convert(path):
 def main():
     here = os.path.dirname(os.path.abspath(__file__))
     audio_dir = os.path.join(os.path.dirname(here), 'audio')
-    files = sorted(glob.glob(os.path.join(audio_dir, '*.wav')))
+    # 默认转换：语音包（audio/*.wav）+ 游戏音效（audio/game/sfx/*.wav）
+    # 注意：audio/rhythm/*.wav 不在这里转 —— 它们由 ffmpeg 单独转成
+    #       audio/rhythm/*.m4a（AAC 64kbps 单声道）后再加进打包忽略列表，
+    #       原因和代价见 utils/rhythm-songs.js 顶部注释。原始 wav 保留在仓库。
+    targets = [
+        os.path.join(audio_dir, '*.wav'),
+        os.path.join(audio_dir, 'game', 'sfx', '*.wav'),
+    ]
+    files = []
+    for pattern in targets:
+        files.extend(sorted(glob.glob(pattern)))
     if not files:
-        print('audio 目录下没有 wav 文件')
+        print('没有需要转换的 wav 文件')
         return
 
     ok = 0
     for path in files:
-        name = os.path.basename(path)
+        name = os.path.relpath(path, audio_dir)
         try:
             convert(path)
             ok += 1

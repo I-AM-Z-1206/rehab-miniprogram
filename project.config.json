@@ -59,7 +59,39 @@
       },
       {
         "type": "file",
-        "value": "race/README.md"
+        "value": "pkgRace/race/README.md"
+      },
+      {
+        "type": "file",
+        "value": "pkgRhythm/audio/rhythm/slow_wave.wav"
+      },
+      {
+        "type": "file",
+        "value": "pkgRhythm/audio/rhythm/dawn_walk.wav"
+      },
+      {
+        "type": "file",
+        "value": "pkgRhythm/audio/rhythm/heart_pulse.wav"
+      },
+      {
+        "type": "folder",
+        "value": "node_modules"
+      },
+      {
+        "type": "folder",
+        "value": ".github"
+      },
+      {
+        "type": "file",
+        "value": "package.json"
+      },
+      {
+        "type": "file",
+        "value": "package-lock.json"
+      },
+      {
+        "type": "folder",
+        "value": ".git"
       }
     ],
     "include": []

@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>左右节奏训练 · 画面预览</title>
+<style>
+  :root {
+    --ink: #eaf2ff;
+    --mute: #93a3c4;
+    --cyan: #35e6ff;
+    --card: #121735;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; min-height: 100%;
+    font-family: "PingFang SC", "Helvetica Neue", "Microsoft YaHei", Arial, sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(1100px 620px at 12% -12%, #1a1550 0%, rgba(20,16,64,0) 62%),
+      radial-gradient(900px 520px at 92% 4%, #0d2a44 0%, rgba(13,42,68,0) 58%),
+      #06070f;
+  }
+  .wrap {
+    display: flex; gap: 28px; align-items: flex-start; justify-content: center;
+    padding: 28px 24px 40px; flex-wrap: wrap;
+  }
+  .phone {
+    position: relative; padding: 10px; border-radius: 42px;
+    background: linear-gradient(160deg, #1c2350 0%, #0a0d1e 100%);
+    box-shadow: 0 30px 70px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(120,150,255,0.16) inset;
+  }
+  .screen {
+    position: relative; width: 390px; height: 844px;
+    border-radius: 34px; overflow: hidden; background: #05060f;
+  }
+  #stage { display: block; }
+  .notch {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    width: 108px; height: 22px; border-radius: 12px;
+    background: #05060f; opacity: .9; pointer-events: none;
+  }
+  .panel {
+    width: 342px; padding: 24px 22px 26px; border-radius: 24px;
+    background: var(--card); border: 1px solid rgba(120,150,255,0.2);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.4);
+  }
+  h1 { margin: 0 0 4px; font-size: 17px; letter-spacing: .4px; }
+  .sub { margin: 0 0 18px; font-size: 12px; line-height: 1.7; color: var(--mute); }
+  .sub code { background: rgba(53,230,255,0.12); color: #b7f2ff; padding: 1px 5px; border-radius: 5px; }
+  .group { margin-bottom: 16px; }
+  .label {
+    display: block; margin-bottom: 8px; font-size: 10px; font-weight: 700;
+    letter-spacing: .8px; text-transform: uppercase; color: var(--mute);
+  }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  button {
+    flex: 1 1 auto; min-width: 84px; padding: 10px 12px;
+    font-size: 12.5px; font-weight: 600; color: var(--ink);
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(140,170,255,0.24);
+    border-radius: 10px; cursor: pointer; transition: .15s;
+  }
+  button:hover { background: rgba(53,230,255,0.14); border-color: rgba(53,230,255,0.55); }
+  .state {
+    margin-top: 14px; padding: 10px 12px; border-radius: 10px;
+    background: rgba(53,230,255,0.08); font-size: 12px; color: #b7f2ff;
+  }
+  .live { margin-top: 6px; font-size: 11px; color: var(--mute); line-height: 1.6; }
+  input[type=range] { width: 100%; accent-color: #35e6ff; }
+
+  /* 截图模式：只留画面 */
+  body.bare { overflow: hidden; }
+  body.bare .wrap { padding: 0; gap: 0; display: block; }
+  body.bare .panel { display: none; }
+  body.bare .phone { padding: 0; border-radius: 0; background: transparent; box-shadow: none; }
+  body.bare .screen { border-radius: 0; }
+  body.bare .notch { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="phone">
+    <div class="screen">
+      <canvas id="stage"></canvas>
+      <div class="notch"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h1>左右节奏训练 · 画面预览</h1>
+    <p class="sub">
+      这一页直接跑 <code>games/rhythm/renderer.js</code> 与 <code>engine.js</code>，
+      不是另画的示意图。参数：<code>?screen=intro|prepare|calib|play|combo|pause|sensor|result</code>、
+      <code>&amp;bare=1</code>、<code>&amp;freeze=1</code>、<code>&amp;w=</code>、<code>&amp;h=</code>。
+      浏览器里没有音频输出，时钟是虚拟的（可视化验证用）。
+    </p>
+
+    <div class="group">
+      <span class="label">界面</span>
+      <div class="row">
+        <button id="btn-intro">介绍</button>
+        <button id="btn-prepare">准备</button>
+        <button id="btn-play">开始</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <span class="label">流程</span>
+      <div class="row">
+        <button id="btn-fast">快进 4 秒</button>
+        <button id="btn-pause">暂停/继续</button>
+        <button id="btn-sensor">断线</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button id="btn-result">结算</button>
+        <button id="btn-freeze">定格</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <span class="label">身体位置（模拟）</span>
+      <input id="sim-x" type="range" min="-1" max="1" step="0.05" value="0" />
+      <div class="live">当前控制量：<span id="sim-x-val">0.00</span></div>
+    </div>
+
+    <div class="state" id="state">-</div>
+    <div class="live" id="live">-</div>
+  </div>
+</div>
+<script src="./bundle.js"></script>
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!--shoot-settings.wxml —— 射击训练：治疗师训练参数（从游戏页拆出来的独立页面）-->
+<navigation-bar title="射击训练 · 训练参数" back="{{true}}" color="black" background="#FFFFFF"></navigation-bar>
+
+<scroll-view class="body" scroll-y>
+  <!-- 摘要 -->
+  <view class="hero">
+    <view class="hero-left">
+      <text class="hero-kicker">当前难度</text>
+      <text class="hero-title">{{difficultyLabel}}</text>
+      <text class="hero-desc">改动立即生效，回到游戏页接着用</text>
+    </view>
+    <view class="hero-badge">得分系数 x{{scoreMul}}</view>
+  </view>
+
+  <!-- 一眼看到的三个数 -->
+  <view class="card">
+    <view class="card-head">
+      <text class="card-title">本局概要</text>
+      <text class="card-sub">随时可改</text>
+    </view>
+    <view class="kv-row">
+      <view class="kv">
+        <text class="kv-num">{{durationText}}</text>
+        <text class="kv-label">训练时长</text>
+      </view>
+      <view class="kv">
+        <text class="kv-num">{{baseScoreText}}</text>
+        <text class="kv-label">每秒基础分</text>
+      </view>
+      <view class="kv">
+        <text class="kv-num">{{rangeText}}</text>
+        <text class="kv-label">单次得分</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 难度 -->
+  <view class="card">
+    <view class="card-head">
+      <text class="card-title">难度档位</text>
+      <text class="card-sub">套用推荐值</text>
+    </view>
+    <view class="presets">
+      <view
+        wx:for="{{difficulties}}"
+        wx:key="key"
+        class="preset {{item.active ? 'active' : ''}}"
+        data-key="{{item.key}}"
+        bindtap="onDifficultyTap"
+      >
+        <text class="preset-lv">{{item.label}}</text>
+        <text class="preset-name">x{{item.mul}}</text>
+      </view>
+    </view>
+    <text class="card-tip">切换档位会写入该档的推荐参数（保持范围 / 发射频率 / 判定半径等），之后仍可逐项微调。</text>
+  </view>
+
+  <!-- 参数分组 -->
+  <view class="card" wx:for="{{groups}}" wx:key="name" wx:for-item="group">
+    <view class="card-head">
+      <text class="card-title">{{group.name}}</text>
+    </view>
+
+    <view class="item" wx:for="{{group.items}}" wx:key="key" wx:for-item="it">
+      <view class="item-head">
+        <text class="item-label">{{it.label}}</text>
+        <text class="item-value">{{it.display}}</text>
+      </view>
+
+      <slider
+        wx:if="{{it.type === 'num'}}"
+        class="item-slider"
+        min="{{it.min}}"
+        max="{{it.max}}"
+        step="{{it.step}}"
+        value="{{it.value}}"
+        activeColor="#0f9c8c"
+        backgroundColor="#e8edf1"
+        block-size="22"
+        data-key="{{it.key}}"
+        bindchanging="onSlide"
+        bindchange="onSlideChange"
+      />
+
+      <view class="item-switch" wx:elif="{{it.type === 'bool'}}">
+        <switch checked="{{it.value}}" color="#0f9c8c" data-key="{{it.key}}" bindchange="onToggle" />
+      </view>
+
+      <text class="item-tip" wx:if="{{it.tip}}">{{it.tip}}</text>
+    </view>
+  </view>
+
+  <!-- 操作 -->
+  <view class="btn-row">
+    <view class="btn ghost" bindtap="onReset">恢复默认</view>
+    <view class="btn primary" bindtap="onBack">回到游戏</view>
+  </view>
+
+  <view class="foot">
+    <text class="foot-line">参数保存在本机，重启小程序仍然有效。</text>
+    <text class="foot-line">训练成绩与参数无关，改参数不会影响已完成的记录。</text>
+  </view>
+</scroll-view>

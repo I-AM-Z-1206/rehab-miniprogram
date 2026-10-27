@@ -1,0 +1,49 @@
+/*fruit.wxss —— 接水果：整页画布，页面本身不排任何 UI */
+
+page {
+  height: 100vh;
+  overflow: hidden;
+  background: #0d2a1c;
+}
+
+.wrap {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  background: linear-gradient(180deg, #8acfec 0%, #c4e8f5 48%, #cfe4ae 100%);
+}
+
+.cv {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* 初始化兜底（极短时间可见） */
+.boot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, #8acfec 0%, #c4e8f5 48%, #cfe4ae 100%);
+}
+
+.boot-dot {
+  width: 28rpx;
+  height: 28rpx;
+  border-radius: 50%;
+  background: #0f9c8c;
+  opacity: 0.75;
+}
+
+.boot-text {
+  margin-top: 20rpx;
+  font-size: 24rpx;
+  color: rgba(21, 45, 34, 0.7);
+}

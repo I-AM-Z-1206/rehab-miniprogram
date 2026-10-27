@@ -146,49 +146,6 @@ page {
   margin-bottom: 24rpx;
 }
 
-.cal-status {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 8rpx 0 24rpx;
-}
-
-.cal-count {
-  font-size: 72rpx;
-  font-weight: 700;
-  color: #0f9c8c;
-}
-
-.cal-progress {
-  width: 100%;
-  margin: 16rpx 0 12rpx;
-}
-
-.cal-tip {
-  font-size: 24rpx;
-  color: #8b8f9a;
-}
-
-.cal-btn {
-  height: 92rpx;
-  line-height: 92rpx;
-  text-align: center;
-  border-radius: 46rpx;
-  background-color: #0f9c8c;
-  color: #fff;
-  font-size: 32rpx;
-  font-weight: 700;
-}
-
-.cal-btn.off {
-  background-color: #c9cdd4;
-}
-
-.cal-btn.running {
-  background-color: #ffc34d;
-  color: #6b4a00;
-}
-
 /* ---------- 姿态虚拟零点 ---------- */
 .zero-grid {
   display: flex;
@@ -289,48 +246,11 @@ page {
   box-sizing: border-box;
 }
 
-/* ---------- 结果 ---------- */
-.val-grid {
-  display: flex;
-  flex-direction: row;
-}
-
-.val-cell {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 12rpx 0;
-}
-
-.val-axis {
-  font-size: 22rpx;
-  color: #999;
-  margin-bottom: 6rpx;
-}
-
-.val-num {
-  font-size: 36rpx;
-  font-weight: 700;
-  color: #0f9c8c;
-}
-
-.res-tip {
-  margin-top: 16rpx;
-  font-size: 22rpx;
-  color: #9aa0a6;
-}
-
 /* ---------- 图表 ---------- */
 .chart-canvas {
   width: 100%;
   height: 100%;
   display: block;
-}
-
-.chart-box {
-  width: 100%;
-  height: 360rpx;
 }
 
 /* 姿态实时曲线（Roll / Pitch 并排） */

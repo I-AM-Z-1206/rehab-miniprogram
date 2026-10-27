@@ -26,3 +26,33 @@ curl -s "https://api.github.com/repos/phaserjs/examples/contents/public/assets/a
 ## 替换建议
 
 `utils/game/audio.js` 顶部的 `SFX_FILES` / `BGM_FILE` 是唯一映射表，换成同名文件即可，代码不用改。
+
+---
+
+## 补充：audio/game/sfx（接水果 / 走钢丝 / 节奏训练）
+
+这几个游戏以前直接复用上面的射击素材（接住水果播的是 `hit.mp3`＝爆炸声），
+语义不对、对康复人群也偏刺激，因此单独合成了一套柔和音效。全部由
+`tools/gen_game_sfx.py` 生成（纯 Python 合成，无第三方素材）：
+
+| 文件 | 用途 | 时长 | 大小 |
+| --- | --- | --- | --- |
+| `sfx/fruit_catch.mp3` | 接住 / 命中（清脆的"叮"） | 0.30s | 1.4 KB |
+| `sfx/fruit_combo.mp3` | 连击奖励（上行双音） | 0.46s | 2.0 KB |
+| `sfx/fruit_miss.mp3` | 漏接 / 未命中（柔和低音） | 0.34s | 1.6 KB |
+| `sfx/fruit_ui.mp3` | 按钮点击（极轻） | 0.09s | 0.6 KB |
+| `sfx/garden_loop.mp3` | 接水果背景音乐（110 BPM，四小节循环） | 8.7s | 34 KB |
+
+格式：由 8kHz / 16bit / 单声道 WAV 转成 32kbps mp3（兼容性最好，合计约 40KB）。
+
+重新生成：
+
+```bash
+python tools/gen_game_sfx.py        # 先合成 wav
+python tools/wav2mp3.py             # 再转 mp3（需要 lameenc；会删除中间 wav）
+# wav2mp3.py 会扫 audio/*.wav 与 audio/game/sfx/*.wav，
+# 故意跳过 audio/rhythm/*.wav（节奏训练的循环必须样本精确）
+```
+
+`utils/game/audio.js` 顶部 `PROFILES` 是唯一的映射表：
+`shooter` 用原来的 mp3（射击不受影响），`casual` 用上面这套 mp3。

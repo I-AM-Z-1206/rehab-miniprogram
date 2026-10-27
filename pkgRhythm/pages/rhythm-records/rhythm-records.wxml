@@ -1,0 +1,150 @@
+<!--rhythm-records.wxml —— 节奏训练记录-->
+<navigation-bar title="节奏训练 · 训练记录" back="{{true}}" color="black" background="#FFFFFF"></navigation-bar>
+
+<scroll-view class="body" scroll-y>
+  <!-- 概览 -->
+  <view class="summary">
+    <view class="sum-cell">
+      <text class="sum-num">{{stats.total}}</text>
+      <text class="sum-label">总记录</text>
+    </view>
+    <view class="sum-line"></view>
+    <view class="sum-cell">
+      <text class="sum-num ok">{{stats.uploaded}}</text>
+      <text class="sum-label">已上报</text>
+    </view>
+    <view class="sum-line"></view>
+    <view class="sum-cell">
+      <text class="sum-num warn">{{stats.pending}}</text>
+      <text class="sum-label">待上报</text>
+    </view>
+  </view>
+
+  <!-- 上报状态 -->
+  <view class="banner {{uploadReady ? 'ok' : ''}}">
+    <text class="banner-title">{{uploadReady ? '上报接口已配置' : '上报接口未配置'}}</text>
+    <text class="banner-desc">{{uploadReady ? '记录可逐条或批量发送到训练平台' : '记录只保存在本机，管理员可在训练设置中填写接口地址'}}</text>
+  </view>
+
+  <view class="actions" wx:if="{{list.length}}">
+    <view class="act" bindtap="onUploadAll">批量上报（{{pendingCount}}）</view>
+  </view>
+
+  <!-- 空态 -->
+  <view class="empty" wx:if="{{!list.length}}">
+    <text class="empty-title">还没有训练记录</text>
+    <text class="empty-desc">完成一局「节奏训练」后，成绩会自动保存在这里</text>
+  </view>
+
+  <!-- 列表 -->
+  <view class="card" wx:for="{{list}}" wx:key="recordId">
+    <view class="row" data-id="{{item.recordId}}" bindtap="onToggle">
+      <view class="row-main">
+        <view class="row-head">
+          <text class="row-score">{{item.score}} 分</text>
+          <text class="row-diff">第 {{item.difficulty}} 档</text>
+          <text class="row-sim" wx:if="{{item.isSim}}">模拟</text>
+          <text class="row-abort" wx:if="{{item.aborted}}">未完成</text>
+        </view>
+        <text class="row-time">{{item.time}} · {{item.songName}} · {{item.bpm}} BPM · {{item.duration}}</text>
+      </view>
+      <view class="row-right">
+        <text class="state {{item.state}}">{{item.stateText}}</text>
+        <text class="chev">{{expanded === item.recordId ? '收起' : '详情'}}</text>
+      </view>
+    </view>
+
+    <view class="row-kpi">
+      <view class="kpi">
+        <text class="kpi-num">{{item.perfect + item.great + item.good}}</text>
+        <text class="kpi-label">命中</text>
+      </view>
+      <view class="kpi">
+        <text class="kpi-num">{{item.miss}}</text>
+        <text class="kpi-label">漏接</text>
+      </view>
+      <view class="kpi">
+        <text class="kpi-num">x{{item.combo}}</text>
+        <text class="kpi-label">最高连击</text>
+      </view>
+      <view class="kpi">
+        <text class="kpi-num">{{item.rhythmAcc}}</text>
+        <text class="kpi-label">节奏准确率</text>
+      </view>
+      <view class="kpi">
+        <text class="kpi-num">{{item.grade}}</text>
+        <text class="kpi-label">评级</text>
+      </view>
+    </view>
+
+    <!-- 展开详情 -->
+    <view class="detail" wx:if="{{expanded === item.recordId}}">
+      <!-- 四档判定 -->
+      <view class="type-row">
+        <view class="type-item">
+          <text class="type-num">{{item.perfect}}</text>
+          <text class="type-name">PERFECT</text>
+        </view>
+        <view class="type-item">
+          <text class="type-num">{{item.great}}</text>
+          <text class="type-name">GREAT</text>
+        </view>
+        <view class="type-item">
+          <text class="type-num">{{item.good}}</text>
+          <text class="type-name">GOOD</text>
+        </view>
+        <view class="type-item">
+          <text class="type-num">{{item.miss}}</text>
+          <text class="type-name">MISS</text>
+        </view>
+      </view>
+
+      <view class="d-row">
+        <text class="d-key">方向准确率</text>
+        <text class="d-val">{{item.dirAcc}}</text>
+      </view>
+      <view class="d-row">
+        <text class="d-key">综合命中率</text>
+        <text class="d-val">{{item.hitRate}}</text>
+      </view>
+      <view class="d-row">
+        <text class="d-key">方向错误次数</text>
+        <text class="d-val">{{item.wrongDir}} 次</text>
+      </view>
+      <view class="d-row">
+        <text class="d-key">左 / 右命中</text>
+        <text class="d-val">{{item.left}} / {{item.right}}</text>
+      </view>
+      <view class="d-row">
+        <text class="d-key">音符总数</text>
+        <text class="d-val">{{item.totalNotes}} 个</text>
+      </view>
+      <view class="d-row">
+        <text class="d-key">基础分 / 连击加成 / 完成奖励</text>
+        <text class="d-val">{{item.base}} / {{item.comboBonus}} / {{item.finishBonus}}</text>
+      </view>
+      <view class="d-row">
+        <text class="d-key">音画延迟补偿</text>
+        <text class="d-val">{{item.syncOffset}}</text>
+      </view>
+      <view class="d-row">
+        <text class="d-key">数据中断</text>
+        <text class="d-val">{{item.interrupted}}</text>
+      </view>
+      <view class="d-row">
+        <text class="d-key">数据来源</text>
+        <text class="d-val">{{item.source}}</text>
+      </view>
+
+      <text class="d-note">方向与节奏是两项独立指标：方向对了但时间偏，仍可能只判 GOOD；时间对了却站在错误一侧，会记为方向错误并漏接。</text>
+
+      <view class="d-actions">
+        <view class="d-btn" wx:if="{{item.canUpload && item.state !== 'uploaded'}}" data-id="{{item.recordId}}" bindtap="onUpload">上报</view>
+        <view class="d-btn danger" data-id="{{item.recordId}}" bindtap="onDelete">删除</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="clear" wx:if="{{list.length}}" bindtap="onClear">清空本机记录</view>
+  <view class="foot">训练数据属于敏感健康相关信息，仅在你确认后才会发送。</view>
+</scroll-view>

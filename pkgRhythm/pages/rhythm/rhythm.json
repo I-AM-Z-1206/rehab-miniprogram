@@ -1,0 +1,9 @@
+{
+  "renderer": "webview",
+  "navigationStyle": "custom",
+  "disableScroll": true,
+  "backgroundColor": "#eaf7ff",
+  "backgroundColorTop": "#dff1ff",
+  "backgroundColorBottom": "#fff8ec",
+  "usingComponents": {}
+}

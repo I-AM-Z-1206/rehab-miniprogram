@@ -34,7 +34,7 @@
       <view class="cta-icon"><image class="ico ico-lg" src="/assets/icons/focus-blue.png" mode="aspectFit" /></view>
       <view class="cta-main">
         <view class="cta-title">零点标定</view>
-        <view class="cta-desc">一键标定姿态虚拟零点（Roll / Pitch），并可查看加速度曲线</view>
+        <view class="cta-desc">一键标定姿态虚拟零点（Roll / Pitch），并查看实时姿态曲线</view>
       </view>
       <view class="cta-go">进入 ›</view>
     </view>

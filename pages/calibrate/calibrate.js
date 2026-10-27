@@ -1,34 +1,38 @@
-// calibrate.js —— 零点标定页：静止 5 秒采样加速度，算出零点偏置，并用自绘折线图展示曲线
-//               另含「姿态虚拟零点」：两个全局偏移量（roll / pitch），点一下即可重新标定
+// calibrate.js —— 零点标定页：姿态虚拟零点（roll / pitch 两个全局偏移量）
+//               静止 3 秒取平均作为零点，配 Roll / Pitch 实时曲线
+//               注：加速度零点标定已按需求移除（只保留姿态零点）
 const WitBle = require('../../utils/witble.js')
 const speaker = require('../../utils/speaker.js')
 const zero = require('../../utils/zero.js')
 const { LineChart } = require('../../utils/lightchart.js')
 
-const CAL_TIME = 5000 // 标定时长（毫秒）：5 秒
 const ZERO_TIME = 3000 // 姿态虚拟零点采样时长（毫秒）：3 秒，取平均值
 const VIEW_INTERVAL = 100 // 实时数值刷新节流(ms)
 const RT_POINTS = 60 // 实时曲线保留点数（约 6 秒）
-const G = 9.81 // 重力加速度，用于把 g 换算成 m/s² 再做速度积分
-const KEY_ZERO = 'zero_offset'
+const LEGACY_ACCEL_KEY = 'zero_offset' // 旧版"加速度零点"的存储键，启动时清掉
 
 Page({
+  // 定时器统一管理：页面卸载时全部清掉
+  _later(fn, ms) {
+    this._timers = this._timers || []
+    const id = setTimeout(() => {
+      this._timers = this._timers.filter((x) => x !== id)
+      fn()
+    }, ms)
+    this._timers.push(id)
+    return id
+  },
+
+  _clearTimers() {
+    ;(this._timers || []).forEach((id) => clearTimeout(id))
+    this._timers = []
+  },
+
   data: {
     // 连接
     status: 'idle', // idle / scanning / connecting / connected / disconnected
     statusText: '未连接',
     devices: [],
-
-    // 标定
-    phase: 'idle', // idle / calibrating / done
-    remain: 5, // 剩余秒数
-    calBar: 0, // 进度条百分比（在 JS 里算好，避免 wxml 内联表达式告警）
-    sampleCount: 0,
-
-    // 结果（零点偏置）
-    axOff: '--',
-    ayOff: '--',
-    azOff: '--',
 
     // 姿态虚拟零点（全局两个变量：zeroRoll / zeroPitch）
     zeroRoll: '0.00',
@@ -44,6 +48,8 @@ Page({
 
   onLoad() {
     this.ble = WitBle.getShared()
+    // 旧版本存过"加速度零点"，现在不用了，顺手清掉
+    try { wx.removeStorageSync(LEGACY_ACCEL_KEY) } catch (e) { /* 忽略 */ }
     this.zeroSamples = null
     this.lastView = 0
     this.rtBuf = []
@@ -60,12 +66,12 @@ Page({
   // 视图就绪后再取 canvas 节点（此时宽高才有效）
   onReady() {
     if (wx.nextTick) wx.nextTick(() => this.initRealtimeCharts())
-    else setTimeout(() => this.initRealtimeCharts(), 50)
+    else this._later(() => this.initRealtimeCharts(), 50)
   },
 
   onUnload() {
     speaker.stop()
-    if (this.calTimer) clearInterval(this.calTimer)
+    this._clearTimers()
     if (this.zeroTimer) { clearInterval(this.zeroTimer); this.zeroTimer = null }
     this.zeroSamples = null
     WitBle.detach(this.ble)
@@ -132,40 +138,6 @@ Page({
     this.setData({ status: 'disconnected', statusText: '已断开', devices: [] })
   },
 
-  // ---------- 标定 ----------
-  onStartCalibrate() {
-    if (this.data.phase === 'calibrating') return
-    if (!this.ble.connectedId) {
-      speaker.speak('请先连接传感器')
-      wx.showToast({ title: '请先连接传感器', icon: 'none' })
-      return
-    }
-    this.samples = []
-    this.startAt = Date.now()
-    this.lastT = 0
-    this.vx = 0
-    this.vy = 0
-    if (this.calTimer) clearInterval(this.calTimer)
-
-    this.setData({
-      phase: 'calibrating',
-      remain: 5,
-      calBar: 0,
-      sampleCount: 0,
-      axOff: '--',
-      ayOff: '--',
-      azOff: '--'
-    })
-    speaker.speak('请保持静止，正在标定')
-
-    this.calTimer = setInterval(() => {
-      const elapsed = Date.now() - this.startAt
-      const remain = Math.max(0, Math.ceil((CAL_TIME - elapsed) / 1000))
-      this.setData({ remain, calBar: (5 - remain) * 20 })
-      if (elapsed >= CAL_TIME) this.finishCalibrate()
-    }, 100)
-  },
-
   // ---------- 姿态虚拟零点（两个全局变量：zeroRoll / zeroPitch） ----------
   refreshZero() {
     const z = zero.get()
@@ -198,7 +170,7 @@ Page({
       if (left !== that.data.zeroRemain) that.setData({ zeroRemain: left })
     }, 200)
 
-    setTimeout(() => {
+    this._later(() => {
       if (that.zeroTimer) { clearInterval(that.zeroTimer); that.zeroTimer = null }
       const samples = that.zeroSamples || []
       that.zeroSamples = null
@@ -253,58 +225,6 @@ Page({
         this.pushPosePoint(p.roll, p.pitch)
       }
     }
-
-    if (this.data.phase !== 'calibrating') return
-    if (typeof d.ax !== 'number' && typeof d.ay !== 'number') return
-
-    const now = Date.now()
-    const t = (now - this.startAt) / 1000
-    const dt = this.lastT ? (now - this.lastT) / 1000 : 0
-    this.lastT = now
-
-    // 速度积分：对加速度（m/s²）按时间累加，得到标定期间的漂移速度
-    if (dt > 0 && dt < 0.5) {
-      this.vx += (d.ax || 0) * G * dt
-      this.vy += (d.ay || 0) * G * dt
-    }
-
-    this.samples.push({
-      t,
-      ax: d.ax || 0,
-      ay: d.ay || 0,
-      az: d.az || 0,
-      vx: this.vx,
-      vy: this.vy
-    })
-    this.setData({ sampleCount: this.samples.length })
-  },
-
-  finishCalibrate() {
-    if (this.calTimer) { clearInterval(this.calTimer); this.calTimer = null }
-    if (!this.samples || this.samples.length < 10) {
-      this.setData({ phase: 'idle' })
-      wx.showToast({ title: '数据不足，请检查连接', icon: 'none' })
-      return
-    }
-
-    // 零点偏置 = 静止时加速度均值；Z 轴减去 1g 重力
-    let sx = 0, sy = 0, sz = 0, n = 0
-    this.samples.forEach(s => { sx += s.ax; sy += s.ay; sz += s.az; n++ })
-    const axOff = sx / n
-    const ayOff = sy / n
-    const azOff = (sz / n) - 1
-
-    try { wx.setStorageSync(KEY_ZERO, { ax: axOff, ay: ayOff, az: azOff }) } catch (e) { /* 忽略 */ }
-
-    speaker.speak('零点标定完成')
-
-    // 先渲染出图表容器（wx:if 展开），再初始化 ECharts，否则 selectComponent 取不到组件
-    this.setData({
-      phase: 'done',
-      axOff: axOff.toFixed(4),
-      ayOff: ayOff.toFixed(4),
-      azOff: azOff.toFixed(4)
-    }, () => this.renderCharts())
   },
 
   // ---------- 姿态实时曲线（Roll / Pitch） ----------
@@ -326,7 +246,7 @@ Page({
         const info = res && res[0]
         if (!info || !info.node) {
           if ((retry || 0) < 3) {
-            setTimeout(() => {
+            this._later(() => {
               this.createChart(id, options, (retry || 0) + 1).then(resolve)
             }, 200)
           } else {
@@ -379,31 +299,5 @@ Page({
     if (this.pitchChart) this.pitchChart.setData(times, [ps])
   },
 
-  // ---------- 标定结果图表 ----------
-  renderCharts() {
-    const s = this.samples || []
-    if (!s.length) return
-    const times = s.map((x) => Math.round(x.t * 100) / 100)
-    const ax = s.map((x) => Math.round(x.ax * 10000) / 10000)
-    const ay = s.map((x) => Math.round(x.ay * 10000) / 10000)
-    const vx = s.map((x) => Math.round(x.vx * 10000) / 10000)
-    const vy = s.map((x) => Math.round(x.vy * 10000) / 10000)
-
-    this.createChart('chartAx', {
-      series: [{ color: '#0f9c8c', fill: 'rgba(15, 156, 140, 0.08)' }],
-      unit: 'g',
-      zeroLine: true
-    }).then((c) => { this.axChart = c; if (c) c.setData(times, [ax]) })
-
-    this.createChart('chartAy', {
-      series: [{ color: '#2f7bd6', fill: 'rgba(47, 123, 214, 0.08)' }],
-      unit: 'g',
-      zeroLine: true
-    }).then((c) => { this.ayChart = c; if (c) c.setData(times, [ay]) })
-
-    this.createChart('chartVel', {
-      series: [{ color: '#0f9c8c' }, { color: '#2f7bd6' }],
-      unit: 'm/s'
-    }).then((c) => { this.velChart = c; if (c) c.setData(times, [vx, vy]) })
-  }
+  // 标定结果图表（加速度）已随功能移除
 })

@@ -12,3 +12,10 @@ $RECYCLE.BIN/
 
 # Node.js
 node_modules/
+
+# Python
+__pycache__/
+*.pyc
+
+# 编辑器/助手目录
+.workbuddy/

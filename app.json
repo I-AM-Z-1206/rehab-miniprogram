@@ -4,12 +4,7 @@
     "pages/games/games",
     "pages/mine/mine",
     "pages/wit/wit",
-    "pages/calibrate/calibrate",
-    "pages/shoot/shoot",
-    "pages/race/race",
-    "pages/wire/wire",
-    "pages/wire-settings/wire-settings",
-    "pages/wire-records/wire-records"
+    "pages/calibrate/calibrate"
   ],
   "tabBar": {
     "custom": true,
@@ -50,5 +45,49 @@
   "componentFramework": "glass-easel",
   "sitemapLocation": "sitemap.json",
   "lazyCodeLoading": "requiredComponents",
-  "usingComponents": {}
+  "usingComponents": {},
+  "subPackages": [
+    {
+      "root": "pkgFruit",
+      "name": "fruit",
+      "pages": [
+        "pages/fruit/fruit",
+        "pages/fruit-settings/fruit-settings",
+        "pages/fruit-records/fruit-records"
+      ]
+    },
+    {
+      "root": "pkgWire",
+      "name": "wire",
+      "pages": [
+        "pages/wire/wire",
+        "pages/wire-settings/wire-settings",
+        "pages/wire-records/wire-records"
+      ]
+    },
+    {
+      "root": "pkgRhythm",
+      "name": "rhythm",
+      "pages": [
+        "pages/rhythm/rhythm",
+        "pages/rhythm-settings/rhythm-settings",
+        "pages/rhythm-records/rhythm-records"
+      ]
+    },
+    {
+      "root": "pkgShoot",
+      "name": "shoot",
+      "pages": [
+        "pages/shoot/shoot",
+        "pages/shoot-settings/shoot-settings"
+      ]
+    },
+    {
+      "root": "pkgRace",
+      "name": "race",
+      "pages": [
+        "pages/race/race"
+      ]
+    }
+  ]
 }

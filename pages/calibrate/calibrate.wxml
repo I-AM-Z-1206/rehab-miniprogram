@@ -75,52 +75,8 @@
       </view>
     </view>
 
-    <!-- 标定控制卡 -->
-    <view class="card">
-      <view class="card-title">加速度（5 秒采样）</view>
-      <view class="cal-desc">传感器保持静止 5 秒，采集加速度并计算零点偏置，同时绘制加速度与速度曲线。</view>
-
-      <!-- 进度 -->
-      <view class="cal-status" wx:if="{{phase === 'calibrating'}}">
-        <view class="cal-count mono">{{remain}}s</view>
-        <progress class="cal-progress" percent="{{calBar}}" stroke-width="6" borderRadius="6" activeColor="#0f9c8c" backgroundColor="#eef0f3" />
-        <view class="cal-tip">正在采样，请保持静止…</view>
-      </view>
-
-      <view class="cal-btn {{status === 'connected' ? '' : 'off'}} {{phase === 'calibrating' ? 'running' : ''}}" bindtap="onStartCalibrate">
-        {{phase === 'calibrating' ? '标定中…' : (phase === 'done' ? '重新标定' : '开始标定')}}
-      </view>
-    </view>
-
-    <!-- 结果卡 -->
-    <view class="card" wx:if="{{phase === 'done'}}">
-      <view class="card-title">零点偏置结果（采样 {{sampleCount}} 帧）</view>
-      <view class="val-grid">
-        <view class="val-cell"><view class="val-axis">X</view><view class="val-num mono">{{axOff}}</view></view>
-        <view class="val-cell"><view class="val-axis">Y</view><view class="val-num mono">{{ayOff}}</view></view>
-        <view class="val-cell"><view class="val-axis">Z（-1g）</view><view class="val-num mono">{{azOff}}</view></view>
-      </view>
-      <view class="res-tip">偏置单位为 g，已保存，供后续姿态解算扣除零点使用。</view>
-    </view>
-
-    <!-- 图表 -->
-    <view class="card" wx:if="{{phase === 'done'}}">
-      <view class="card-title">加速度 X（g）</view>
-      <view class="chart-box"><canvas type="2d" id="chartAx" class="chart-canvas"></canvas></view>
-    </view>
-
-    <view class="card" wx:if="{{phase === 'done'}}">
-      <view class="card-title">加速度 Y（g）</view>
-      <view class="chart-box"><canvas type="2d" id="chartAy" class="chart-canvas"></canvas></view>
-    </view>
-
-    <view class="card" wx:if="{{phase === 'done'}}">
-      <view class="card-title">标定期速度（m/s）</view>
-      <view class="chart-box"><canvas type="2d" id="chartVel" class="chart-canvas"></canvas></view>
-    </view>
-
     <view class="help-tip">
-      说明：本页有两类零点 —— ① 姿态虚拟零点（Roll / Pitch 两个全局偏移量，标定后所有页面的角度都会自动加减，重启小程序仍保留）；② 加速度零点（静止 5 秒采样，用于观察零偏与积分漂移，X、Y 轴应接近 0，Z 轴接近 1g）。
+      说明：本页只保留「姿态虚拟零点」—— 在传感器 roll / pitch 上叠加两个全局偏移量。标定后所有页面的角度都会自动加减，重启小程序仍保留；换佩戴姿势或换人时重新点一次即可。
     </view>
 
   </view>

@@ -1,0 +1,21 @@
+name: ci
+
+# 只跑仓库里的无头自检（不依赖微信开发者工具），提交/PR 都跑一遍
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 全部自检
+        run: node tools/run-all.js

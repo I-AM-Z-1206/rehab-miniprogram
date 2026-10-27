@@ -14,7 +14,6 @@
 // ============================================================================
 
 const STORAGE_KEY = 'wire_cfg_v1'
-const SAVE_DELAY = 260
 
 // 归一化控制量统一用「活动边界」做分母：
 //   nx = clamp(角度 * 灵敏度 / 对应侧边界, -1, 1)
@@ -196,36 +195,6 @@ function num(v, def) {
   return isFinite(n) ? n : def
 }
 
-function defaults() {
-  const d = {}
-  Object.keys(SCHEMA).forEach((k) => { d[k] = SCHEMA[k].def })
-  return d
-}
-
-const DEFAULT_CONFIG = defaults()
-
-function coerce(key, value) {
-  const meta = SCHEMA[key]
-  if (!meta) return undefined
-  if (meta.type === 'bool') {
-    if (typeof value === 'boolean') return value
-    if (value === 1 || value === '1' || value === 'true') return true
-    if (value === 0 || value === '0' || value === 'false') return false
-    return meta.def
-  }
-  if (meta.type === 'enum') {
-    const opts = meta.options || []
-    if (opts.indexOf(value) >= 0) return value
-    const asNum = Number(value)
-    if (opts.indexOf(asNum) >= 0) return asNum
-    return meta.def
-  }
-  let v = num(value, meta.def)
-  v = clamp(v, meta.min, meta.max)
-  if (meta.step) v = Math.round(v / meta.step) * meta.step
-  return Math.round(v * 1000) / 1000
-}
-
 /**
  * 开赛前校验。返回 { ok, errors, warnings }
  * errors 会阻止开始游戏，warnings 只提示。
@@ -268,140 +237,20 @@ function validate(state) {
   return { ok: errors.length === 0, errors, warnings }
 }
 
-class WireConfigStore {
-  constructor(opts) {
-    const o = opts || {}
-    this.key = o.storageKey || STORAGE_KEY
-    this.persistEnabled = o.persist !== false
-    this.state = defaults()
-    this.listeners = []
-    this.timer = null
-    if (this.persistEnabled) this.load()
-  }
+// ---- 通用存储（get/patch/set/load/save/reset/subscribe 见 utils/config-store.js）----
+const { createConfigStore } = require('./config-store.js')
 
-  get(key) {
-    if (key === undefined) return this.all()
-    const v = this.state[key]
-    return v === undefined ? (SCHEMA[key] ? SCHEMA[key].def : undefined) : v
-  }
-
-  all() {
-    return Object.assign({}, this.state)
-  }
-
-  /** 批量写入并广播；返回真正变化的键 */
-  patch(partial, source) {
-    if (!partial) return []
-    const changed = []
-    Object.keys(partial).forEach((k) => {
-      if (!SCHEMA[k]) return
-      const next = coerce(k, partial[k])
-      if (next === undefined || next === this.state[k]) return
-      this.state[k] = next
-      changed.push(k)
-    })
-    if (!changed.length) return changed
-    this.scheduleSave()
-    this.emit(changed, source || 'patch')
-    return changed
-  }
-
-  set(key, value, source) {
-    const p = {}
-    p[key] = value
-    this.patch(p, source || ('set:' + key))
-    return this.get(key)
-  }
-
-  /** 套用 1~5 档预设（applyPreset=false 时只改档位数字） */
-  applyDifficulty(level, applyPreset) {
-    const lv = clamp(Math.round(num(level, 2)), 1, 5)
-    const preset = PRESETS[lv]
-    if (!preset) return []
-    const p = { difficulty: lv }
-    if (applyPreset !== false) {
-      Object.keys(preset).forEach((k) => {
-        if (k === 'label') return
-        if (SCHEMA[k]) p[k] = preset[k]
-      })
-    }
-    return this.patch(p, 'difficulty:' + lv)
-  }
-
-  difficultyLabel(level) {
-    const p = PRESETS[clamp(Math.round(num(level, 2)), 1, 5)]
-    return p ? p.label : ''
-  }
-
-  validate() {
-    return validate(this.state)
-  }
-
-  subscribe(fn) {
-    if (typeof fn !== 'function') return () => {}
-    this.listeners.push(fn)
-    const that = this
-    return function off() {
-      const i = that.listeners.indexOf(fn)
-      if (i >= 0) that.listeners.splice(i, 1)
-    }
-  }
-
-  emit(changed, source) {
-    const payload = { config: this.all(), changed, source }
-    this.listeners.slice().forEach((fn) => {
-      try { fn(payload) } catch (e) { console.error('[wire-config] listener', e) }
-    })
-  }
-
-  load() {
-    let saved = null
-    try { saved = wx.getStorageSync(this.key) } catch (e) { /* 忽略 */ }
-    if (saved && typeof saved === 'object') {
-      Object.keys(SCHEMA).forEach((k) => {
-        if (saved[k] !== undefined) this.state[k] = coerce(k, saved[k])
-      })
-    }
-    return this.state
-  }
-
-  scheduleSave() {
-    if (!this.persistEnabled || this.timer) return
-    const that = this
-    this.timer = setTimeout(function () {
-      that.timer = null
-      that.save()
-    }, SAVE_DELAY)
-  }
-
-  save() {
-    if (!this.persistEnabled) return
-    try { wx.setStorageSync(this.key, this.state) } catch (e) { /* 忽略 */ }
-  }
-
-  reset() {
-    const changed = []
-    Object.keys(DEFAULT_CONFIG).forEach((k) => {
-      if (this.state[k] !== DEFAULT_CONFIG[k]) {
-        this.state[k] = DEFAULT_CONFIG[k]
-        changed.push(k)
-      }
-    })
-    this.save()
-    if (changed.length) this.emit(changed, 'reset')
-    return changed
-  }
-}
-
-let shared = null
-
-function getStore() {
-  if (!shared) shared = new WireConfigStore()
-  return shared
-}
+const { ConfigStore, getStore, coerce, DEFAULT_CONFIG } = createConfigStore({
+  key: STORAGE_KEY,
+  schema: SCHEMA,
+  presets: PRESETS,
+  validate: validate,
+  defaultDifficulty: 2,
+  logTag: 'wire-config'
+})
 
 module.exports = {
-  WireConfigStore,
+  WireConfigStore: ConfigStore,
   getStore,
   SCHEMA,
   GROUPS,

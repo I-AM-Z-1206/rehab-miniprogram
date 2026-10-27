@@ -2278,7 +2278,7 @@
         _drawBackground() {
           const ctx = this.ctx;
           const key = this.W + "x" + this.H + "@" + this.dpr;
-          if (!this.bg && this.bgKey !== key) this._buildBg(key);
+          if (this.bgKey !== key) this._buildBg(key);
           if (this.bg) {
             ctx.drawImage(this.bg, 0, 0, this.W, this.H);
           } else {
@@ -3210,7 +3210,7 @@
           ctx.fillStyle = scrim;
           ctx.fillRect(0, 0, W, H);
           this._text("\u8BBE\u5907\u51C6\u5907", 24, top + 34, { size: 26, weight: "800", color: "#FFFFFF", shadow: true });
-          this._text("\u4F20\u611F\u5668\u4F69\u6234\u5728\u814B\u4E0B\u6700\u9AD8\u70B9\uFF0C\u6807\u5B9A\u540E\u5373\u53EF\u5F00\u59CB", 24, top + 58, {
+          this._text("\u4F20\u611F\u5668\u5361\u5728\u80F8\u5E26\u4E0A\uFF0C\u80F8\u5E26\u7ED5\u5230\u814B\u4E0B\u6700\u9AD8\u70B9\uFF0C\u6807\u5B9A\u540E\u5373\u53EF\u5F00\u59CB", 24, top + 58, {
             size: 12,
             weight: "500",
             color: "rgba(255,255,255,0.82)"
@@ -3246,9 +3246,9 @@
           const wearH = Math.min(150, H * 0.2);
           this._glass(cardX, cy, cardW, wearH, 18);
           this._text("\u4F69\u6234\u4F4D\u7F6E", cardX + 18, cy + 24, { size: 13, weight: "700", color: C.ink });
-          this._drawWearFigure(cardX + 58, cy + wearH * 0.56, Math.min(80, wearH * 0.56));
-          this._text("\u4F20\u611F\u5668\u8D34\u5728\u814B\u4E0B\u6700\u9AD8\u70B9\uFF0C", cardX + 118, cy + 46, { size: 11.5, weight: "500", color: C.inkSoft });
-          this._text("\u7528\u7ED1\u5B9A\u5E26\u56FA\u5B9A\uFF0C\u907F\u514D\u6643\u52A8\u3002", cardX + 118, cy + 64, { size: 11.5, weight: "500", color: C.inkSoft });
+          this._drawWearFigure(cardX + 60, cy + wearH * 0.63, Math.min(94, wearH * 0.64));
+          this._text("\u4F20\u611F\u5668\u5361\u5728\u80F8\u5E26\u4E0A\uFF0C", cardX + 118, cy + 46, { size: 11.5, weight: "500", color: C.inkSoft });
+          this._text("\u5E26\u5B50\u4ECE\u814B\u4E0B\u6700\u9AD8\u70B9\u7ED5\u4E00\u5708\u56FA\u5B9A\u3002", cardX + 118, cy + 64, { size: 11.5, weight: "500", color: C.inkSoft });
           this._text("\u8EAB\u4F53\u4FDD\u6301\u81EA\u7136\u76F4\u7ACB\uFF0C", cardX + 118, cy + 88, { size: 11.5, weight: "500", color: C.inkSoft });
           this._text("\u4E0D\u8981\u523B\u610F\u633A\u80F8\u6216\u5C4F\u6C14\u3002", cardX + 118, cy + 106, { size: 11.5, weight: "500", color: C.inkSoft });
           cy += wearH + 12;
@@ -3373,24 +3373,30 @@
           ctx.strokeStyle = edge;
           ctx.lineWidth = 1.4;
           ctx.stroke();
+          ctx.save();
           ctx.beginPath();
-          ctx.arc(-13, -40, 8.5, 0, Math.PI * 2);
-          ctx.fillStyle = "rgba(227,154,50,0.18)";
+          ctx.moveTo(-13.5, -36);
+          ctx.quadraticCurveTo(0, -34.6, 13.5, -36);
+          ctx.lineTo(13.5, -30);
+          ctx.quadraticCurveTo(0, -28.6, -13.5, -30);
+          ctx.closePath();
+          ctx.fillStyle = "rgba(19,41,58,0.24)";
           ctx.fill();
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = "rgba(19,41,58,0.3)";
+          ctx.stroke();
+          ctx.restore();
           ctx.beginPath();
-          ctx.arc(-13, -40, 4.6, 0, Math.PI * 2);
+          ctx.rect(-4.2, -35, 8.4, 5.2);
           ctx.fillStyle = C.amber;
           ctx.fill();
-          ctx.lineWidth = 1.2;
-          ctx.strokeStyle = "rgba(255,255,255,0.9)";
+          ctx.lineWidth = 1.1;
+          ctx.strokeStyle = "rgba(255,255,255,0.95)";
           ctx.stroke();
           ctx.beginPath();
-          ctx.setLineDash([2.5, 2.5]);
-          ctx.moveTo(-22, -40);
-          ctx.lineTo(-30, -40);
-          ctx.lineWidth = 1.1;
-          ctx.strokeStyle = "rgba(227,154,50,0.75)";
-          ctx.stroke();
+          ctx.arc(2.4, -32.4, 0.8, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(255,255,255,0.85)";
+          ctx.fill();
           ctx.restore();
         }
         // ================================================================ 结算页

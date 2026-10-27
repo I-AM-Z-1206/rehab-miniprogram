@@ -1,0 +1,26 @@
+{
+  "name": "rehab-mini-program",
+  "version": "1.0.0",
+  "private": true,
+  "description": "康复训练微信小程序：接水果 / 走钢丝 / 节奏训练 / 射击训练 + 训练记录 + 治疗师参数",
+  "scripts": {
+    "test": "node tools/run-all.js",
+    "test:rhythm": "node tools/rhythm-headless-test.js",
+    "test:fruit": "node tools/fruit-headless-test.js",
+    "test:wire": "node tools/wire-headless-test.js",
+    "test:shoot": "node tools/game_selftest.js",
+    "test:shoot-ui": "node tools/shoot-ui-test.js",
+    "test:audio": "node tools/audio-headless-test.js",
+    "preview:rhythm": "esbuild tools/rhythm-preview/main.js --bundle --format=iife --target=es2018 --define:global=window --outfile=tools/rhythm-preview/bundle.js",
+    "preview:fruit": "esbuild tools/fruit-preview/main.js --bundle --format=iife --target=es2018 --define:global=window --outfile=tools/fruit-preview/bundle.js",
+    "preview:wire": "esbuild tools/wire-preview/main.js --bundle --format=iife --target=es2018 --define:global=window --outfile=tools/wire-preview/bundle.js",
+    "preview:shoot": "esbuild tools/shoot-preview/main.js --bundle --format=iife --target=es2018 --define:global=window --outfile=tools/shoot-preview/bundle.js",
+    "audio:rhythm": "python tools/gen_rhythm_audio.py"
+  },
+  "devDependencies": {
+    "esbuild": "^0.21.5"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

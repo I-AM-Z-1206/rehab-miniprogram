@@ -75,6 +75,12 @@ class GameEngine {
     this.dpr = o.dpr || 1
     this.audio = o.audio || null
     this.handlers = o.handlers || {}
+    // 顶部安全区（custom navigation 时 HUD 要躲开状态栏）
+    this.insetTop = 0
+    // 页面自己画开始/暂停/结算面板时，引擎不再画自己那套（避免两套叠在一起）
+    this.externalOverlay = false
+    // 每帧渲染完的回调：页面用它把状态条 / 按钮画在引擎画面之上
+    this.afterRender = null
 
     this.width = o.width || 375
     this.height = o.height || 600
@@ -680,9 +686,21 @@ class GameEngine {
     this._drawParticles()
     this._drawFloats()
     this._drawHud()
+    // 开始 / 暂停 / 结算的遮罩必须画在 dpr 变换之内。
+    // 之前放在 restore() 之后，等于按设备像素绘制：遮罩只盖住左上 1/4，
+    // 卡片也是半尺寸挤在左上角。
+    if (this.state !== STATE.RUNNING && !this.externalOverlay) this._drawOverlay()
     ctx.restore()
 
-    if (this.state !== STATE.RUNNING) this._drawOverlay()
+    // 页面层（按钮 / 状态条）最后画，天然覆盖在游戏画面之上。
+    // 注意也要套上 dpr 变换：restore() 之后变换已经回到 1:1，
+    // 直接画会变成"半尺寸挤在左上角"（和之前遮罩那个 bug 是同一个坑）。
+    if (typeof this.afterRender === 'function') {
+      ctx.save()
+      ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0)
+      try { this.afterRender() } catch (e) { console.error('[engine] afterRender', e) }
+      ctx.restore()
+    }
   }
 
   _drawBackground() {
@@ -753,7 +771,7 @@ class GameEngine {
   _drawKeepZone() {
     const ctx = this.ctx
     const half = this.keepHalfPx()
-    const top = 74 * this.scale
+    const top = 74 * this.scale + (this.insetTop || 0)
     const bottom = this.groundY - 30
     const inZone = this.pose.inZone
     const accent = inZone ? 'rgba(15,156,140,1)' : 'rgba(255,86,86,1)'
@@ -1189,21 +1207,22 @@ class GameEngine {
     const s = this.scale
     const st = this.getState()
     const pad = 14 * s
+    const top0 = pad + (this.insetTop || 0)
 
     // ---- 面板底板（半透明卡片，替代裸文字）----
     const cardW1 = 112 * s
     const cardW2 = 118 * s
     const cardH = 76 * s
     ctx.fillStyle = 'rgba(8,16,32,0.55)'
-    roundRect(ctx, pad - 8 * s, pad - 8 * s, cardW1, cardH, 12 * s)
+    roundRect(ctx, pad - 8 * s, top0 - 8 * s, cardW1, cardH, 12 * s)
     ctx.fill()
-    roundRect(ctx, this.width - pad - cardW2 + 8 * s, pad - 8 * s, cardW2, cardH, 12 * s)
+    roundRect(ctx, this.width - pad - cardW2 + 8 * s, top0 - 8 * s, cardW2, cardH, 12 * s)
     ctx.fill()
     ctx.strokeStyle = 'rgba(120,180,220,0.18)'
     ctx.lineWidth = 1
-    roundRect(ctx, pad - 8 * s, pad - 8 * s, cardW1, cardH, 12 * s)
+    roundRect(ctx, pad - 8 * s, top0 - 8 * s, cardW1, cardH, 12 * s)
     ctx.stroke()
-    roundRect(ctx, this.width - pad - cardW2 + 8 * s, pad - 8 * s, cardW2, cardH, 12 * s)
+    roundRect(ctx, this.width - pad - cardW2 + 8 * s, top0 - 8 * s, cardW2, cardH, 12 * s)
     ctx.stroke()
 
     // ---- 左上：得分 ----
@@ -1211,14 +1230,14 @@ class GameEngine {
     ctx.textBaseline = 'top'
     ctx.fillStyle = 'rgba(160,196,224,0.85)'
     ctx.font = Math.round(11 * s) + 'px sans-serif'
-    ctx.fillText('得分', pad, pad + 2)
+    ctx.fillText('得分', pad, top0 + 2)
     ctx.fillStyle = '#ffffff'
     ctx.font = 'bold ' + Math.round(34 * s) + 'px sans-serif'
-    ctx.fillText(String(st.score), pad, pad + 16 * s)
+    ctx.fillText(String(st.score), pad, top0 + 16 * s)
 
     ctx.fillStyle = 'rgba(140,170,200,0.85)'
     ctx.font = Math.round(11 * s) + 'px sans-serif'
-    ctx.fillText('命中 ' + st.hits + ' 次', pad, pad + 58 * s)
+    ctx.fillText('命中 ' + st.hits + ' 次', pad, top0 + 58 * s)
 
     // ---- 右上：倒计时（大号、整数秒） ----
     ctx.textAlign = 'right'
@@ -1227,15 +1246,15 @@ class GameEngine {
     const numText = dur > 0 ? Math.ceil(st.timeLeft) + 's' : Math.floor(st.elapsed) + 's'
     ctx.fillStyle = 'rgba(160,196,224,0.85)'
     ctx.font = Math.round(11 * s) + 'px sans-serif'
-    ctx.fillText(label, this.width - pad, pad + 2)
+    ctx.fillText(label, this.width - pad, top0 + 2)
     ctx.fillStyle = '#ffffff'
     ctx.font = 'bold ' + Math.round(36 * s) + 'px sans-serif'
-    ctx.fillText(numText, this.width - pad, pad + 15 * s)
+    ctx.fillText(numText, this.width - pad, top0 + 15 * s)
 
     // 时间进度条
     const barW = 92 * s
     const barX = this.width - pad - barW
-    const barY = pad + 62 * s
+    const barY = top0 + 62 * s
     const ratio = dur > 0 ? clamp(st.timeLeft / dur, 0, 1) : 0
     ctx.fillStyle = 'rgba(255,255,255,0.16)'
     roundRect(ctx, barX, barY, barW, 6 * s, 3 * s)
@@ -1297,17 +1316,10 @@ class GameEngine {
       ctx.fillText(tip, this.cx, this.groundY - 140 * s)
     }
 
-    // 传感器未连接提示
-    if (st.sensorStale && this.state !== STATE.READY) {
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'top'
-      ctx.fillStyle = 'rgba(255,214,102,0.9)'
-      ctx.font = Math.round(11 * s) + 'px sans-serif'
-      ctx.fillText('未连接传感器 · 可左右拖动画面模拟', this.cx, 74 * s)
-    }
   }
 
   _drawOverlay() {
+    if (this.externalOverlay) return
     const ctx = this.ctx
     const s = this.scale
     const st = this.getState()

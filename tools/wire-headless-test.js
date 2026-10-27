@@ -76,8 +76,8 @@ function makeCanvas(w, h) {
 }
 
 const { getStore } = require('../utils/wire-config.js')
-const { WireEngine } = require('../games/wire/engine.js')
-const { WireRenderer } = require('../games/wire/renderer.js')
+const { WireEngine } = require('../pkgWire/games/wire/engine.js')
+const { WireRenderer } = require('../pkgWire/games/wire/renderer.js')
 
 const DT = 1 / 60
 

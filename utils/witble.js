@@ -45,6 +45,13 @@ class WitBle {
     this.buf = []
     this.handlers = {}
     this.outputRateHz = 0
+    // 自动重连：断开后按 1s / 2s / 4s 退避重试 3 次（治疗中途掉线不至于必须退出游戏）
+    this.autoReconnect = true
+    this.lastDeviceId = ''
+    this.reconnectTries = 0
+    this.reconnectTimer = null
+    this._reconnecting = false
+    this._listening = false
   }
 
   log(msg) {
@@ -105,13 +112,18 @@ class WitBle {
   // ---------- 连接 ----------
   connect(deviceId, handlers) {
     this.handlers = handlers || {}
+    this.lastDeviceId = deviceId
     const that = this
     wx.createBLEConnection({
       deviceId,
       timeout: 6000,
       success() {
         that.connectedId = deviceId
+        that.reconnectTries = 0
+        const again = that._reconnecting
+        that._reconnecting = false
         that.afterConnected()
+        if (again && that.handlers.onReconnected) that.handlers.onReconnected()
       },
       fail: (err) => {
         if (handlers.onError) handlers.onError('连接失败：' + (err.errMsg || ''))
@@ -120,19 +132,61 @@ class WitBle {
   }
 
   afterConnected() {
+    // 先注册数据回调（全局只注册一次，见 _ensureListeners）
+    this._ensureListeners()
+    wx.setBLEMTU({ deviceId: this.connectedId, mtu: 185, complete: () => {} })
+    this.discoverServices(3)
+  }
+
+  /**
+   * 全局监听只注册一次。
+   * 之前每次重连都调一次 onBLEConnectionStateChange / onBLECharacteristicValueChange，
+   * 监听器会越积越多，同一条数据被喂给引擎好几次。
+   */
+  _ensureListeners() {
+    if (this._listening) return
+    this._listening = true
     const that = this
     wx.onBLEConnectionStateChange(function (res) {
-      if (res.deviceId === that.connectedId && !res.connected) {
-        that.disconnect(true)
-        if (that.handlers.onDisconnected) that.handlers.onDisconnected()
-      }
+      if (!that.connectedId || res.deviceId !== that.connectedId || res.connected) return
+      const wantRetry = that.autoReconnect
+      that.disconnect(true)
+      if (that.handlers.onDisconnected) that.handlers.onDisconnected()
+      if (wantRetry) that._scheduleReconnect()
     })
-    // 先注册数据回调
     wx.onBLECharacteristicValueChange(function (res) {
       that.feed(new Uint8Array(res.value))
     })
-    wx.setBLEMTU({ deviceId: this.connectedId, mtu: 185, complete: () => {} })
-    this.discoverServices(3)
+  }
+
+  /** 退避重连：1s → 2s → 4s，最多 3 次；期间页面照常显示"信号中断" */
+  _scheduleReconnect() {
+    if (!this.autoReconnect || !this.lastDeviceId) return false
+    if (this.reconnectTries >= 3) {
+      this.log('自动重连 3 次仍未成功，请手动重新连接')
+      return false
+    }
+    const delay = 1000 * Math.pow(2, this.reconnectTries)
+    this.reconnectTries += 1
+    this._reconnecting = true
+    const that = this
+    clearTimeout(this.reconnectTimer)
+    this.reconnectTimer = setTimeout(() => {
+      that.reconnectTimer = null
+      that.log('自动重连第 ' + that.reconnectTries + ' 次…')
+      that.connect(that.lastDeviceId, that.handlers)
+    }, delay)
+    return true
+  }
+
+  /** 手动断开时不再自动重连 */
+  cancelReconnect() {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+    this.reconnectTries = 0
+    this._reconnecting = false
   }
 
   discoverServices(retry) {
@@ -339,9 +393,14 @@ class WitBle {
 
   // ---------- 断开 ----------
   disconnect(silent) {
+    if (!silent) {
+      this.cancelReconnect()
+      this.lastDeviceId = ''
+    }
     this.stopScan()
-    try { wx.offBLECharacteristicValueChange() } catch (e) { /* 忽略 */ }
-    try { wx.offBLEConnectionStateChange() } catch (e) { /* 忽略 */ }
+    // 注意：不要 offBLEConnectionStateChange / offBLECharacteristicValueChange。
+    // 这两个监听是全局、只注册一次的（_ensureListeners），一 off 掉，
+    // 后续重连就再也收不到数据、也检测不到掉线了。
     if (this.connectedId) {
       wx.closeBLEConnection({ deviceId: this.connectedId, complete: () => {} })
       this.connectedId = ''

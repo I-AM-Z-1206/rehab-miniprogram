@@ -1,0 +1,160 @@
+<!--fruit-settings.wxml —— 接水果：治疗师训练参数-->
+<navigation-bar title="接水果 · 训练设置" back="{{true}}" color="black" background="#FFFFFF"></navigation-bar>
+
+<scroll-view class="body" scroll-y>
+  <!-- 摘要 -->
+  <view class="hero">
+    <view class="hero-left">
+      <text class="hero-kicker">当前难度</text>
+      <text class="hero-title">{{difficultyLabel}}</text>
+      <text class="hero-desc">参数改动立即生效并自动保存</text>
+    </view>
+    <view class="hero-badge">第 {{difficulty}} 档</view>
+  </view>
+
+  <!-- 校验提示 -->
+  <view class="alert error" wx:if="{{errors.length}}">
+    <image class="alert-ico" src="/assets/icons/info-teal.png" mode="aspectFit" />
+    <view class="alert-main">
+      <text class="alert-title">参数不合法，无法开始训练</text>
+      <text class="alert-line" wx:for="{{errors}}" wx:key="*this">· {{item}}</text>
+    </view>
+  </view>
+  <view class="alert warn" wx:if="{{warnings.length}}">
+    <text class="alert-title">提醒</text>
+    <text class="alert-line" wx:for="{{warnings}}" wx:key="*this">· {{item}}</text>
+  </view>
+
+  <!-- 难度 -->
+  <view class="card">
+    <view class="card-head">
+      <text class="card-title">难度档位</text>
+      <text class="card-sub">套用推荐值</text>
+    </view>
+    <view class="presets">
+      <view
+        wx:for="{{presets}}"
+        wx:key="lv"
+        class="preset {{item.active ? 'active' : ''}}"
+        data-lv="{{item.lv}}"
+        bindtap="onDifficultyTap"
+      >
+        <text class="preset-lv">{{item.lv}}</text>
+        <text class="preset-name">{{item.label}}</text>
+      </view>
+    </view>
+    <text class="card-tip">档位只影响游戏参数，不改变计分公式；套用后仍可逐项微调。</text>
+
+    <!-- 五档对比（只读） -->
+    <view class="ptable">
+      <view class="ptable-row head">
+        <text class="pc-lv">档</text>
+        <text class="pc">容差</text>
+        <text class="pc">稳时</text>
+        <text class="pc">宽度</text>
+        <text class="pc">间隔</text>
+        <text class="pc">时长</text>
+      </view>
+      <view class="ptable-row {{item.active ? 'active' : ''}}" wx:for="{{presetRows}}" wx:key="lv">
+        <text class="pc-lv">{{item.lv}}</text>
+        <text class="pc">{{item.hold}}</text>
+        <text class="pc">{{item.stable}}</text>
+        <text class="pc">{{item.width}}</text>
+        <text class="pc">{{item.gap}}</text>
+        <text class="pc">{{item.duration}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 参数分组 -->
+  <view class="card" wx:for="{{groups}}" wx:key="name" wx:for-item="group">
+    <view class="card-head">
+      <text class="card-title">{{group.name}}</text>
+    </view>
+
+    <view class="item" wx:for="{{group.items}}" wx:key="key" wx:for-item="it">
+      <view class="item-head">
+        <text class="item-label">{{it.label}}</text>
+        <text class="item-value">{{it.display}}</text>
+      </view>
+
+      <slider
+        wx:if="{{it.type === 'num'}}"
+        class="item-slider"
+        min="{{it.min}}"
+        max="{{it.max}}"
+        step="{{it.step}}"
+        value="{{it.value}}"
+        activeColor="#0f9c8c"
+        backgroundColor="#e8edf1"
+        block-size="22"
+        data-key="{{it.key}}"
+        bindchanging="onSlide"
+        bindchange="onSlideChange"
+      />
+
+      <view class="item-switch" wx:elif="{{it.type === 'bool'}}">
+        <switch checked="{{it.value}}" color="#0f9c8c" data-key="{{it.key}}" bindchange="onToggle" />
+      </view>
+
+      <view class="seg" wx:else>
+        <view
+          wx:for="{{it.options}}"
+          wx:key="value"
+          wx:for-item="op"
+          class="seg-item {{op.active ? 'active' : ''}}"
+          data-key="{{it.key}}"
+          data-value="{{op.value}}"
+          bindtap="onOptionTap"
+        >{{op.label}}</view>
+      </view>
+
+      <text class="item-tip" wx:if="{{it.tip}}">{{it.tip}}</text>
+    </view>
+  </view>
+
+  <!-- 数据上报 -->
+  <view class="card">
+    <view class="card-head">
+      <text class="card-title">训练数据上报</text>
+      <text class="tag {{uploadState === '已配置' ? 'ok' : ''}}">{{uploadState}}</text>
+    </view>
+    <text class="card-tip">
+      接口地址与令牌由管理员填写，不写死在代码里。未配置时记录只保存在本机；
+      模拟数据不会上报。
+    </text>
+    <view class="field">
+      <text class="field-label">接口地址（https）</text>
+      <input
+        class="field-input"
+        value="{{uploadUrl}}"
+        placeholder="https://example.com/api/training/fruit"
+        bindinput="onUrlInput"
+      />
+    </view>
+    <view class="field">
+      <text class="field-label">访问令牌（可选）</text>
+      <input
+        class="field-input"
+        value="{{uploadToken}}"
+        password="{{true}}"
+        placeholder="仅保存在本机"
+        bindinput="onTokenInput"
+      />
+    </view>
+    <view class="btn-row">
+      <view class="btn primary" bindtap="onSaveUpload">保存上报配置</view>
+    </view>
+  </view>
+
+  <!-- 操作 -->
+  <view class="btn-row wide">
+    <view class="btn ghost" bindtap="onCheck">检查参数</view>
+    <view class="btn ghost" bindtap="onReset">恢复默认</view>
+  </view>
+
+  <view class="foot">
+    <text class="foot-line">所有默认值与档位参数均为待真机实测的游戏参数，</text>
+    <text class="foot-line">不代表医疗安全区间，也不构成康复疗效结论。</text>
+  </view>
+</scroll-view>
