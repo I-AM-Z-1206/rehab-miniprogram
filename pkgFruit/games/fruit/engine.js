@@ -184,7 +184,8 @@ class FruitEngine {
     this.refreshGeometry()
     this.setState(STATE.READY)
     this.motion.reset()
-    this.calibrated = !!this.lastCalibration && this.lastCalibration.ok
+    // 零点全 App 共用一份：标定页或别的游戏标过就直接用，不再要求本游戏内重标
+    this.calibrated = this.motion.hasZero()
     return this.state
   }
 
@@ -523,7 +524,8 @@ class FruitEngine {
           message: this.motion.cal.message,
           at: Date.now()
         }
-        this.calibrated = !!this.lastCalibration.ok
+        // 重标失败不该把旧零点也一起作废：旧零点还在，就仍然可以开始
+        this.calibrated = !!this.lastCalibration.ok || this.motion.hasZero()
         this._emit('calibrate', this.lastCalibration)
         this.setState(STATE.READY)
       }
@@ -900,6 +902,7 @@ class FruitEngine {
       difficulty: Number(cfg.get('difficulty')) || 2,
       calibrated: this.calibrated,
       calibration: this.lastCalibration,
+      zero: this.motion.zeroInfo(),
       calibrationProgress: this.state === STATE.CALIBRATING
         ? clamp(this.motion.cal.elapsed / this.motion.cal.total, 0, 1) : 0,
       interrupted: this.interruption,

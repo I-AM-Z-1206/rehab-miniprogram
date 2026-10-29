@@ -127,9 +127,9 @@ const SCHEMA = {
     tip: '0 = 只出左右音符；调高后要求「回到中立位」的中间音符越多'
   },
   restRate: {
-    group: '节奏判定', label: '休止拍比例', type: 'num', unit: '',
-    min: 0, max: 0.5, step: 0.05, def: 0.12,
-    tip: '随机留空的拍子比例，给患者喘息；太大会显得"半天不来音符"'
+    group: '节奏判定', label: '呼吸拍间隔', type: 'num', unit: '',
+    min: 0, max: 0.5, step: 0.01, def: 0.13,
+    tip: '每 N 个音符空一拍（固定位置，不会连着空）；0 = 不留空。0.13≈每 8 个空一拍'
   },
   sameSideRate: {
     group: '节奏判定', label: '同向连击比例', type: 'num', unit: '',

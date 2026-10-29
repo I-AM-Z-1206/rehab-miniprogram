@@ -1,0 +1,7 @@
+# 备案下来之前的临时用法：只监听 80，不做 HTTPS。
+# 注意：微信小程序只接受 https + 已备案域名，这个配置只用于你自己用浏览器 / curl 验证。
+# 备案通过后换成 deploy/Caddyfile（带自动 HTTPS）。
+:80 {
+	encode gzip
+	reverse_proxy 127.0.0.1:8787
+}

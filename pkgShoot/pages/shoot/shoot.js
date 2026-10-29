@@ -14,8 +14,8 @@
 
 const WitBle = require('../../../utils/witble.js')
 const speaker = require('../../../utils/speaker.js')
-const game = require('../../../utils/game/index.js')
-const { getStore } = require('../../../utils/game/config.js')
+const game = require('../../utils/game.js')
+const { getStore } = require('../../games/shoot/config.js')
 const { AudioKit } = require('../../../utils/game/audio.js')
 const { ShootUI } = require('../../games/shoot/ui.js')
 
@@ -45,6 +45,12 @@ Page({
   // ---------------------------------------------------------------- 生命周期
   onLoad() {
     this.cfg = getStore()
+    // 治疗师后台下发的参数：射击的 ConfigStore 在分包里，主包的 remote-config
+    // 不能 require 分包，必须在这里把 store 注入进去（attach 会立刻拉一次）。
+    // 失败只影响云端参数，本地训练照常。
+    try {
+      require('../../../utils/remote-config.js').attach('shoot', this.cfg)
+    } catch (e) { /* 忽略 */ }
     this.ble = WitBle.getShared()
     this.game = null
     this.ui = null

@@ -84,22 +84,32 @@ function buildChart(opts) {
 
   const rng = mulberry32(hashSeed(song.songId + '|' + difficulty + '|' + seed + '|' + version))
 
+  // 呼吸拍：按固定间隔留空，而不是随机留空。
+  // 随机留空会连着空两三拍（患者感受就是"一堆音符之后半天没一个"），
+  // 固定间隔则变成"每 N 个音符空一拍"，节奏可预期。
+  const restEvery = restRate > 0 ? Math.max(4, Math.round(1 / restRate)) : 0
+
   const notes = []
   let lastSide = 'right'
   let lastTime = -99999
   let seq = 0
   let restBeats = 0
+  let slot = 0
 
   for (let b = prepBeats; b * beat + offsetMs <= durationMs; b += step) {
     if (notes.length >= MAX_NOTES) break
     const timeMs = Math.round(b * beat) + offsetMs
     if (timeMs > durationMs) break
 
-    // 开头两拍不设休止，保证一上来能听到第一组音符
+    // 开头两拍不设休止，保证一上来能听到第一组音符；
+    // 之后每隔 restEvery 个音符空一拍（固定位置，绝不会连着空）
     const early = b < prepBeats + 2 * step
-    if (!early && rng() < restRate) {
-      restBeats += 1
-      continue
+    if (!early) {
+      slot += 1
+      if (restEvery && slot % restEvery === 0) {
+        restBeats += 1
+        continue
+      }
     }
 
     let side = lastSide === 'left' ? 'right' : 'left'

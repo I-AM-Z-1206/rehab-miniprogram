@@ -1,0 +1,145 @@
+<!--race-records.wxml —— 赛车训练记录-->
+<navigation-bar title="赛车 · 训练记录" back="{{true}}" color="black" background="#FFFFFF"></navigation-bar>
+
+<scroll-view class="body" scroll-y>
+  <!-- 概览 -->
+  <view class="summary">
+    <view class="sum-cell">
+      <text class="sum-num">{{stats.total}}</text>
+      <text class="sum-label">总记录</text>
+    </view>
+    <view class="sum-line"></view>
+    <view class="sum-cell">
+      <text class="sum-num ok">{{stats.uploaded}}</text>
+      <text class="sum-label">已上报</text>
+    </view>
+    <view class="sum-line"></view>
+    <view class="sum-cell">
+      <text class="sum-num warn">{{stats.pending}}</text>
+      <text class="sum-label">待上报</text>
+    </view>
+  </view>
+
+  <!-- 最好的一局：只取真实传感器数据 -->
+  <view class="best" wx:if="{{best}}">
+    <view class="best-left">
+      <text class="best-label">最好成绩</text>
+      <text class="best-level">{{best.levelName}}</text>
+    </view>
+    <view class="best-right">
+      <text class="best-score">{{best.score}}</text>
+      <text class="best-unit">分</text>
+    </view>
+  </view>
+
+  <!-- 上报状态 -->
+  <view class="banner {{uploadReady ? 'ok' : ''}}">
+    <text class="banner-title">{{uploadReady ? '上报接口已就绪' : '记录仅保存在本机'}}</text>
+    <text class="banner-desc">{{uploadReady ? '记录可逐条或批量发送到训练平台' : '登录并连通训练平台后才会自动上报，地址由代码统一管理'}}</text>
+  </view>
+
+  <view class="actions" wx:if="{{list.length}}">
+    <view class="act" bindtap="onUploadAll">批量上报（{{pendingCount}}）</view>
+  </view>
+
+  <!-- 空态 -->
+  <view class="empty" wx:if="{{!list.length}}">
+    <text class="empty-title">还没有训练记录</text>
+    <text class="empty-desc">完成一局「体感赛车」后，成绩会自动保存在这里</text>
+  </view>
+
+  <!-- 列表 -->
+  <view class="card" wx:for="{{list}}" wx:key="recordId">
+    <view class="row" data-id="{{item.recordId}}" bindtap="onToggle">
+      <view class="row-main">
+        <view class="row-head">
+          <text class="row-score">{{item.score}} 分</text>
+          <text class="row-rank" wx:if="{{item.rank}}">第 {{item.rank}} 名</text>
+          <text class="row-sim" wx:if="{{item.isSim}}">模拟</text>
+        </view>
+        <text class="row-time">{{item.time}} · {{item.levelName}} · {{item.duration}}</text>
+      </view>
+      <view class="row-right">
+        <text class="state {{item.state}}">{{item.stateText}}</text>
+        <text class="chev">{{expanded === item.recordId ? '收起' : '详情'}}</text>
+      </view>
+    </view>
+
+    <view class="row-kpi">
+      <view class="kpi">
+        <text class="kpi-num">x{{item.combo}}</text>
+        <text class="kpi-label">最高连击</text>
+      </view>
+      <view class="kpi">
+        <text class="kpi-num">{{item.perfect}}</text>
+        <text class="kpi-label">完美闪避</text>
+      </view>
+      <view class="kpi">
+        <text class="kpi-num {{item.hits ? 'danger' : ''}}">{{item.hits}}</text>
+        <text class="kpi-label">碰撞</text>
+      </view>
+      <view class="kpi">
+        <text class="kpi-num">{{item.rings}}</text>
+        <text class="kpi-label">能量环</text>
+      </view>
+      <view class="kpi">
+        <text class="kpi-num">{{item.accuracy}}%</text>
+        <text class="kpi-label">稳定率</text>
+      </view>
+      <view class="kpi">
+        <text class="kpi-num">{{item.distance}}</text>
+        <text class="kpi-label">公里</text>
+      </view>
+    </view>
+
+    <!-- 展开详情 -->
+    <view class="detail" wx:if="{{expanded === item.recordId}}">
+      <view class="d-row">
+        <text class="d-key">难度档位</text>
+        <text class="d-val">{{item.levelName}}</text>
+      </view>
+      <view class="d-row">
+        <text class="d-key">打满方向所需侧屈</text>
+        <text class="d-val">{{item.maxAngle}}°</text>
+      </view>
+      <view class="d-row">
+        <text class="d-key">死区（不响应的抖动阈值）</text>
+        <text class="d-val">±{{item.deadZone}}°</text>
+      </view>
+      <view class="d-row">
+        <text class="d-key">滤波强度（越小越跟手）</text>
+        <text class="d-val">{{item.smoothing}}</text>
+      </view>
+      <view class="d-row">
+        <text class="d-key">会话时长设定</text>
+        <text class="d-val">{{item.session}}</text>
+      </view>
+      <view class="d-row">
+        <text class="d-key">姿态稳定时长</text>
+        <text class="d-val">{{item.stableTime}} 秒</text>
+      </view>
+      <view class="d-row">
+        <text class="d-key">消耗</text>
+        <text class="d-val">{{item.calories}} kcal</text>
+      </view>
+      <view class="d-row">
+        <text class="d-key">训练时长</text>
+        <text class="d-val">{{item.duration}}</text>
+      </view>
+      <view class="d-row">
+        <text class="d-key">数据来源</text>
+        <text class="d-val">{{item.source}}</text>
+      </view>
+
+      <text class="d-note">姿态参数为该局开跑时生效的快照。治疗师之后调过参数，这条记录仍能解释自己的成绩。</text>
+
+      <view class="d-actions">
+        <view class="d-btn" wx:if="{{item.canUpload && item.state !== 'uploaded'}}" data-id="{{item.recordId}}" bindtap="onUpload">上报</view>
+        <view class="d-btn danger" data-id="{{item.recordId}}" bindtap="onDelete">删除</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="clear" wx:if="{{list.length}}" bindtap="onClearAll">清空本机记录</view>
+  <view class="foot">训练数据属于敏感健康相关信息，仅在你确认后才会发送。</view>
+</scroll-view>

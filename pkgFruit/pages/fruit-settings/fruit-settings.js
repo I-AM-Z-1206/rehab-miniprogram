@@ -1,7 +1,7 @@
 // fruit-settings.js —— 接水果：治疗师训练参数设置
 // 所有参数写入 utils/fruit-config.js（独立存储键 fruit_cfg_v1），改动立即生效。
 const { getStore, SCHEMA, GROUPS, PRESETS, validate } = require('../../../utils/fruit-config.js')
-const records = require('../../../utils/fruit-record.js')
+const records = require('../../utils/fruit-record.js')
 
 const AXIS_LABEL = { pitch: 'Pitch 轴', roll: 'Roll 轴' }
 

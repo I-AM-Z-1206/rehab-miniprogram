@@ -1,18 +1,194 @@
 (() => {
   var __getOwnPropNames = Object.getOwnPropertyNames;
   var __commonJS = (cb, mod) => function __require() {
-    try {
-      return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
-    } catch (e) {
-      throw mod = 0, e;
-    }
+    return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
   };
+
+  // utils/config-store.js
+  var require_config_store = __commonJS({
+    "utils/config-store.js"(exports, module) {
+      var SAVE_DELAY = 260;
+      function clamp(v, lo, hi) {
+        return v < lo ? lo : v > hi ? hi : v;
+      }
+      function num(v, def) {
+        const n = Number(v);
+        return isFinite(n) ? n : def;
+      }
+      function coerceWith(schema, key, value) {
+        const meta = schema[key];
+        if (!meta) return void 0;
+        if (meta.type === "bool") {
+          if (typeof value === "boolean") return value;
+          if (value === 1 || value === "1" || value === "true") return true;
+          if (value === 0 || value === "0" || value === "false") return false;
+          return meta.def;
+        }
+        if (meta.type === "enum") {
+          const opts = meta.options || [];
+          if (opts.indexOf(value) >= 0) return value;
+          const asNum = Number(value);
+          if (opts.indexOf(asNum) >= 0) return asNum;
+          return meta.def;
+        }
+        let v = num(value, meta.def);
+        if (meta.step) v = Math.round(v / meta.step) * meta.step;
+        v = clamp(v, meta.min, meta.max);
+        return Math.round(v * 1e3) / 1e3;
+      }
+      function createConfigStore(opts) {
+        const o = opts || {};
+        const SCHEMA = o.schema || {};
+        const PRESETS = o.presets || {};
+        const validateFn = o.validate || (() => ({ ok: true, errors: [], warnings: [] }));
+        const SAVE_DELAY_MS = num(o.saveDelay, SAVE_DELAY);
+        const LOG_TAG = o.logTag || "config";
+        const DEFAULT_LV = num(o.defaultDifficulty, 3);
+        const defaults = () => {
+          const d = {};
+          Object.keys(SCHEMA).forEach((k) => {
+            d[k] = SCHEMA[k].def;
+          });
+          return d;
+        };
+        const DEFAULT_CONFIG = defaults();
+        const coerce = (key, value) => coerceWith(SCHEMA, key, value);
+        class ConfigStore {
+          constructor(storeOpts) {
+            const so = storeOpts || {};
+            this.key = so.storageKey || o.key;
+            this.persistEnabled = so.persist !== false;
+            this.state = defaults();
+            this.listeners = [];
+            this.timer = null;
+            if (this.persistEnabled) this.load();
+          }
+          get(key) {
+            if (key === void 0) return this.all();
+            const v = this.state[key];
+            return v === void 0 ? SCHEMA[key] ? SCHEMA[key].def : void 0 : v;
+          }
+          all() {
+            return Object.assign({}, this.state);
+          }
+          patch(partial, source) {
+            if (!partial) return [];
+            const changed = [];
+            Object.keys(partial).forEach((k) => {
+              if (!SCHEMA[k]) return;
+              const next = coerce(k, partial[k]);
+              if (next === void 0 || next === this.state[k]) return;
+              this.state[k] = next;
+              changed.push(k);
+            });
+            if (!changed.length) return changed;
+            this.scheduleSave();
+            this.emit(changed, source || "patch");
+            return changed;
+          }
+          set(key, value, source) {
+            const p = {};
+            p[key] = value;
+            this.patch(p, source || "set:" + key);
+            return this.get(key);
+          }
+          applyDifficulty(level, applyPreset) {
+            const lv = clamp(Math.round(num(level, DEFAULT_LV)), 1, 5);
+            const preset = PRESETS[lv];
+            if (!preset) return [];
+            const p = { difficulty: lv };
+            if (applyPreset !== false) {
+              Object.keys(preset).forEach((k) => {
+                if (k === "label") return;
+                if (SCHEMA[k]) p[k] = preset[k];
+              });
+            }
+            return this.patch(p, "difficulty:" + lv);
+          }
+          difficultyLabel(level) {
+            const p = PRESETS[clamp(Math.round(num(level, DEFAULT_LV)), 1, 5)];
+            return p ? p.label : "";
+          }
+          validate() {
+            return validateFn(this.state);
+          }
+          subscribe(fn) {
+            if (typeof fn !== "function") return () => {
+            };
+            this.listeners.push(fn);
+            const that = this;
+            return function off() {
+              const i = that.listeners.indexOf(fn);
+              if (i >= 0) that.listeners.splice(i, 1);
+            };
+          }
+          emit(changed, source) {
+            const payload = { config: this.all(), changed, source };
+            this.listeners.slice().forEach((fn) => {
+              try {
+                fn(payload);
+              } catch (e) {
+                console.error("[" + LOG_TAG + "] listener", e);
+              }
+            });
+          }
+          load() {
+            let saved = null;
+            try {
+              saved = wx.getStorageSync(this.key);
+            } catch (e) {
+            }
+            if (saved && typeof saved === "object") {
+              Object.keys(SCHEMA).forEach((k) => {
+                if (saved[k] !== void 0) this.state[k] = coerce(k, saved[k]);
+              });
+            }
+            return this.state;
+          }
+          scheduleSave() {
+            if (!this.persistEnabled || this.timer) return;
+            const that = this;
+            this.timer = setTimeout(function() {
+              that.timer = null;
+              that.save();
+            }, SAVE_DELAY_MS);
+          }
+          save() {
+            if (!this.persistEnabled) return;
+            try {
+              wx.setStorageSync(this.key, this.state);
+            } catch (e) {
+            }
+          }
+          reset() {
+            const changed = [];
+            Object.keys(DEFAULT_CONFIG).forEach((k) => {
+              if (this.state[k] !== DEFAULT_CONFIG[k]) {
+                this.state[k] = DEFAULT_CONFIG[k];
+                changed.push(k);
+              }
+            });
+            this.save();
+            if (changed.length) this.emit(changed, "reset");
+            return changed;
+          }
+        }
+        let shared = null;
+        function getStore2(storeOpts) {
+          if (storeOpts && storeOpts.fresh) return new ConfigStore(storeOpts);
+          if (!shared) shared = new ConfigStore(storeOpts);
+          return shared;
+        }
+        return { ConfigStore, getStore: getStore2, defaults, coerce, DEFAULT_CONFIG };
+      }
+      module.exports = { createConfigStore, coerceWith, clamp, num, SAVE_DELAY };
+    }
+  });
 
   // utils/wire-config.js
   var require_wire_config = __commonJS({
     "utils/wire-config.js"(exports, module) {
       var STORAGE_KEY = "wire_cfg_v1";
-      var SAVE_DELAY = 260;
       var SCHEMA = {
         // ---------------- 难度 ----------------
         difficulty: {
@@ -318,42 +494,6 @@
         }
       };
       var HARD_LIMIT = { angle: 45, duration: 300 };
-      function clamp(v, lo, hi) {
-        return v < lo ? lo : v > hi ? hi : v;
-      }
-      function num(v, def) {
-        const n = Number(v);
-        return isFinite(n) ? n : def;
-      }
-      function defaults() {
-        const d = {};
-        Object.keys(SCHEMA).forEach((k) => {
-          d[k] = SCHEMA[k].def;
-        });
-        return d;
-      }
-      var DEFAULT_CONFIG = defaults();
-      function coerce(key, value) {
-        const meta = SCHEMA[key];
-        if (!meta) return void 0;
-        if (meta.type === "bool") {
-          if (typeof value === "boolean") return value;
-          if (value === 1 || value === "1" || value === "true") return true;
-          if (value === 0 || value === "0" || value === "false") return false;
-          return meta.def;
-        }
-        if (meta.type === "enum") {
-          const opts = meta.options || [];
-          if (opts.indexOf(value) >= 0) return value;
-          const asNum = Number(value);
-          if (opts.indexOf(asNum) >= 0) return asNum;
-          return meta.def;
-        }
-        let v = num(value, meta.def);
-        v = clamp(v, meta.min, meta.max);
-        if (meta.step) v = Math.round(v / meta.step) * meta.step;
-        return Math.round(v * 1e3) / 1e3;
-      }
       function validate(state) {
         const s = state || {};
         const errors = [];
@@ -386,135 +526,17 @@
         if (s.sensitivity > 1.4) warnings.push("\u7075\u654F\u5EA6\u8FC7\u9AD8\uFF0C\u5C0F\u52A8\u4F5C\u4F1A\u88AB\u653E\u5927");
         return { ok: errors.length === 0, errors, warnings };
       }
-      var WireConfigStore = class {
-        constructor(opts) {
-          const o = opts || {};
-          this.key = o.storageKey || STORAGE_KEY;
-          this.persistEnabled = o.persist !== false;
-          this.state = defaults();
-          this.listeners = [];
-          this.timer = null;
-          if (this.persistEnabled) this.load();
-        }
-        get(key) {
-          if (key === void 0) return this.all();
-          const v = this.state[key];
-          return v === void 0 ? SCHEMA[key] ? SCHEMA[key].def : void 0 : v;
-        }
-        all() {
-          return Object.assign({}, this.state);
-        }
-        /** 批量写入并广播；返回真正变化的键 */
-        patch(partial, source) {
-          if (!partial) return [];
-          const changed = [];
-          Object.keys(partial).forEach((k) => {
-            if (!SCHEMA[k]) return;
-            const next = coerce(k, partial[k]);
-            if (next === void 0 || next === this.state[k]) return;
-            this.state[k] = next;
-            changed.push(k);
-          });
-          if (!changed.length) return changed;
-          this.scheduleSave();
-          this.emit(changed, source || "patch");
-          return changed;
-        }
-        set(key, value, source) {
-          const p = {};
-          p[key] = value;
-          this.patch(p, source || "set:" + key);
-          return this.get(key);
-        }
-        /** 套用 1~5 档预设（applyPreset=false 时只改档位数字） */
-        applyDifficulty(level, applyPreset) {
-          const lv = clamp(Math.round(num(level, 2)), 1, 5);
-          const preset = PRESETS[lv];
-          if (!preset) return [];
-          const p = { difficulty: lv };
-          if (applyPreset !== false) {
-            Object.keys(preset).forEach((k) => {
-              if (k === "label") return;
-              if (SCHEMA[k]) p[k] = preset[k];
-            });
-          }
-          return this.patch(p, "difficulty:" + lv);
-        }
-        difficultyLabel(level) {
-          const p = PRESETS[clamp(Math.round(num(level, 2)), 1, 5)];
-          return p ? p.label : "";
-        }
-        validate() {
-          return validate(this.state);
-        }
-        subscribe(fn) {
-          if (typeof fn !== "function") return () => {
-          };
-          this.listeners.push(fn);
-          const that = this;
-          return function off() {
-            const i = that.listeners.indexOf(fn);
-            if (i >= 0) that.listeners.splice(i, 1);
-          };
-        }
-        emit(changed, source) {
-          const payload = { config: this.all(), changed, source };
-          this.listeners.slice().forEach((fn) => {
-            try {
-              fn(payload);
-            } catch (e) {
-              console.error("[wire-config] listener", e);
-            }
-          });
-        }
-        load() {
-          let saved = null;
-          try {
-            saved = wx.getStorageSync(this.key);
-          } catch (e) {
-          }
-          if (saved && typeof saved === "object") {
-            Object.keys(SCHEMA).forEach((k) => {
-              if (saved[k] !== void 0) this.state[k] = coerce(k, saved[k]);
-            });
-          }
-          return this.state;
-        }
-        scheduleSave() {
-          if (!this.persistEnabled || this.timer) return;
-          const that = this;
-          this.timer = setTimeout(function() {
-            that.timer = null;
-            that.save();
-          }, SAVE_DELAY);
-        }
-        save() {
-          if (!this.persistEnabled) return;
-          try {
-            wx.setStorageSync(this.key, this.state);
-          } catch (e) {
-          }
-        }
-        reset() {
-          const changed = [];
-          Object.keys(DEFAULT_CONFIG).forEach((k) => {
-            if (this.state[k] !== DEFAULT_CONFIG[k]) {
-              this.state[k] = DEFAULT_CONFIG[k];
-              changed.push(k);
-            }
-          });
-          this.save();
-          if (changed.length) this.emit(changed, "reset");
-          return changed;
-        }
-      };
-      var shared = null;
-      function getStore2() {
-        if (!shared) shared = new WireConfigStore();
-        return shared;
-      }
+      var { createConfigStore } = require_config_store();
+      var { ConfigStore, getStore: getStore2, coerce, DEFAULT_CONFIG } = createConfigStore({
+        key: STORAGE_KEY,
+        schema: SCHEMA,
+        presets: PRESETS,
+        validate,
+        defaultDifficulty: 2,
+        logTag: "wire-config"
+      });
       module.exports = {
-        WireConfigStore,
+        WireConfigStore: ConfigStore,
         getStore: getStore2,
         SCHEMA,
         GROUPS,
@@ -797,6 +819,29 @@
           return this.simMode || !this.stale && this.hasSignal;
         }
         // ---------------------------------------------------------------- 标定
+        /**
+         * 是否已有可用的零点。
+         * 零点存在 utils/zero.js 里，全 App 共用一份：零点标定页标过、或别的游戏标过，
+         * 这里都应当算数。以前各游戏只认「本次进入游戏内做过的标定」，导致已经标好的
+         * 用户每进一个游戏都被要求再标一次，重复劳动。
+         */
+        hasZero() {
+          if (this.cal && this.cal.result === "ok") return true;
+          try {
+            return !!zero.get().set;
+          } catch (e) {
+            return false;
+          }
+        }
+        /** 当前零点偏移量（度）。界面用它说明"沿用的是哪个零点" */
+        zeroInfo() {
+          try {
+            const z = zero.get();
+            return { roll: z.roll, pitch: z.pitch, set: !!z.set };
+          } catch (e) {
+            return { roll: 0, pitch: 0, set: false };
+          }
+        }
         beginCalibration() {
           this.cal.active = true;
           this.cal.startedAt = Date.now();
@@ -974,9 +1019,9 @@
     }
   });
 
-  // games/wire/safety.js
+  // pkgWire/games/wire/safety.js
   var require_safety = __commonJS({
-    "games/wire/safety.js"(exports, module) {
+    "pkgWire/games/wire/safety.js"(exports, module) {
       var SAFETY_STATE = {
         IDLE: "IDLE",
         WARN: "WARN",
@@ -1138,9 +1183,9 @@
     }
   });
 
-  // games/wire/score.js
+  // pkgWire/games/wire/score.js
   var require_score = __commonJS({
-    "games/wire/score.js"(exports, module) {
+    "pkgWire/games/wire/score.js"(exports, module) {
       function round1(v) {
         return Math.round(v * 10) / 10;
       }
@@ -1236,9 +1281,9 @@
     }
   });
 
-  // games/wire/engine.js
+  // pkgWire/games/wire/engine.js
   var require_engine = __commonJS({
-    "games/wire/engine.js"(exports, module) {
+    "pkgWire/games/wire/engine.js"(exports, module) {
       var { MotionTracker } = require_motion();
       var { SafetyRope } = require_safety();
       var { ScoreManager } = require_score();
@@ -1329,7 +1374,7 @@
         prepare() {
           this.setState(STATE.READY);
           this.motion.reset();
-          this.calibrated = !!this.lastCalibration && this.lastCalibration.ok;
+          this.calibrated = this.motion.hasZero();
           return this.state;
         }
         /** 开始零点标定（需要真实数据；模拟模式直接判定通过） */
@@ -1563,7 +1608,7 @@
                 message: this.motion.cal.message,
                 at: Date.now()
               };
-              this.calibrated = !!this.lastCalibration.ok;
+              this.calibrated = !!this.lastCalibration.ok || this.motion.hasZero();
               this._emit("calibrate", this.lastCalibration);
               this.setState(STATE.READY);
             }
@@ -1731,6 +1776,7 @@
             ropeTrigger: Number(cfg2.get("ropeTrigger")) || 0.88,
             calibrated: this.calibrated,
             calibration: this.lastCalibration,
+            zero: this.motion.zeroInfo(),
             calibrationProgress: this.state === STATE.CALIBRATING ? clamp(this.motion.cal.elapsed / this.motion.cal.total, 0, 1) : 0,
             interrupted: this.interruption,
             canResume: this.state === STATE.SENSOR_ERROR && !this.motion.stale
@@ -1747,9 +1793,9 @@
     }
   });
 
-  // games/wire/character.js
+  // pkgWire/games/wire/character.js
   var require_character = __commonJS({
-    "games/wire/character.js"(exports, module) {
+    "pkgWire/games/wire/character.js"(exports, module) {
       var PALETTE = {
         skin: "#F4C9A4",
         skinShade: "#E2B189",
@@ -1940,8 +1986,6 @@
         ctx.lineWidth = 2;
         ctx.strokeStyle = "rgba(120, 48, 32, 0.22)";
         ctx.stroke();
-        void phase;
-        void balance;
       }
       function drawArm(ctx, shoulderX, shoulderY, side, phase, flail, tension, back) {
         const swing = Math.sin(phase + (side > 0 ? Math.PI : 0)) * (2.2 + flail * 7);
@@ -1992,7 +2036,6 @@
           ctx.stroke();
         });
         ctx.restore();
-        void balance;
       }
       function drawHead(ctx, o, balance, t) {
         const cy = BODY.headCY;
@@ -2094,8 +2137,6 @@
           ctx.fillStyle = "rgba(126, 197, 232, 0.9)";
           ctx.fill();
         }
-        void o;
-        void t;
       }
       function drawHarness(ctx, tension) {
         const top = BODY.shoulderY - 2;
@@ -2142,15 +2183,426 @@
     }
   });
 
-  // games/wire/renderer.js
+  // utils/scene/depth.js
+  var require_depth = __commonJS({
+    "utils/scene/depth.js"(exports, module) {
+      var TAU = Math.PI * 2;
+      function clamp(v, lo, hi) {
+        return v < lo ? lo : v > hi ? hi : v;
+      }
+      function lerp(a, b, t) {
+        return a + (b - a) * t;
+      }
+      function finite() {
+        for (let i = 0; i < arguments.length; i++) {
+          const v = arguments[i];
+          if (typeof v !== "number" || !isFinite(v)) return false;
+        }
+        return true;
+      }
+      function depthT(y, hz, h) {
+        if (!finite(y, hz, h) || h - hz <= 0) return 0;
+        return clamp((y - hz) / (h - hz), 0, 1);
+      }
+      function fillEllipse(ctx, x, y, rx, ry, style) {
+        if (!finite(x, y, rx, ry) || rx <= 0 || ry <= 0) return;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(1, ry / rx);
+        ctx.fillStyle = style;
+        ctx.beginPath();
+        ctx.arc(0, 0, rx, 0, TAU);
+        ctx.fill();
+        ctx.restore();
+      }
+      function ringEllipse(ctx, x, y, rx, ry, style, lw) {
+        if (!finite(x, y, rx, ry) || rx <= 0 || ry <= 0) return;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(1, ry / rx);
+        ctx.beginPath();
+        ctx.arc(0, 0, rx, 0, TAU);
+        ctx.strokeStyle = style;
+        ctx.lineWidth = lw || 1;
+        ctx.stroke();
+        ctx.restore();
+      }
+      function softShadow(ctx, x, y, rx, ry, alpha, color) {
+        if (!finite(x, y, rx, ry) || rx <= 0 || ry <= 0) return;
+        const a = clamp(alpha, 0, 1);
+        if (a <= 4e-3) return;
+        const c = color || "0,0,0";
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(1, ry / rx);
+        const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+        g.addColorStop(0, "rgba(" + c + "," + a.toFixed(3) + ")");
+        g.addColorStop(0.5, "rgba(" + c + "," + (a * 0.55).toFixed(3) + ")");
+        g.addColorStop(1, "rgba(" + c + ",0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(0, 0, rx, 0, TAU);
+        ctx.fill();
+        ctx.restore();
+      }
+      function haze(ctx, o) {
+        if (!o || !finite(o.cx, o.y, o.rx)) return;
+        const ry = o.ry || 0.07;
+        const a = o.alpha === void 0 ? 0.22 : o.alpha;
+        if (o.rx <= 0 || a <= 4e-3) return;
+        const c = o.color || "255,246,220";
+        ctx.save();
+        ctx.translate(o.cx, o.y);
+        ctx.scale(1, ry);
+        const g = ctx.createRadialGradient(0, 0, 0, 0, 0, o.rx);
+        g.addColorStop(0, "rgba(" + c + "," + a.toFixed(3) + ")");
+        g.addColorStop(0.55, "rgba(" + c + "," + (a * 0.4).toFixed(3) + ")");
+        g.addColorStop(1, "rgba(" + c + ",0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(0, 0, o.rx, 0, TAU);
+        ctx.fill();
+        ctx.restore();
+        if (o.lineAlpha && o.lineAlpha > 4e-3) {
+          const w = o.w || o.rx * 2;
+          const x0 = o.cx - w / 2;
+          const lg = ctx.createLinearGradient(x0, 0, x0 + w, 0);
+          lg.addColorStop(0, "rgba(" + c + ",0)");
+          lg.addColorStop(0.34, "rgba(" + c + "," + (o.lineAlpha * 0.55).toFixed(3) + ")");
+          lg.addColorStop(0.5, "rgba(" + c + "," + o.lineAlpha.toFixed(3) + ")");
+          lg.addColorStop(0.66, "rgba(" + c + "," + (o.lineAlpha * 0.55).toFixed(3) + ")");
+          lg.addColorStop(1, "rgba(" + c + ",0)");
+          ctx.fillStyle = lg;
+          ctx.fillRect(x0, o.y - 0.5, w, 1);
+        }
+      }
+      function ridge(ctx, o) {
+        if (!o || !finite(o.w, o.hz)) return;
+        const w = o.w;
+        const hz = o.hz;
+        const bands = o.bands || [];
+        for (let L = 0; L < bands.length; L++) {
+          const p = bands[L];
+          const amp = p.amp === void 0 ? 0.1 : p.amp;
+          const rise = p.rise === void 0 ? 0.05 : p.rise;
+          const freq = p.freq || 6.1;
+          const seed = p.seed || 1.3;
+          const a = p.alpha === void 0 ? 0.6 : p.alpha;
+          ctx.beginPath();
+          ctx.moveTo(-4, hz + 2);
+          const step = o.step || 6;
+          for (let x = -4; x <= w + 4; x += step) {
+            const u = x / w;
+            const wave = Math.sin(u * freq + seed) * 0.5 + Math.sin(u * freq * 2.24 + seed * 2) * 0.3 + Math.sin(u * freq * 4.8 + seed * 3) * 0.14;
+            const y = hz - (wave + 0.9) * w * amp * 0.5 + w * rise * 0.5;
+            ctx.lineTo(x, y);
+          }
+          ctx.lineTo(w + 4, hz + 2);
+          ctx.closePath();
+          ctx.fillStyle = "rgba(" + (p.color || "40,70,90") + "," + a + ")";
+          ctx.fill();
+        }
+      }
+      function perspectiveFloor(ctx, o) {
+        if (!o || !finite(o.w, o.h, o.hz, o.cx)) return;
+        const w = o.w;
+        const h = o.h;
+        const hz = o.hz;
+        const cx = o.cx;
+        const floorH = h - hz;
+        if (floorH <= 0) return;
+        const rows = o.rows || 10;
+        const phase = o.phase || 0;
+        const col = o.color || "255,255,255";
+        const nearA = o.nearAlpha === void 0 ? 0.14 : o.nearAlpha;
+        const farA = o.farAlpha === void 0 ? 0.05 : o.farAlpha;
+        const lw = o.lineWidth || 1;
+        const ys = [];
+        for (let i = 1; i <= rows + 1; i++) {
+          const u = i - phase % 1;
+          if (u < 0.06) {
+            ys.push(null);
+            continue;
+          }
+          const y = hz + floorH / u;
+          ys.push(y > h + 4 ? null : y);
+        }
+        if (o.stripe) {
+          const sc = o.stripe.color || "255,255,255";
+          const sa = o.stripe.alpha === void 0 ? 0.05 : o.stripe.alpha;
+          for (let i = 0; i < ys.length - 1; i++) {
+            const y0 = ys[i + 1];
+            const y1 = ys[i];
+            if (y0 === null || y1 === null || y1 - y0 < 1) continue;
+            const t = depthT((y0 + y1) * 0.5, hz, h);
+            ctx.fillStyle = "rgba(" + sc + "," + (sa * (0.35 + t * 0.9)).toFixed(3) + ")";
+            ctx.fillRect(0, Math.max(hz, y0), w, Math.min(h, y1) - Math.max(hz, y0));
+          }
+        }
+        if (o.cols) {
+          const spread = o.spread === void 0 ? 0.17 : o.spread;
+          const topSpread = o.topSpread === void 0 ? 0.012 : o.topSpread;
+          ctx.beginPath();
+          for (let i = -o.cols; i <= o.cols; i++) {
+            const bx = cx + i * (w * spread);
+            const tx = cx + i * (w * topSpread);
+            if (bx < -w || bx > w * 2) continue;
+            ctx.moveTo(tx, hz);
+            ctx.lineTo(bx, h);
+          }
+          ctx.strokeStyle = "rgba(" + col + "," + (farA * 1.1).toFixed(3) + ")";
+          ctx.lineWidth = lw;
+          ctx.stroke();
+        }
+        const bands = [
+          { lo: 5.5, hi: 999, k: 0 },
+          { lo: 2.6, hi: 5.5, k: 0.55 },
+          { lo: 0, hi: 2.6, k: 1 }
+        ];
+        for (let b = 0; b < bands.length; b++) {
+          const band = bands[b];
+          ctx.beginPath();
+          let drew = false;
+          for (let i = 0; i < ys.length; i++) {
+            const y = ys[i];
+            if (y === null) continue;
+            const u = i + 1 - phase % 1;
+            if (u < band.lo || u >= band.hi) continue;
+            if (y < hz + 1) continue;
+            ctx.moveTo(0, y);
+            ctx.lineTo(w, y);
+            drew = true;
+          }
+          if (!drew) continue;
+          const a = lerp(farA, nearA, band.k);
+          ctx.strokeStyle = "rgba(" + col + "," + a.toFixed(3) + ")";
+          ctx.lineWidth = lw * (1 + band.k * 0.9);
+          ctx.stroke();
+        }
+        if (o.fadeSide) {
+          const sc = o.fadeColor || "0,0,0";
+          const k = o.fadeSide;
+          const side = ctx.createLinearGradient(0, 0, w, 0);
+          side.addColorStop(0, "rgba(" + sc + "," + (0.9 * k).toFixed(3) + ")");
+          side.addColorStop(0.2, "rgba(" + sc + "," + (0.55 * k).toFixed(3) + ")");
+          side.addColorStop(0.42, "rgba(" + sc + "," + (0.08 * k).toFixed(3) + ")");
+          side.addColorStop(0.5, "rgba(" + sc + ",0)");
+          side.addColorStop(0.58, "rgba(" + sc + "," + (0.08 * k).toFixed(3) + ")");
+          side.addColorStop(0.8, "rgba(" + sc + "," + (0.55 * k).toFixed(3) + ")");
+          side.addColorStop(1, "rgba(" + sc + "," + (0.9 * k).toFixed(3) + ")");
+          ctx.fillStyle = side;
+          ctx.fillRect(0, hz, w, floorH);
+        }
+        if (o.fadeBottom) {
+          const sc = o.fadeColor || "0,0,0";
+          const bh = floorH * 0.34;
+          const bottom = ctx.createLinearGradient(0, h - bh, 0, h);
+          bottom.addColorStop(0, "rgba(" + sc + ",0)");
+          bottom.addColorStop(1, "rgba(" + sc + "," + o.fadeBottom.toFixed(3) + ")");
+          ctx.fillStyle = bottom;
+          ctx.fillRect(0, h - bh, w, bh);
+        }
+      }
+      function cloudSea(ctx, o) {
+        if (!o || !finite(o.w, o.y)) return;
+        const w = o.w;
+        const y = o.y;
+        const c = o.color || "255,255,255";
+        const a = o.alpha === void 0 ? 0.6 : o.alpha;
+        const n = o.count || 7;
+        const h = o.h || 22;
+        const seed = o.seed || 3.1;
+        const jitter = o.jitter || 0;
+        for (let i = 0; i < n; i++) {
+          const u = (i + 0.5) / n;
+          const jx = Math.sin(i * 2.7 + seed) * w * 0.035;
+          const jy = jitter ? Math.sin(i * 5.3 + seed * 1.7) * jitter : 0;
+          const x = w * u + jx + (o.drift || 0);
+          const r = w * (0.09 + i * 37 % 11 / 11 * 0.09) * (o.scale || 1);
+          const ry = h * (0.5 + i * 53 % 7 / 7 * 0.5);
+          const yy = y + jy;
+          fillEllipse(ctx, x, yy, r, ry, "rgba(" + c + "," + (a * 0.85).toFixed(3) + ")");
+          fillEllipse(
+            ctx,
+            x - r * 0.3,
+            yy - ry * 0.55,
+            r * 0.55,
+            ry * 0.78,
+            "rgba(" + c + "," + (a * 0.72).toFixed(3) + ")"
+          );
+          fillEllipse(
+            ctx,
+            x + r * 0.28,
+            yy - ry * 0.4,
+            r * 0.46,
+            ry * 0.62,
+            "rgba(" + c + "," + (a * 0.58).toFixed(3) + ")"
+          );
+        }
+      }
+      function cloudBank(ctx, o) {
+        if (!o || !finite(o.w, o.y, o.h)) return;
+        const w = o.w;
+        const y = o.y;
+        const h = o.h;
+        if (h <= 0) return;
+        const c = o.color || "255,255,255";
+        const a = o.alpha === void 0 ? 0.5 : o.alpha;
+        if (a <= 4e-3) return;
+        const wave = o.wave === void 0 ? 10 : o.wave;
+        const freq = o.freq || 5.4;
+        const seed = o.seed || 1.9;
+        const step = o.step || 7;
+        ctx.beginPath();
+        ctx.moveTo(-4, y + h);
+        for (let x = -4; x <= w + 4; x += step) {
+          const u = x / w;
+          const yy = y + Math.sin(u * freq + seed) * wave + Math.sin(u * freq * 2.3 + seed * 2.1) * wave * 0.45 + Math.sin(u * freq * 4.7 + seed * 3.3) * wave * 0.18;
+          if (x <= -4) ctx.moveTo(x, yy);
+          else ctx.lineTo(x, yy);
+        }
+        ctx.lineTo(w + 4, y + h);
+        ctx.closePath();
+        const g = ctx.createLinearGradient(0, y - wave, 0, y + h);
+        g.addColorStop(0, "rgba(" + c + "," + a.toFixed(3) + ")");
+        g.addColorStop(0.55, "rgba(" + c + "," + (a * 0.66).toFixed(3) + ")");
+        g.addColorStop(1, "rgba(" + c + ",0)");
+        ctx.fillStyle = g;
+        ctx.fill();
+        if (o.rimAlpha && o.rimAlpha > 4e-3) {
+          ctx.beginPath();
+          for (let x = -4; x <= w + 4; x += step) {
+            const u = x / w;
+            const yy = y + Math.sin(u * freq + seed) * wave + Math.sin(u * freq * 2.3 + seed * 2.1) * wave * 0.45 + Math.sin(u * freq * 4.7 + seed * 3.3) * wave * 0.18;
+            if (x <= -4) ctx.moveTo(x, yy);
+            else ctx.lineTo(x, yy);
+          }
+          ctx.strokeStyle = "rgba(" + c + "," + o.rimAlpha.toFixed(3) + ")";
+          ctx.lineWidth = o.rimWidth || 1.4;
+          ctx.stroke();
+        }
+      }
+      function rimLight(ctx, o) {
+        if (!o || !finite(o.x, o.y, o.rx, o.ry)) return;
+        const a = o.alpha === void 0 ? 0.34 : o.alpha;
+        if (a <= 4e-3 || o.rx <= 0 || o.ry <= 0) return;
+        const c = o.color || "255,255,255";
+        const from = o.from === void 0 ? -2.3 : o.from;
+        ctx.save();
+        ctx.translate(o.x, o.y);
+        ctx.scale(1, o.ry / o.rx);
+        ctx.beginPath();
+        ctx.arc(0, 0, o.rx, from - 1.15, from + 1.15);
+        const g = ctx.createLinearGradient(
+          Math.cos(from - 1.15) * o.rx,
+          Math.sin(from - 1.15) * o.rx,
+          Math.cos(from + 1.15) * o.rx,
+          Math.sin(from + 1.15) * o.rx
+        );
+        g.addColorStop(0, "rgba(" + c + ",0)");
+        g.addColorStop(0.5, "rgba(" + c + "," + a.toFixed(3) + ")");
+        g.addColorStop(1, "rgba(" + c + ",0)");
+        ctx.strokeStyle = g;
+        ctx.lineWidth = o.lw || 1.6;
+        ctx.stroke();
+        ctx.restore();
+      }
+      function buildDust(w, h, top, bottom, n, seedBase) {
+        const list = [];
+        const s = seedBase || 0;
+        for (let i = 0; i < n; i++) {
+          const r1 = (Math.sin((i + 1) * 12.9898 + s) * 43758.5453 % 1 + 1) % 1;
+          const r2 = (Math.sin((i + 1) * 78.233 + s) * 12345.6789 % 1 + 1) % 1;
+          const r3 = (Math.sin((i + 1) * 39.425 + s) * 9876.5432 % 1 + 1) % 1;
+          list.push({
+            x: w * r1,
+            y: top + (bottom - top) * r2,
+            r: 0.7 + r3 * 1.9,
+            a: 0.08 + r2 * 0.2,
+            sp: 3 + r1 * 8,
+            p: r3 * TAU
+          });
+        }
+        return list;
+      }
+      function drawDust(ctx, list, t, o) {
+        if (!list || !list.length) return;
+        const opt = o || {};
+        const top = opt.top === void 0 ? 0 : opt.top;
+        const bottom = opt.bottom === void 0 ? 0 : opt.bottom;
+        const span = bottom - top;
+        const c = opt.color || "255,255,255";
+        const amp = opt.alpha === void 0 ? 1 : opt.alpha;
+        ctx.save();
+        for (let i = 0; i < list.length; i++) {
+          const d = list[i];
+          let y = d.y - t * d.sp % (span > 0 ? span : 1);
+          if (span > 0 && y < top) y = bottom - (top - y);
+          const a = d.a * amp * (0.5 + 0.5 * Math.sin(t * 1.6 + d.p));
+          if (a <= 0.01) continue;
+          ctx.fillStyle = "rgba(" + c + "," + a.toFixed(3) + ")";
+          ctx.beginPath();
+          ctx.arc(d.x + Math.sin(t * 0.5 + d.p) * 4, y, d.r, 0, TAU);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+      function vignette(ctx, o) {
+        if (!o || !finite(o.w, o.h)) return;
+        const w = o.w;
+        const h = o.h;
+        const a = o.alpha === void 0 ? 0.5 : o.alpha;
+        if (a <= 4e-3) return;
+        const c = o.color || "0,0,0";
+        const cy = o.cy === void 0 ? 0.5 : o.cy;
+        const inner = o.inner === void 0 ? 0.34 : o.inner;
+        const outer = o.outer === void 0 ? 0.78 : o.outer;
+        const g = ctx.createRadialGradient(
+          w * 0.5,
+          h * cy,
+          Math.min(w, h) * inner,
+          w * 0.5,
+          h * (cy + 0.04),
+          Math.max(w, h) * outer
+        );
+        g.addColorStop(0, "rgba(" + c + ",0)");
+        g.addColorStop(0.7, "rgba(" + c + "," + (a * 0.31).toFixed(3) + ")");
+        g.addColorStop(1, "rgba(" + c + "," + a.toFixed(3) + ")");
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, w, h);
+      }
+      module.exports = {
+        TAU,
+        clamp,
+        lerp,
+        finite,
+        depthT,
+        fillEllipse,
+        ringEllipse,
+        softShadow,
+        haze,
+        ridge,
+        perspectiveFloor,
+        cloudSea,
+        cloudBank,
+        rimLight,
+        buildDust,
+        drawDust,
+        vignette
+      };
+    }
+  });
+
+  // pkgWire/games/wire/renderer.js
   var require_renderer = __commonJS({
-    "games/wire/renderer.js"(exports, module) {
+    "pkgWire/games/wire/renderer.js"(exports, module) {
       var { drawWalker, beltWorld } = require_character();
+      var depth = require_depth();
       var D = 5.2;
       var C = {
         ink: "#13293A",
         inkSoft: "#3F586B",
-        inkMute: "#7A8FA1",
+        inkMute: "#5D7386",
         teal: "#0F9C8C",
         tealDeep: "#0A7E72",
         tealLight: "#3FC3B0",
@@ -2236,6 +2688,7 @@
             horizonY: H * 0.335,
             safeTop: 0
           };
+          this.dust = depth.buildDust(W, H, this.L.farY, this.L.charY, 26, 11);
         }
         /** 深度 r（米，正 = 远处）→ 屏幕 y 与线宽系数 */
         _depth(r) {
@@ -2375,7 +2828,6 @@
             g.beginPath();
             g.ellipse ? g.ellipse(x + p.dx * r, y + p.dy * r, p.rx * r, p.ry * r, 0, 0, Math.PI * 2) : g.arc(x + p.dx * r, y + p.dy * r, p.rx * r, 0, Math.PI * 2);
             g.fill();
-            void i;
           });
           g.globalAlpha = alpha * 0.45;
           g.fillStyle = "rgba(176,206,225,0.9)";
@@ -2383,7 +2835,6 @@
           g.ellipse ? g.ellipse(x, y + r * 0.42, r * 1.16, r * 0.24, 0, 0, Math.PI * 2) : g.arc(x, y + r * 0.42, r * 1.16, 0, Math.PI * 2);
           g.fill();
           g.restore();
-          void seed;
         }
         /** 远山：三层，越远越淡；山脊用正弦叠加，固定不漂移 */
         _paintHills(g) {
@@ -2407,6 +2858,14 @@
           ridge(hz - H * 0.012, H * 0.105, SKY.far, 1.5, 0.6);
           ridge(hz + 2, H * 0.062, SKY.midHill, 2.4, 2.1);
           ridge(hz + 10, H * 0.032, SKY.nearHill, 3.6, 4.4);
+          depth.haze(g, {
+            cx: W * 0.5,
+            y: hz - 4,
+            rx: W * 0.72,
+            ry: 0.055,
+            color: "255,248,228",
+            alpha: 0.42
+          });
           const light = g.createLinearGradient(0, hz - H * 0.14, 0, hz);
           light.addColorStop(0, "rgba(255,255,255,0.22)");
           light.addColorStop(1, "rgba(255,255,255,0)");
@@ -2417,38 +2876,59 @@
           const W = this.W;
           const H = this.H;
           const hz = this.L.horizonY;
+          const valH = H - hz;
           const v = g.createLinearGradient(0, hz, 0, H);
-          v.addColorStop(0, SKY.valleyTop);
-          v.addColorStop(0.5, "#DCEBE9");
-          v.addColorStop(1, SKY.valleyBottom);
+          v.addColorStop(0, "#EAF3EF");
+          v.addColorStop(0.22, "#DCEBEB");
+          v.addColorStop(0.58, "#C6DDE2");
+          v.addColorStop(1, "#AFC9D2");
           g.fillStyle = v;
-          g.fillRect(0, hz, W, H - hz);
+          g.fillRect(0, hz, W, valH);
           for (let i = 0; i < 3; i++) {
-            const y = hz + (H - hz) * (0.18 + i * 0.2);
-            const grad = g.createLinearGradient(0, y - 40, 0, y + 40);
+            const y = hz + valH * (0.085 + i * 0.115);
+            const grad = g.createLinearGradient(0, y - 34, 0, y + 34);
             grad.addColorStop(0, "rgba(255,255,255,0)");
-            grad.addColorStop(0.5, "rgba(255,255,255," + (0.28 - i * 0.06) + ")");
+            grad.addColorStop(0.5, "rgba(255,255,255," + (0.3 - i * 0.07).toFixed(2) + ")");
             grad.addColorStop(1, "rgba(255,255,255,0)");
             g.fillStyle = grad;
-            g.fillRect(0, y - 40, W, 80);
+            g.fillRect(0, y - 34, W, 68);
           }
-          g.fillStyle = SKY.tree;
-          for (let i = 0; i < 9; i++) {
-            const x = (i + 0.5) * (W / 9) + Math.sin(i * 2.1) * 12;
-            const y = hz + 10 + Math.cos(i * 1.7) * 4;
-            const h = 12 + i % 3 * 5;
-            g.beginPath();
-            g.moveTo(x - 5, y);
-            g.lineTo(x, y - h);
-            g.lineTo(x + 5, y);
-            g.closePath();
-            g.fill();
-          }
-          const bottom = g.createLinearGradient(0, H * 0.72, 0, H);
+          depth.ridge(g, {
+            w: W,
+            hz: hz + 12,
+            step: 4,
+            bands: [
+              { amp: 0.055, rise: 0, freq: 8.6, alpha: 0.34, color: "112,146,138", seed: 1.7 },
+              { amp: 0.036, rise: 0, freq: 13.4, alpha: 0.44, color: "84,118,112", seed: 3.9 }
+            ]
+          });
+          depth.cloudBank(g, {
+            w: W,
+            y: hz + valH * 0.3,
+            h: valH * 0.16,
+            wave: valH * 0.028,
+            freq: 4.6,
+            seed: 1.9,
+            color: "255,255,255",
+            alpha: 0.4,
+            rimAlpha: 0.16
+          });
+          depth.cloudBank(g, {
+            w: W,
+            y: hz + valH * 0.5,
+            h: valH * 0.2,
+            wave: valH * 0.034,
+            freq: 3.4,
+            seed: 4.7,
+            color: "255,255,255",
+            alpha: 0.34,
+            rimAlpha: 0.12
+          });
+          const bottom = g.createLinearGradient(0, H * 0.68, 0, H);
           bottom.addColorStop(0, "rgba(28,58,74,0)");
-          bottom.addColorStop(1, "rgba(28,58,74,0.16)");
+          bottom.addColorStop(1, "rgba(28,58,74,0.26)");
           g.fillStyle = bottom;
-          g.fillRect(0, H * 0.72, W, H * 0.28);
+          g.fillRect(0, H * 0.68, W, H * 0.32);
         }
         // ================================================================ 世界
         _drawWorld(vm, screen) {
@@ -2463,6 +2943,14 @@
             const k = screen === "intro" ? { y: 0.3, s: 0.76 } : { y: 0.2, s: 0.84 };
             feetY = L.charY + L.charH * k.y;
             charScale = L.charScale * k.s;
+          }
+          if (this.dust) {
+            depth.drawDust(ctx, this.dust, this.clock, {
+              top: L.farY,
+              bottom: L.charY,
+              color: "255,255,255",
+              alpha: 0.7
+            });
           }
           ctx.save();
           ctx.setLineDash([7, 9]);
@@ -2497,6 +2985,15 @@
             ctx.arc(L.cx, feetY, rad, 0, Math.PI * 2);
             ctx.fill();
           }
+          depth.softShadow(
+            ctx,
+            L.cx,
+            feetY + 1.5,
+            L.charH * 0.19,
+            Math.max(2.4, L.charH * 0.032),
+            0.3,
+            "26,58,82"
+          );
           drawWalker(ctx, {
             x: L.cx + (idle ? Math.sin(this.clock * 0.7) * 1.2 : 0),
             y: feetY,
@@ -2509,6 +3006,15 @@
             t: this.clock
           });
           if (screen === "play") this._drawSceneFx(vm);
+          depth.vignette(ctx, {
+            w: L.W,
+            h: L.H,
+            color: "20,54,74",
+            alpha: 0.16,
+            cy: 0.56,
+            inner: 0.42,
+            outer: 0.96
+          });
         }
         _drawWire() {
           const ctx = this.ctx;
@@ -3018,7 +3524,6 @@
             this._text(it.label, x + bw + 6, y + bh * 0.66, { size: 10, weight: "600", color: "rgba(19,41,58,0.55)" });
           });
           this._text("\u6A21\u62DF", x + 2, y0 - 8, { size: 10, weight: "700", color: "rgba(19,41,58,0.45)" });
-          void vm;
         }
         _drawCountdown(vm) {
           const ctx = this.ctx;
@@ -3046,7 +3551,6 @@
           ctx.restore();
         }
         _drawPauseOverlay(vm) {
-          void vm;
           const ctx = this.ctx;
           const W = this.W;
           const H = this.H;
@@ -3210,7 +3714,7 @@
           ctx.fillStyle = scrim;
           ctx.fillRect(0, 0, W, H);
           this._text("\u8BBE\u5907\u51C6\u5907", 24, top + 34, { size: 26, weight: "800", color: "#FFFFFF", shadow: true });
-          this._text("\u4F20\u611F\u5668\u5361\u5728\u80F8\u5E26\u4E0A\uFF0C\u80F8\u5E26\u7ED5\u5230\u814B\u4E0B\u6700\u9AD8\u70B9\uFF0C\u6807\u5B9A\u540E\u5373\u53EF\u5F00\u59CB", 24, top + 58, {
+          this._text("\u4F20\u611F\u5668\u5361\u5728\u80F8\u5E26\u4E0A\uFF0C\u80F8\u5E26\u7ED5\u5230\u814B\u4E0B\u6700\u9AD8\u70B9\uFF0C\u56FA\u5B9A\u597D\u5C31\u80FD\u5F00\u59CB", 24, top + 58, {
             size: 12,
             weight: "500",
             color: "rgba(255,255,255,0.82)"
@@ -3251,59 +3755,28 @@
           this._text("\u5E26\u5B50\u4ECE\u814B\u4E0B\u6700\u9AD8\u70B9\u7ED5\u4E00\u5708\u56FA\u5B9A\u3002", cardX + 118, cy + 64, { size: 11.5, weight: "500", color: C.inkSoft });
           this._text("\u8EAB\u4F53\u4FDD\u6301\u81EA\u7136\u76F4\u7ACB\uFF0C", cardX + 118, cy + 88, { size: 11.5, weight: "500", color: C.inkSoft });
           this._text("\u4E0D\u8981\u523B\u610F\u633A\u80F8\u6216\u5C4F\u6C14\u3002", cardX + 118, cy + 106, { size: 11.5, weight: "500", color: C.inkSoft });
-          cy += wearH + 12;
-          const calH = 96;
-          this._glass(cardX, cy, cardW, calH, 18);
-          this._text("\u96F6\u70B9\u6807\u5B9A", cardX + 18, cy + 24, { size: 13, weight: "700", color: C.ink });
-          const cal = vm.calibration;
-          let calText = "\u4FDD\u6301\u9759\u6B62 3 \u79D2\uFF0C\u628A\u5F53\u524D\u59FF\u52BF\u8BB0\u4E3A\u4E2D\u7ACB\u4F4D";
-          let calColor = C.inkMute;
-          if (vm.state === "CALIBRATING") {
-            calText = "\u6B63\u5728\u91C7\u6837\u2026 \u8BF7\u4FDD\u6301\u4E0D\u52A8";
-            calColor = C.amber;
-          } else if (cal && cal.ok) {
-            calText = cal.simulated ? "\u6A21\u62DF\u6A21\u5F0F\uFF1A\u5DF2\u8DF3\u8FC7\u771F\u5B9E\u6807\u5B9A" : "\u6807\u5B9A\u6210\u529F\uFF0C\u53EF\u4EE5\u5F00\u59CB\u8BAD\u7EC3";
-            calColor = C.tealDeep;
-          } else if (cal && cal.ok === false) {
-            calText = cal.message || "\u6807\u5B9A\u5931\u8D25\uFF0C\u8BF7\u91CD\u8BD5";
-            calColor = C.danger;
-          }
-          this._text(calText, cardX + 18, cy + 48, { size: 11.5, weight: "500", color: calColor });
-          if (vm.state === "CALIBRATING") {
-            const pw = cardW - 36 - 96;
-            rr(ctx, cardX + 18, cy + 60, pw, 8, 4);
-            ctx.fillStyle = "rgba(19,41,58,0.08)";
-            ctx.fill();
-            rr(ctx, cardX + 18, cy + 60, Math.max(4, pw * vm.calibrationProgress), 8, 4);
-            ctx.fillStyle = C.amber;
-            ctx.fill();
-            this._text(Math.round(vm.calibrationProgress * 100) + "%", cardX + 18 + pw + 12, cy + 68, {
-              size: 11,
-              weight: "600",
+          cy += wearH + 16;
+          const z = vm.zero || { roll: 0, pitch: 0, set: false };
+          const fmtDeg = (v) => (v >= 0 ? "+" : "") + (Math.round(v * 10) / 10).toFixed(1) + "\xB0";
+          if (z.set) {
+            this._text("\u5F53\u524D\u96F6\u70B9 " + fmtDeg(z.roll) + " / " + fmtDeg(z.pitch), cardX + 4, cy + 8, {
+              size: 11.5,
+              weight: "500",
+              color: "rgba(255,255,255,0.72)"
+            });
+          } else {
+            this._text("\u8FD8\u6CA1\u8BBE\u7F6E\u96F6\u70B9\uFF0C\u8BFB\u6570\u6309\u4F20\u611F\u5668\u539F\u59CB\u89D2\u5EA6\u7B97", cardX + 4, cy + 8, {
+              size: 11.5,
+              weight: "500",
               color: C.amber
             });
-            this._button("cal:cancel", cardX + cardW - 84, cy + 44, 68, 30, "\u53D6\u6D88", { variant: "ghost", size: 11.5 });
-          } else {
-            this._button(
-              "calibrate",
-              cardX + cardW - 96,
-              cy + 40,
-              80,
-              32,
-              cal && cal.ok ? "\u91CD\u65B0\u6807\u5B9A" : "\u5F00\u59CB\u6807\u5B9A",
-              { variant: "ghost", size: 11.5 }
-            );
-            this._text("\u6807\u5B9A\u7ED3\u679C\u4EC5\u7528\u4E8E\u672C\u673A\u6E38\u620F\u63A7\u5236\uFF0C\u4E0D\u4EE3\u8868\u4E34\u5E8A\u8BC4\u4F30", cardX + 18, cy + calH - 14, {
-              size: 10,
-              weight: "500",
-              color: "rgba(19,41,58,0.4)"
-            });
           }
+          this._linkButton("zero:set", cardX + cardW - 72, cy - 2, 72, 24, z.set ? "\u91CD\u8BBE" : "\u53BB\u6807\u5B9A");
           const btnH = 50;
           const by = H - 108;
           const bw = (W - 32 - 12) / 2;
           this._button("back", 16, by, bw, btnH, "\u8FD4\u56DE", { variant: "glass", icon: "back", size: 14 });
-          const ready = (connected || vm.sim) && (vm.calibrated || vm.sim);
+          const ready = connected || vm.sim;
           this._button("enter", 16 + bw + 12, by, bw, btnH, "\u8FDB\u5165\u6E38\u620F", {
             variant: "primary",
             icon: "play",
@@ -3311,7 +3784,7 @@
             disabled: !ready
           });
           if (!ready) {
-            this._text(connected || vm.sim ? "\u8BF7\u5148\u5B8C\u6210\u96F6\u70B9\u6807\u5B9A" : "\u8BF7\u5148\u8FDE\u63A5\u4F20\u611F\u5668\uFF0C\u6216\u6253\u5F00\u6A21\u62DF\u6570\u636E", W / 2, by + btnH + 18, {
+            this._text("\u8BF7\u5148\u8FDE\u63A5\u4F20\u611F\u5668\uFF0C\u6216\u6253\u5F00\u6A21\u62DF\u6570\u636E", W / 2, by + btnH + 18, {
               size: 11,
               weight: "500",
               color: "rgba(255,255,255,0.8)",
@@ -3496,7 +3969,7 @@
             rows.forEach((b, i) => {
               const ry = y + 14 + i * Y.sgap;
               const ratio = clamp(b.ratio || 0, 0, 1);
-              this._text(b.label, gridX, ry + 6, { size: 8.5, weight: "500", color: C.inkMute });
+              this._text(b.label, gridX, ry + 6, { size: 9.5, weight: "500", color: C.inkMute });
               const tx = gridX + 44;
               const tw = gridW - 44 - 34;
               rr(ctx, tx, ry, tw, 6, 3);
@@ -3508,7 +3981,7 @@
                 ctx.fill();
               }
               this._text(Math.round(ratio * 100) + "%", gridX + gridW, ry + 6, {
-                size: 8.5,
+                size: 9.5,
                 weight: "600",
                 color: C.inkMute,
                 align: "right"
@@ -3547,7 +4020,7 @@
                 align: "center"
               });
               this._text(t.k, tx + tileW / 2, tileY + 34, {
-                size: 8.5,
+                size: 9.5,
                 weight: "500",
                 color: C.inkMute,
                 align: "center"

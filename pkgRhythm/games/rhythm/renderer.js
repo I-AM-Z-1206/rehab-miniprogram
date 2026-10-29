@@ -38,6 +38,9 @@ const C = {
   page: '#EAF7FF'
 }
 
+// 2.5D 纵深原语（地平线雾 / 透视地面 / 软阴影 / 暗角）
+const depth = require('../../../utils/scene/depth.js')
+
 function clamp(v, lo, hi) {
   return v < lo ? lo : (v > hi ? hi : v)
 }
@@ -120,25 +123,36 @@ class RhythmRenderer {
     const H = this.H
     const short = H < 700
     const safeTop = this._safeTop()
-    const hudY = safeTop + 6
-    const hudH = short ? 100 : 114
-    const btnY = H - (short ? 52 : 58)
-    const btnH = short ? 38 : 42
-    const stageTop = hudY + hudH + 8
-    const stageBottom = btnY - (short ? 10 : 14)
-    const stageH = Math.max(200, stageBottom - stageTop)
+
+    // 顶部：两个胶囊 + 四张数据卡
+    const pillY = safeTop + 4
+    const pillH = short ? 30 : 34
+    const statY = pillY + pillH + 8
+    const statH = short ? 68 : 72
+    // 底部：身体位置面板 + 四个按钮
+    const btnH = short ? 38 : 44
+    const btnY = H - (short ? 8 : 10) - btnH
+    const posH = short ? 44 : 50
+    const posY = btnY - 8 - posH
+
+    const stageTop = statY + statH + 10
+    const stageBottom = posY - 8
+    const stageH = Math.max(150, stageBottom - stageTop)
 
     this.L = {
       W, H, short, safeTop,
-      hudY, hudH, hudBottom: hudY + hudH,
+      pillY, pillH,
+      statY, statH,
+      hudY: pillY,
+      hudH: statY + statH - pillY,
+      hudBottom: statY + statH,
+      posY, posH,
       btnY, btnH,
-      stageTop,
-      stageBottom,
-      stageH,
-      horizonY: stageTop + stageH * (short ? 0.16 : 0.14),
-      judgeY: stageTop + stageH * 0.80,
+      stageTop, stageBottom, stageH,
+      horizonY: stageTop + stageH * (short ? 0.14 : 0.12),
+      judgeY: stageTop + stageH * 0.84,
       cx: W / 2,
-      roadTopHalf: Math.max(18, W * 0.055),
+      roadTopHalf: Math.max(16, W * 0.05),
       roadBottomHalf: W * 0.47,
       padHalfW: clamp(W * 0.085, 26, 42),
       padH: short ? 24 : 28
@@ -178,7 +192,6 @@ class RhythmRenderer {
 
     if (screen === 'play') {
       this._drawHud(vm)
-      this._drawCombo(vm)
       this._drawBottomBar(vm)
       if (vm.sim) this._drawSimPad(vm)
       if (vm.state === 'COUNTDOWN') this._drawCountdown(vm)
@@ -290,8 +303,110 @@ class RhythmRenderer {
       g.fill()
     }
 
+    // 远景：青色山脉
+    const hillY = L.horizonY
+    const range = (col, h1, h2, lift) => {
+      g.beginPath()
+      g.moveTo(0, hillY + 3 + lift)
+      g.lineTo(W * 0.14, hillY - h1 * 0.55 + lift)
+      g.lineTo(W * 0.22, hillY - h1 + lift)
+      g.lineTo(W * 0.31, hillY - h2 * 0.5 + lift)
+      g.lineTo(W * 0.40, hillY - h2 + lift)
+      g.lineTo(W * 0.50, hillY - h1 * 0.45 + lift)
+      g.lineTo(W * 0.60, hillY - h2 * 0.85 + lift)
+      g.lineTo(W * 0.70, hillY - h1 * 0.4 + lift)
+      g.lineTo(W * 0.80, hillY - h2 * 0.95 + lift)
+      g.lineTo(W * 0.90, hillY - h1 * 0.55 + lift)
+      g.lineTo(W, hillY - h2 * 0.6 + lift)
+      g.lineTo(W, hillY + 6 + lift)
+      g.lineTo(0, hillY + 6 + lift)
+      g.closePath()
+      g.fillStyle = col
+      g.fill()
+    }
+    range('rgba(150,196,214,0.75)', 66, 44, 0)
+    range('rgba(112,170,190,0.85)', 44, 30, 10)
+
+    // 湖面：地平线下方一条浅蓝，带横向波纹（大部分会被跑道盖住，两侧可见）
+    const lake = g.createLinearGradient(0, hillY, 0, hillY + 74)
+    lake.addColorStop(0, 'rgba(146,214,226,0.95)')
+    lake.addColorStop(1, 'rgba(186,232,238,0.85)')
+    g.fillStyle = lake
+    g.fillRect(0, hillY - 2, W, 76)
+    g.save()
+    g.strokeStyle = 'rgba(255,255,255,0.45)'
+    g.lineWidth = 1
+    for (let i = 0; i < 5; i++) {
+      const wy = hillY + 8 + i * 13
+      g.beginPath()
+      g.moveTo(W * 0.02, wy)
+      g.quadraticCurveTo(W * 0.2, wy - 2, W * 0.38, wy)
+      g.stroke()
+      g.beginPath()
+      g.moveTo(W * 0.62, wy + 3)
+      g.quadraticCurveTo(W * 0.8, wy + 1, W * 0.98, wy + 3)
+      g.stroke()
+    }
+    g.restore()
+
+    // 樱花树：两侧各两棵，粉色树冠
+    const blossom = (tx, ty, r, alpha) => {
+      g.save()
+      g.globalAlpha = alpha
+      g.fillStyle = 'rgba(140,108,92,0.9)'
+      g.fillRect(tx - r * 0.09, ty - r * 0.9, r * 0.18, r * 0.95)
+      const grd = g.createRadialGradient(tx - r * 0.3, ty - r * 1.5, r * 0.1, tx, ty - r * 1.1, r * 1.15)
+      grd.addColorStop(0, '#FFD3E2')
+      grd.addColorStop(0.65, '#FFB4CE')
+      grd.addColorStop(1, '#F58FB4')
+      g.fillStyle = grd
+      ;[[0, -1.1, 0.72], [-0.72, -0.86, 0.52], [0.74, -0.9, 0.5], [0.34, -1.42, 0.46], [-0.4, -1.36, 0.44]].forEach((p) => {
+        g.beginPath()
+        g.arc(tx + p[0] * r, ty + p[1] * r, r * p[2], 0, Math.PI * 2)
+        g.fill()
+      })
+      g.restore()
+    }
+    blossom(W * 0.055, hillY + 34, 24, 0.95)
+    blossom(W * 0.155, hillY + 26, 17, 0.9)
+    blossom(W * 0.945, hillY + 36, 24, 0.95)
+    blossom(W * 0.845, hillY + 26, 17, 0.9)
+
     this._paintRoad(g)
+
     this._paintGrid(g)
+
+    // —— 远处收口：跑道尽头要「融进」天色，不能是一条被切断的硬边 ——
+    // 1) 消失点一圈大气光（扁椭圆，只在中间亮）
+    depth.haze(g, {
+      cx: L.cx,
+      y: L.horizonY + 1,
+      rx: W * 0.52,
+      ry: 0.055,
+      color: '255,251,235',
+      alpha: 0.62
+    })
+    // 2) 跑道远端 22% 逐层淡出到雾色：越远越淡，纵深就有了。
+    // ⚠️ 必须贴着跑道边缘画梯形，不能用 fillRect —— 矩形在跑道两侧会切出
+    //    一块可见的方块（跑到湖面上会非常显眼）。
+    const fogH = (L.stageBottom - L.horizonY) * 0.22
+    const span = L.stageBottom + 20 - L.horizonY
+    const halfAt = (y) => lerp(L.roadTopHalf, L.roadBottomHalf,
+      clamp((y - L.horizonY) / span, 0, 1))
+    const hTop = halfAt(L.horizonY) * 1.02
+    const hBot = halfAt(L.horizonY + fogH) * 1.02
+    const fog = g.createLinearGradient(0, L.horizonY, 0, L.horizonY + fogH)
+    fog.addColorStop(0, 'rgba(255,251,238,0.92)')
+    fog.addColorStop(0.45, 'rgba(255,251,238,0.42)')
+    fog.addColorStop(1, 'rgba(255,251,238,0)')
+    g.beginPath()
+    g.moveTo(L.cx - hTop, L.horizonY)
+    g.lineTo(L.cx + hTop, L.horizonY)
+    g.lineTo(L.cx + hBot, L.horizonY + fogH)
+    g.lineTo(L.cx - hBot, L.horizonY + fogH)
+    g.closePath()
+    g.fillStyle = fog
+    g.fill()
   }
 
   _paintRoad(g) {
@@ -325,9 +440,9 @@ class RhythmRenderer {
       g.fillStyle = col
       g.fill()
     }
-    laneBand(-1, -0.23, 'rgba(255,183,206,0.40)')
-    laneBand(-0.23, 0.23, 'rgba(255,234,178,0.34)')
-    laneBand(0.23, 1, 'rgba(150,231,205,0.38)')
+    laneBand(-1, -0.23, 'rgba(255,175,201,0.55)')
+    laneBand(-0.23, 0.23, 'rgba(255,226,158,0.52)')
+    laneBand(0.23, 1, 'rgba(140,226,198,0.55)')
 
     // 地平平线：一条柔白亮带，暗示跑道尽头
     const hg = g.createLinearGradient(cx - L.roadTopHalf, 0, cx + L.roadTopHalf, 0)
@@ -342,18 +457,18 @@ class RhythmRenderer {
       g.beginPath()
       g.moveTo(cx + dir * L.roadTopHalf, topY)
       g.lineTo(cx + dir * L.roadBottomHalf, botY)
-      g.lineWidth = 3
-      g.strokeStyle = 'rgba(255,255,255,0.95)'
+      g.lineWidth = 4.5
+      g.strokeStyle = col
       g.stroke()
       g.beginPath()
       g.moveTo(cx + dir * L.roadTopHalf, topY)
       g.lineTo(cx + dir * L.roadBottomHalf, botY)
-      g.lineWidth = 1.6
-      g.strokeStyle = col
+      g.lineWidth = 2
+      g.strokeStyle = 'rgba(255,255,255,0.96)'
       g.stroke()
     }
-    edge(-1, 'rgba(239,108,150,0.55)')
-    edge(1, 'rgba(42,157,189,0.55)')
+    edge(-1, 'rgba(239,108,150,0.75)')
+    edge(1, 'rgba(52,176,203,0.75)')
 
     // 三车道分隔：白色圆头虚线
     ;[-1, 1].forEach((k) => {
@@ -395,19 +510,22 @@ class RhythmRenderer {
       g.stroke()
     }
 
-    // 判定线：奶白色宽边 + 左右两色渐入
+    // 判定线：一条实白线 + 两端糖果色，压在跑道上是清楚的"落点"
     const jy = L.judgeY
     const half = lerp(L.roadTopHalf, L.roadBottomHalf, (jy - topY) / (botY - topY))
     const band = g.createLinearGradient(cx - half, jy, cx + half, jy)
-    band.addColorStop(0, 'rgba(255,143,177,0.35)')
-    band.addColorStop(0.5, 'rgba(255,255,255,0.95)')
-    band.addColorStop(1, 'rgba(94,211,184,0.35)')
+    band.addColorStop(0, 'rgba(239,108,150,0.9)')
+    band.addColorStop(0.12, 'rgba(255,255,255,0.98)')
+    band.addColorStop(0.88, 'rgba(255,255,255,0.98)')
+    band.addColorStop(1, 'rgba(52,176,203,0.9)')
     g.beginPath()
     g.moveTo(cx - half, jy)
     g.lineTo(cx + half, jy)
-    g.lineWidth = 4
+    g.lineWidth = 5
+    g.lineCap = 'round'
     g.strokeStyle = band
     g.stroke()
+    g.lineCap = 'butt'
   }
 
   // ---------------------------------------------------------------- 舞台
@@ -443,6 +561,8 @@ class RhythmRenderer {
     if (screen === 'play') {
       this._drawPetals()
       this._drawJudgeGlow(vm)
+      this._drawBeatLines(vm)
+      this._drawTargetLane(vm)
       this._drawNotes(vm)
       this._drawPads(vm)
       this._drawPlayer(vm)
@@ -451,6 +571,12 @@ class RhythmRenderer {
     } else if (screen === 'intro') {
       this._drawIntroNotes(vm)
     }
+
+    // 轻微暗角：把注意力收到中间的判定区。用冷灰蓝而不是纯黑，
+    // 纯黑压在糖果色上会发脏。
+    depth.vignette(ctx, {
+      w: L.W, h: L.H, color: '54,74,96', alpha: 0.15, cy: 0.52, inner: 0.44, outer: 0.98
+    })
   }
 
   /** 飘落的小花瓣：让画面"活"起来，成本很低 */
@@ -497,6 +623,77 @@ class RhythmRenderer {
     ctx.restore()
   }
 
+  /** 节拍横线：每一拍一条，顺着跑道流向判定线（也在提示"这一拍"的位置） */
+  _drawBeatLines(vm) {
+    const ctx = this.ctx
+    const L = this.L
+    const beat = vm.beatMs || 500
+    if (!beat) return
+    const approach = clamp(Number(this.cfg.get('approachMs')) || 2400, 900, 4000)
+    const now = vm.musicMs || 0
+    const phase = (now % beat) / beat
+    const count = Math.ceil(approach / beat) + 2
+    ctx.save()
+    for (let j = 0; j <= count; j++) {
+      const p = 1 - ((j - phase) * beat) / approach
+      if (p < 0 || p > 1.02) continue
+      const t = Math.pow(clamp(p, 0, 1), 1.15)
+      const y = lerp(L.horizonY, L.judgeY, t)
+      const half = lerp(L.roadTopHalf, L.roadBottomHalf, t)
+      const a = 0.14 + 0.20 * p
+      ctx.beginPath()
+      ctx.moveTo(L.cx - half, y)
+      ctx.lineTo(L.cx + half, y)
+      ctx.lineWidth = 1.4 + t * 3
+      ctx.strokeStyle = 'rgba(126,158,190,' + a.toFixed(3) + ')'
+      ctx.stroke()
+    }
+    ctx.restore()
+  }
+
+  /** 下一颗音符快到时，把它的车道按透视点亮一段：视线自动跟过去 */
+  _drawTargetLane(vm) {
+    const ctx = this.ctx
+    const L = this.L
+    const notes = vm.notes || []
+    let next = null
+    for (let i = 0; i < notes.length; i++) {
+      const n = notes[i]
+      if (n.judged) continue
+      if (!next || n.progress < next.progress) next = n
+    }
+    if (!next || next.progress < 0.55) return
+    const k = clamp((next.progress - 0.55) / 0.45, 0, 1)
+
+    // 用和车道一致的透视（同样的 pow(1.15) 缓动），否则会像贴了一张直边色块
+    const t0 = Math.pow(0.55, 1.15)
+    const t1 = 1
+    const y0 = lerp(L.horizonY, L.judgeY, t0)
+    const y1 = L.judgeY
+    const half0 = lerp(L.roadTopHalf, L.roadBottomHalf, t0) * 0.23
+    const half1 = lerp(L.roadTopHalf, L.roadBottomHalf, t1) * 0.23
+    const x0 = this._laneX(next.side, t0)
+    const x1 = this._laneX(next.side, t1)
+
+    const col = next.side === 'left' ? '255,143,177'
+      : (next.side === 'center' ? '247,185,85' : '94,211,184')
+    const g = ctx.createLinearGradient(0, y0, 0, y1)
+    g.addColorStop(0, 'rgba(' + col + ',0)')
+    g.addColorStop(0.72, 'rgba(' + col + ',' + (0.10 + k * 0.12).toFixed(3) + ')')
+    g.addColorStop(1, 'rgba(' + col + ',' + (0.20 + k * 0.18).toFixed(3) + ')')
+
+    ctx.save()
+    ctx.beginPath()
+    ctx.moveTo(x0 - half0 * 1.15, y0)
+    ctx.lineTo(x0 + half0 * 1.15, y0)
+    ctx.lineTo(x1 + half1 * 1.55, y1 + 6)
+    ctx.lineTo(x1 - half1 * 1.55, y1 + 6)
+    ctx.closePath()
+    ctx.fillStyle = g
+    ctx.fill()
+    ctx.restore()
+  }
+
   _drawNotes(vm) {
     const ctx = this.ctx
     const L = this.L
@@ -511,8 +708,8 @@ class RhythmRenderer {
       const t = Math.pow(clamp(p, 0, 1), 1.15)
       const y = this._noteY(p)
       const x = this._laneX(n.side, t)
-      const scale = 0.58 + 0.6 * Math.pow(clamp(p, 0, 1), 1.2)
-      const R = (n.type === 'accent' ? 19 : 16) * scale
+      const scale = 0.68 + 0.5 * Math.pow(clamp(p, 0, 1), 1.2)
+      const R = (n.type === 'accent' ? 25 : 21) * scale
       const color = tint[n.side] || C.pink
       const deep = tintDeep[n.side] || C.pinkDeep
 
@@ -581,15 +778,8 @@ class RhythmRenderer {
       ctx.fill()
       ctx.globalAlpha = alpha
 
-      // 方向标记
-      if (n.side === 'center') {
-        ctx.beginPath()
-        ctx.arc(x, y + R * 0.06, R * 0.18, 0, Math.PI * 2)
-        ctx.fillStyle = 'rgba(255,255,255,0.95)'
-        ctx.fill()
-      } else {
-        this._arrow(x, y + R * 0.06, R * 0.34, n.side === 'left' ? -1 : 1, 'rgba(255,255,255,0.95)')
-      }
+      // 音符图标：八分音符（左右方向由车道位置表达，颜色再强化一次）
+      this._musicGlyph(x, y, R * 0.62, 'rgba(255,255,255,0.97)')
 
       // 强拍：外圈白色虚线环
       if (n.type === 'accent') {
@@ -603,6 +793,25 @@ class RhythmRenderer {
       }
       ctx.restore()
     }
+  }
+
+  /** 双雪佛龙：表示方向，但不会读成"播放键" */
+  _chevron(x, y, r, dir, color, lw) {
+    const ctx = this.ctx
+    ctx.save()
+    ctx.strokeStyle = color
+    ctx.lineWidth = lw
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    for (let i = 0; i < 2; i++) {
+      const ox = x + dir * (i * r * 0.62 - r * 0.2)
+      ctx.beginPath()
+      ctx.moveTo(ox - dir * r * 0.28, y - r * 0.42)
+      ctx.lineTo(ox + dir * r * 0.22, y)
+      ctx.lineTo(ox - dir * r * 0.28, y + r * 0.42)
+      ctx.stroke()
+    }
+    ctx.restore()
   }
 
   _arrow(x, y, r, dir, color) {
@@ -622,47 +831,47 @@ class RhythmRenderer {
     const beatOn = this.cfg.get('beatPulseOn')
     const pulse = beatOn ? (1 - (vm.beatPhase || 0)) : 0
     const armed = vm.dir
-    const soft = {
-      left: 'rgba(255,214,228,0.95)',
-      center: 'rgba(255,238,196,0.95)',
-      right: 'rgba(206,242,232,0.95)'
-    }
+    const r = (L.padH || 26) * 1.05
 
     ;['left', 'center', 'right'].forEach((side) => {
       const x = this._laneX(side, 1)
       const y = L.judgeY
-      const hw = side === 'center' ? L.padHalfW * 0.74 : L.padHalfW
-      const hh = L.padH
       const isLeft = side === 'left'
       const color = isLeft ? C.pink : (side === 'center' ? C.gold : C.mint)
-      const deep = isLeft ? C.pinkDeep : (side === 'center' ? '#E89A3C' : C.mintDeep)
+      const deep = isLeft ? C.pinkDeep : (side === 'center' ? '#E8942A' : C.mintDeep)
       const active = armed === side
-      const lift = active ? 3 : 0
+      const lift = active ? 2.5 : 0
 
       ctx.save()
 
-      // 软阴影
-      ctx.globalAlpha = 0.5
-      rr(ctx, x - hw, y - hh + 5, hw * 2, hh * 2, hh)
-      ctx.fillStyle = 'rgba(120,145,175,0.16)'
+      // 投影
+      ctx.beginPath()
+      ctx.ellipse(x, y + 6, r * 0.92, r * 0.34, 0, 0, Math.PI * 2)
+      ctx.fillStyle = 'rgba(120,145,175,0.14)'
       ctx.fill()
 
-      // 胶囊本体：白底 + 糖果色描边
-      ctx.globalAlpha = 1
-      const g = ctx.createLinearGradient(x, y - hh - lift, x, y + hh)
+      // 圆盘
+      ctx.beginPath()
+      ctx.arc(x, y - lift, r, 0, Math.PI * 2)
+      const g = ctx.createLinearGradient(x, y - lift - r, x, y - lift + r)
       g.addColorStop(0, '#FFFFFF')
-      g.addColorStop(1, active ? soft[side] : 'rgba(255,255,255,0.9)')
-      rr(ctx, x - hw, y - hh - lift, hw * 2, hh * 2, hh)
+      g.addColorStop(1, active ? 'rgba(255,255,255,0.82)' : 'rgba(255,255,255,0.94)')
       ctx.fillStyle = g
       ctx.fill()
-      ctx.lineWidth = active ? 3 : 2
+      ctx.lineWidth = active ? 3.2 : 2.4
       ctx.strokeStyle = color
       ctx.stroke()
 
-      // 激活：外圈柔和光环
+      // 内圈
+      ctx.beginPath()
+      ctx.arc(x, y - lift, r * 0.74, 0, Math.PI * 2)
+      ctx.lineWidth = 1
+      ctx.strokeStyle = active ? 'rgba(255,255,255,0.95)' : 'rgba(120,145,175,0.14)'
+      ctx.stroke()
+
       if (active && pulse > 0.01) {
         ctx.beginPath()
-        ctx.ellipse(x, y - lift, hw + (1 - pulse) * hw * 0.5, hh + (1 - pulse) * hh * 0.5, 0, 0, Math.PI * 2)
+        ctx.arc(x, y - lift, r + (1 - pulse) * r * 0.35, 0, Math.PI * 2)
         ctx.globalAlpha = 0.35 * pulse
         ctx.lineWidth = 3
         ctx.strokeStyle = color
@@ -670,15 +879,12 @@ class RhythmRenderer {
         ctx.globalAlpha = 1
       }
 
-      // 标记
       if (side === 'center') {
-        this._text('中', x, y + 5 - lift, {
-          size: 13, weight: '800', color: deep, align: 'center'
-        })
+        this._text('中', x, y + 5 - lift, { size: 14, weight: '800', color: deep, align: 'center' })
       } else {
-        this._arrow(x - hw * 0.5, y - lift, 6.5, isLeft ? -1 : 1, deep)
-        this._text(isLeft ? '左' : '右', x + hw * 0.4, y + 5 - lift, {
-          size: 13, weight: '800', color: deep, align: 'center'
+        this._chevron(x - r * 0.42, y - lift, 7, isLeft ? -1 : 1, deep, 2.2)
+        this._text(isLeft ? '左' : '右', x + r * 0.26, y + 5 - lift, {
+          size: 14, weight: '800', color: deep, align: 'center'
         })
       }
       ctx.restore()
@@ -720,7 +926,7 @@ class RhythmRenderer {
     ctx.shadowBlur = 10
     ctx.shadowOffsetY = 3
     ctx.beginPath()
-    ctx.ellipse(x, y, 13, 12, 0, 0, Math.PI * 2)
+    ctx.ellipse(x, y, 15, 14, 0, 0, Math.PI * 2)
     ctx.fillStyle = '#FFFFFF'
     ctx.fill()
     ctx.shadowBlur = 0
@@ -819,7 +1025,7 @@ class RhythmRenderer {
     const style = VERDICT_STYLE[f.verdict] || VERDICT_STYLE.good
     const alpha = age < 0.12 ? age / 0.12 : 1 - Math.max(0, (age - 0.62) / 0.38)
     const scale = 1 + Math.max(0, 0.16 - age) * 1.4
-    const y = L.judgeY - 68 - age * 18
+    const y = L.judgeY - 106 - age * 14
 
     ctx.save()
     ctx.globalAlpha = clamp(alpha, 0, 1)
@@ -828,16 +1034,21 @@ class RhythmRenderer {
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
-    ctx.font = '800 26px ' + FONT
-    ctx.lineWidth = 5
+    const label = style.mark + ' ' + style.en
+    ctx.font = '800 20px ' + FONT
+    const tw = ctx.measureText(label).width
+    rr(ctx, -tw / 2 - 12, -15, tw + 24, 30, 15)
+    ctx.fillStyle = 'rgba(255,255,255,0.82)'
+    ctx.fill()
+    ctx.lineWidth = 4
     ctx.strokeStyle = 'rgba(255,255,255,0.95)'
-    ctx.strokeText(style.mark + ' ' + style.en, 0, 0)
+    ctx.strokeText(label, 0, 0)
     const ink = VERDICT_INK[f.verdict] || VERDICT_INK.good
     ctx.shadowColor = 'rgba(92,116,148,0.25)'
     ctx.shadowBlur = 6
     ctx.shadowOffsetY = 2
     ctx.fillStyle = ink
-    ctx.fillText(style.mark + ' ' + style.en, 0, 0)
+    ctx.fillText(label, 0, 0)
     ctx.shadowBlur = 0
     ctx.shadowOffsetY = 0
 
@@ -878,157 +1089,348 @@ class RhythmRenderer {
   }
 
   // ---------------------------------------------------------------- HUD
+  /** 蓝色胶囊（顶部标题 / 曲目） */
+  _pill(x, y, w, h) {
+    const ctx = this.ctx
+    ctx.save()
+    ctx.shadowColor = 'rgba(58,84,200,0.28)'
+    ctx.shadowBlur = 10
+    ctx.shadowOffsetY = 3
+    rr(ctx, x, y, w, h, h / 2)
+    const g = ctx.createLinearGradient(x, y, x, y + h)
+    g.addColorStop(0, '#6C8AF5')
+    g.addColorStop(1, '#3E5BD8')
+    ctx.fillStyle = g
+    ctx.fill()
+    ctx.restore()
+    rr(ctx, x, y, w, h, h / 2)
+    ctx.lineWidth = 1
+    ctx.strokeStyle = 'rgba(255,255,255,0.38)'
+    ctx.stroke()
+  }
+
+  /** 数据卡里的小图标（杯子 / 准星 / 火苗 / 时钟） */
+  _statIcon(name, x, y, r, color) {
+    const ctx = this.ctx
+    ctx.save()
+    ctx.strokeStyle = color
+    ctx.fillStyle = color
+    ctx.lineWidth = Math.max(1.2, r * 0.16)
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    if (name === 'trophy') {
+      ctx.beginPath()
+      ctx.moveTo(x - r * 0.55, y - r * 0.6)
+      ctx.lineTo(x + r * 0.55, y - r * 0.6)
+      ctx.lineTo(x + r * 0.32, y + r * 0.12)
+      ctx.lineTo(x - r * 0.32, y + r * 0.12)
+      ctx.closePath()
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.moveTo(x, y + r * 0.12)
+      ctx.lineTo(x, y + r * 0.5)
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.moveTo(x - r * 0.42, y + r * 0.62)
+      ctx.lineTo(x + r * 0.42, y + r * 0.62)
+      ctx.stroke()
+    } else if (name === 'target') {
+      ctx.beginPath()
+      ctx.arc(x, y, r * 0.66, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.arc(x, y, r * 0.24, 0, Math.PI * 2)
+      ctx.fill()
+    } else if (name === 'flame') {
+      ctx.beginPath()
+      ctx.moveTo(x, y - r * 0.72)
+      ctx.quadraticCurveTo(x + r * 0.62, y - r * 0.05, x + r * 0.28, y + r * 0.5)
+      ctx.quadraticCurveTo(x, y + r * 0.72, x - r * 0.28, y + r * 0.5)
+      ctx.quadraticCurveTo(x - r * 0.62, y - r * 0.05, x, y - r * 0.72)
+      ctx.closePath()
+      ctx.fill()
+    } else if (name === 'clock') {
+      ctx.beginPath()
+      ctx.arc(x, y, r * 0.66, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.moveTo(x, y - r * 0.34)
+      ctx.lineTo(x, y)
+      ctx.lineTo(x + r * 0.3, y + r * 0.14)
+      ctx.stroke()
+    } else if (name === 'note') {
+      this._musicGlyph(x, y, r * 0.9, color)
+    }
+    ctx.restore()
+  }
+
+  /** 八分音符：音符上的图标，比实心三角更好认 */
+  _musicGlyph(x, y, size, color) {
+    const ctx = this.ctx
+    const k = size / 10
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.fillStyle = color
+    ctx.strokeStyle = color
+    ctx.lineCap = 'round'
+    ctx.beginPath()
+    ctx.ellipse(-k * 2.2, k * 2.6, k * 3.0, k * 2.2, -0.36, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.beginPath()
+    ctx.moveTo(k * 0.7, k * 2.2)
+    ctx.lineTo(k * 0.7, -k * 5.2)
+    ctx.lineWidth = Math.max(1.4, k * 1.7)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(k * 0.7, -k * 5.2)
+    ctx.quadraticCurveTo(k * 4.6, -k * 4.2, k * 3.4, -k * 0.6)
+    ctx.lineWidth = Math.max(1.4, k * 2.1)
+    ctx.stroke()
+    ctx.restore()
+  }
+
+  _fmtClock(sec) {
+    const s = Math.max(0, Math.round(sec || 0))
+    const mm = Math.floor(s / 60)
+    const ss = s % 60
+    return (mm < 10 ? '0' + mm : mm) + ':' + (ss < 10 ? '0' + ss : ss)
+  }
+
   _drawHud(vm) {
     const ctx = this.ctx
     const L = this.L
-    const x = 12
-    const w = L.W - 24
-    const y = L.hudY
-    const h = L.hudH
-
-    // 白色圆角卡片 + 柔和投影
-    ctx.save()
-    ctx.shadowColor = C.shadow
-    ctx.shadowBlur = 16
-    ctx.shadowOffsetY = 6
-    rr(ctx, x, y, w, h, 18)
-    ctx.fillStyle = C.card
-    ctx.fill()
-    ctx.restore()
-    rr(ctx, x, y, w, h, 18)
-    ctx.lineWidth = 1
-    ctx.strokeStyle = C.line
-    ctx.stroke()
-
-    // 顶部三色渐变条（粉 → 黄 → 薄荷）
-    const topLight = ctx.createLinearGradient(x, y, x + w, y)
-    topLight.addColorStop(0, '#FFB7CB')
-    topLight.addColorStop(0.5, '#FFDD9E')
-    topLight.addColorStop(1, '#A8E8D5')
-    ctx.save()
-    rr(ctx, x + 14, y + 2, w - 28, 3, 1.5)
-    ctx.fillStyle = topLight
-    ctx.fill()
-    ctx.restore()
-
+    const W = L.W
     const short = L.short
-    // 第一行：游戏名 + 曲名 + 难度
-    this._text('节奏训练', x + 14, y + 18, { size: 9, weight: '700', color: C.inkMute })
-    this._text(vm.song.name + ' · ' + vm.song.bpm + ' BPM', x + 14, y + 33, {
-      size: 11, weight: '700', color: C.ink
-    })
+    const py = L.pillY
+    const ph = L.pillH
 
+    // ---- 顶部左：游戏名 + 难度 ----
+    const title = '节奏训练'
     const chip = '第 ' + vm.difficulty + ' 档'
-    const chipW = this._measure(chip, 9, '700') + 14
-    rr(ctx, x + w - 14 - chipW, y + 12, chipW, 18, 9)
-    ctx.fillStyle = 'rgba(180,155,255,0.22)'
+    const tf = short ? 12 : 12.5
+    const tw = this._measure(title, tf, '800')
+    const chipW = this._measure(chip, 9, '700') + 16
+    const leftW = Math.min(W * 0.58, 13 + 18 + 2 + tw + 10 + chipW + 10)
+    this._pill(12, py, leftW, ph)
+    this._musicGlyph(12 + 22, py + ph / 2, 9, '#FFFFFF')
+    this._text(title, 12 + 34, py + ph / 2 + 4.5, { size: tf, weight: '800', color: '#FFFFFF' })
+    rr(ctx, 12 + leftW - chipW - 7, py + (ph - 18) / 2, chipW, 18, 9)
+    ctx.fillStyle = 'rgba(255,255,255,0.26)'
     ctx.fill()
-    this._text(chip, x + w - 14 - chipW / 2, y + 24, {
-      size: 9, weight: '700', color: '#7B5FD6', align: 'center'
+    this._text(chip, 12 + leftW - chipW / 2 - 7, py + ph / 2 + 3.4, {
+      size: 9, weight: '700', color: '#FFFFFF', align: 'center'
     })
 
-    // 第二行：得分 / 节奏准确率 / 连击
-    const row2 = y + (short ? 44 : 48)
-    this._text('得分', x + 14, row2 + 8, { size: 9.5, weight: '600', color: C.inkMute })
-    const scoreTop = row2 + (short ? 4 : 6)
-    const scoreGrad = ctx.createLinearGradient(0, scoreTop, 0, scoreTop + (short ? 26 : 30))
-    scoreGrad.addColorStop(0, '#FF8FB1')
-    scoreGrad.addColorStop(0.6, '#FB9F7E')
-    scoreGrad.addColorStop(1, '#F5A03A')
-    ctx.save()
-    ctx.font = '800 ' + (short ? 26 : 30) + 'px ' + FONT
-    ctx.textAlign = 'left'
-    ctx.textBaseline = 'alphabetic'
-    ctx.fillStyle = scoreGrad
-    ctx.fillText(String(vm.score), x + 14, row2 + (short ? 30 : 33))
-    ctx.restore()
+    // ---- 顶部右：曲名 + 时间 ----
+    const songName = vm.song.name
+    const timeStr = this._fmtClock(vm.timeLeftSec) + ' / ' + this._fmtClock(vm.durationSec)
+    const nameW = this._measure(songName, 10.5, '700')
+    const timeW = this._measure(timeStr, 9, '600')
+    const rightW = Math.min(W * 0.40, 13 + 18 + 3 + Math.max(nameW, timeW) + 12)
+    const rx = W - 12 - rightW
+    this._pill(rx, py, rightW, ph)
+    this._musicGlyph(rx + 21, py + ph / 2, 8.5, 'rgba(255,255,255,0.95)')
+    this._text(songName, rx + 33, py + ph / 2 - 1.5, { size: 10.5, weight: '700', color: '#FFFFFF' })
+    this._text(timeStr, rx + 33, py + ph / 2 + 10, { size: 9, weight: '600', color: 'rgba(255,255,255,0.82)' })
 
-    const accTxt = vm.rhythmAccuracy === null ? '暂无数据' : Math.round(vm.rhythmAccuracy * 100) + '%'
-    this._text('节奏准确率', x + w * 0.52, row2 + 8, { size: 9.5, weight: '600', color: C.inkMute })
-    this._text(accTxt, x + w * 0.52, row2 + (short ? 24 : 26), {
-      size: short ? 13 : 14, weight: '800', color: vm.rhythmAccuracy === null ? C.inkMute : C.cyanDeep
-    })
-
-    const comboX = x + w * 0.78
-    this._text('连击', comboX, row2 + 8, { size: 9.5, weight: '600', color: C.inkMute })
-    this._text('×' + (vm.combo || 0), comboX, row2 + (short ? 24 : 26), {
-      size: short ? 13 : 14, weight: '800', color: vm.combo >= 10 ? '#E8922F' : C.ink
-    })
-
-    // 第三行：剩余时间 + 音符进度 + 进度条
-    const row3 = y + h - 18
-    const mm = Math.floor(vm.timeLeftSec / 60)
-    const ss = Math.floor(vm.timeLeftSec % 60)
-    const timeTxt = (mm < 10 ? '0' + mm : mm) + ':' + (ss < 10 ? '0' + ss : ss)
-    this._text('剩余 ' + timeTxt, x + 14, row3, {
-      size: 9, weight: '600', color: vm.timeLeftSec <= 10 ? C.danger : C.inkSoft
-    })
-    this._text('音符 ' + vm.judgedCount + ' / ' + vm.totalNotes, x + w - 14, row3, {
-      size: 9, weight: '600', color: C.inkMute, align: 'right'
-    })
-
-    const barX = x + 14
-    const barW = w - 28
-    const barY = y + h - 8
-    rr(ctx, barX, barY, barW, 4, 2)
-    ctx.fillStyle = 'rgba(120,145,175,0.14)'
-    ctx.fill()
-    if (vm.progress > 0.004) {
-      const pw = Math.max(4, barW * vm.progress)
-      const pg = ctx.createLinearGradient(barX, 0, barX + barW, 0)
-      pg.addColorStop(0, '#FFB7CB')
-      pg.addColorStop(0.5, '#FFDD9E')
-      pg.addColorStop(1, '#7FDCC4')
-      rr(ctx, barX, barY, pw, 4, 2)
-      ctx.fillStyle = pg
+    // ---- 四张数据卡 ----
+    const gap = 8
+    const baseX = 12
+    const cardW = (W - 24 - gap * 3) / 4
+    const cy = L.statY
+    const ch = L.statH
+    const acc = vm.rhythmAccuracy === null ? '—' : Math.round(vm.rhythmAccuracy * 100) + '%'
+    const cards = [
+      { icon: 'trophy', tint: 'rgba(253,186,116,0.28)', color: '#E8701A', label: '当前得分', value: String(vm.score) },
+      { icon: 'target', tint: 'rgba(147,197,253,0.30)', color: '#2F6BE8', label: '节奏准确率', value: acc },
+      { icon: 'flame', tint: 'rgba(253,186,116,0.28)', color: '#E8701A', label: '连击数', value: '×' + (vm.combo || 0) },
+      { icon: 'clock', tint: 'rgba(167,243,208,0.34)', color: '#0E9E76', label: '剩余时间', value: this._fmtClock(vm.timeLeftSec), bar: true }
+    ]
+    cards.forEach((c, i) => {
+      const x = baseX + i * (cardW + gap)
+      ctx.save()
+      ctx.shadowColor = 'rgba(92,116,148,0.16)'
+      ctx.shadowBlur = 10
+      ctx.shadowOffsetY = 3
+      rr(ctx, x, cy, cardW, ch, 14)
+      ctx.fillStyle = 'rgba(255,255,255,0.97)'
       ctx.fill()
-    }
+      ctx.restore()
 
-    // 状态（曲目区右侧）
-    let stateTxt = ''
-    let stateColor = C.inkMute
-    if (vm.state === 'PAUSED') { stateTxt = '已暂停'; stateColor = '#E8922F' }
-    else if (vm.state === 'SENSOR_ERROR') { stateTxt = '信号中断'; stateColor = C.danger }
-    else if (vm.state === 'COUNTDOWN') { stateTxt = '准备'; stateColor = C.cyanDeep }
-    else if (vm.state === 'PLAYING') { stateTxt = vm.sim ? '模拟中' : '训练中'; stateColor = vm.sim ? '#E8922F' : C.mintDeep }
-    if (vm.silent && vm.state === 'PLAYING') stateTxt = '无音乐'
-    if (stateTxt) {
-      this._dot(x + w - 14 - chipW - 12, y + 30, 3, stateColor)
-      this._text(stateTxt, x + w - 14 - chipW - 20, y + 33, {
-        size: 9.5, weight: '600', color: stateColor, align: 'right'
-      })
+      // 图标底色
+      ctx.beginPath()
+      ctx.arc(x + 17, cy + 18, 10, 0, Math.PI * 2)
+      ctx.fillStyle = c.tint
+      ctx.fill()
+      this._statIcon(c.icon, x + 17, cy + 18, 8, c.color)
+
+      this._text(c.label, x + 9, cy + 38, { size: 8, weight: '600', color: C.inkMute })
+      this._text(c.value, x + 9, cy + (short ? 54 : 58), { size: short ? 15 : 17, weight: '800', color: c.color })
+
+      if (c.bar) {
+        const ratio = clamp((vm.timeLeftSec || 0) / Math.max(1, vm.durationSec || 1), 0, 1)
+        rr(ctx, x + 9, cy + ch - 8, cardW - 18, 3.5, 1.75)
+        ctx.fillStyle = 'rgba(120,145,175,0.14)'
+        ctx.fill()
+        if (ratio > 0.02) {
+          rr(ctx, x + 9, cy + ch - 8, Math.max(4, (cardW - 18) * ratio), 3.5, 1.75)
+          ctx.fillStyle = '#2BC79B'
+          ctx.fill()
+        }
+      }
+    })
+
+    // ---- 场地右上：本局音符统计（半透明蓝卡） ----
+    const iw = 88
+    const ih = 72
+    const ix = W - 12 - iw
+    const iy = L.stageTop + 6
+    rr(ctx, ix, iy, iw, ih, 12)
+    ctx.fillStyle = 'rgba(62,91,216,0.82)'
+    ctx.fill()
+    rr(ctx, ix, iy, iw, ih, 12)
+    ctx.lineWidth = 1
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)'
+    ctx.stroke()
+    this._text('音符 ' + (vm.judgedCount || 0) + ' / ' + (vm.totalNotes || 0), ix + 10, iy + 18, {
+      size: 9, weight: '700', color: 'rgba(255,255,255,0.95)'
+    })
+    this._dot(ix + 13, iy + 32, 3.5, '#5BE3A6')
+    this._text('成功 ' + (vm.hits || 0), ix + 21, iy + 35, { size: 9, weight: '600', color: 'rgba(255,255,255,0.92)' })
+    this._dot(ix + 13, iy + 50, 3.5, '#FF8FA8')
+    this._text('漏接 ' + (vm.miss || 0), ix + 21, iy + 53, { size: 9, weight: '600', color: 'rgba(255,255,255,0.92)' })
+
+    // ---- 场地左上：连击牌 ----
+    if ((vm.combo || 0) >= 2) {
+      const cxx = 22
+      const cyy = L.stageTop + 56
+      const pop = 1 + Math.max(0, 0.18 - (vm.comboFlash || 0) * 0.3)
+      ctx.save()
+      ctx.translate(cxx, cyy)
+      ctx.rotate(-0.12)
+      ctx.scale(pop, pop)
+      const cw = 62
+      const chh = 40
+      ctx.shadowColor = 'rgba(240,140,40,0.35)'
+      ctx.shadowBlur = 12
+      ctx.shadowOffsetY = 4
+      rr(ctx, 0, -chh / 2, cw, chh, 12)
+      const g = ctx.createLinearGradient(0, -chh / 2, 0, chh / 2)
+      g.addColorStop(0, '#FFC24D')
+      g.addColorStop(1, '#F5871F')
+      ctx.fillStyle = g
+      ctx.fill()
+      ctx.shadowBlur = 0
+      ctx.shadowOffsetY = 0
+      this._text('×' + vm.combo, cw / 2, -1, { size: 17, weight: '800', color: '#FFFFFF', align: 'center' })
+      this._text('连击', cw / 2, 13, { size: 8.5, weight: '700', color: 'rgba(255,255,255,0.95)', align: 'center' })
+      ctx.restore()
     }
   }
 
-  // ---------------------------------------------------------------- 底栏
   _drawBottomBar(vm) {
     const ctx = this.ctx
     const L = this.L
+    const W = L.W
+    const y = L.posY
+    const h = L.posH
+
+    // ---- 身体位置面板 ----
+    ctx.save()
+    ctx.shadowColor = 'rgba(92,116,148,0.18)'
+    ctx.shadowBlur = 14
+    ctx.shadowOffsetY = 5
+    rr(ctx, 12, y, W - 24, h, 16)
+    ctx.fillStyle = 'rgba(255,255,255,0.97)'
+    ctx.fill()
+    ctx.restore()
+
+    this._text('身体位置', 22, y + h * 0.42, { size: 9, weight: '700', color: C.inkSoft })
+
+    const tx0 = 84
+    const tx1 = W - 26
+    const tw = tx1 - tx0
+    const ty = y + h * 0.42
+    const g = ctx.createLinearGradient(tx0, 0, tx1, 0)
+    g.addColorStop(0, '#FFB3CB')
+    g.addColorStop(0.45, '#FFD98A')
+    g.addColorStop(1, '#8FE0CB')
+    rr(ctx, tx0, ty - 4, tw, 8, 4)
+    ctx.fillStyle = g
+    ctx.fill()
+
+    for (let i = 0; i < 5; i++) {
+      ctx.beginPath()
+      ctx.arc(tx0 + tw * (i / 4), ty, 1.8, 0, Math.PI * 2)
+      ctx.fillStyle = 'rgba(255,255,255,0.9)'
+      ctx.fill()
+    }
+
+    // 位置标：白团子 + 腮红（和场地里的小人同款）
+    const nx = clamp(vm.nx || 0, -1, 1)
+    const px = tx0 + tw * (nx + 1) / 2
+    ctx.save()
+    ctx.shadowColor = 'rgba(92,116,148,0.28)'
+    ctx.shadowBlur = 8
+    ctx.shadowOffsetY = 2
+    ctx.beginPath()
+    ctx.arc(px, ty, 11, 0, Math.PI * 2)
+    ctx.fillStyle = '#FFFFFF'
+    ctx.fill()
+    ctx.restore()
+    ctx.beginPath()
+    ctx.arc(px, ty, 11, 0, Math.PI * 2)
+    ctx.lineWidth = 2
+    ctx.strokeStyle = '#FF9DBB'
+    ctx.stroke()
+    ctx.fillStyle = '#4A5568'
+    ctx.beginPath()
+    ctx.arc(px - 3.4, ty - 1.4, 1.3, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.beginPath()
+    ctx.arc(px + 3.4, ty - 1.4, 1.3, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = 'rgba(255,150,172,0.55)'
+    ctx.beginPath()
+    ctx.ellipse(px - 6, ty + 2.6, 2, 1.2, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.beginPath()
+    ctx.ellipse(px + 6, ty + 2.6, 2, 1.2, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.beginPath()
+    ctx.arc(px, ty + 1.8, 2.4, Math.PI * 0.2, Math.PI * 0.8)
+    ctx.lineWidth = 1.2
+    ctx.strokeStyle = '#4A5568'
+    ctx.stroke()
+
+    // 轨道两端的小字
+    const ly = y + h - 7
+    this._text('向左', tx0, ly, { size: 7.5, weight: '600', color: C.inkMute })
+    this._text('中心', tx0 + tw / 2, ly, { size: 7.5, weight: '600', color: C.inkMute, align: 'center' })
+    this._text('向右', tx1, ly, { size: 7.5, weight: '600', color: C.inkMute, align: 'right' })
+
+    // ---- 四个按钮 ----
+    const gap = 8
+    const bw = (W - 24 - gap * 3) / 4
     const by = L.btnY
     const bh = L.btnH
-    const gap = 8
-    const sideW = Math.min(84, L.W * 0.22)
-    const midW = Math.max(52, (L.W - 24 - sideW * 2 - gap * 3) / 2)
-
-    this._button('pause', 12, by, sideW, bh, vm.state === 'PAUSED' ? '继续' : '暂停', {
-      variant: 'glass', icon: vm.state === 'PAUSED' ? 'play' : 'pause', size: 11
-    })
-
+    const beatOn = this.cfg.get('beatPulseOn')
     const vol = Math.round((Number(this.cfg.get('musicVolume')) || 0) * 100)
-    this._button('vol', 12 + sideW + gap, by, midW, bh, vol + '%', {
-      variant: 'ghost', icon: 'volume', size: 10.5
+
+    this._button('pause', 12, by, bw, bh, vm.state === 'PAUSED' ? '继续' : '暂停', {
+      variant: 'panel', icon: vm.state === 'PAUSED' ? 'play' : 'pause', size: 10.5, radius: 14
     })
-    this._button('beat', 12 + sideW + gap + midW + gap, by, midW, bh,
-      this.cfg.get('beatPulseOn') ? '节拍开' : '节拍关', {
-        variant: this.cfg.get('beatPulseOn') ? 'ghostOn' : 'ghost', icon: 'wave', size: 10.5
-      })
-    this._button('quit', L.W - 12 - sideW, by, sideW, bh, '退出', {
-      variant: 'glass', icon: 'exit', size: 11
+    this._button('vol', 12 + (bw + gap), by, bw, bh, vol + '%', {
+      variant: 'panel', icon: 'volume', size: 10.5, radius: 14
     })
-    void ctx
+    this._button('beat', 12 + (bw + gap) * 2, by, bw, bh, '节拍' + (beatOn ? '开' : '关'), {
+      variant: beatOn ? 'panelOn' : 'panel', icon: 'wave', size: 10.5, radius: 14
+    })
+    this._button('quit', 12 + (bw + gap) * 3, by, bw, bh, '退出', {
+      variant: 'panel', icon: 'exit', size: 10.5, radius: 14
+    })
   }
 
-  // ---------------------------------------------------------------- 倒计时
   _drawCountdown(vm) {
     const ctx = this.ctx
     const L = this.L
@@ -1311,7 +1713,7 @@ class RhythmRenderer {
     this._text('准备开始', 22, L.safeTop + 34, {
       size: 24, weight: '800', color: C.ink
     })
-    this._text('佩戴传感器 → 零点标定 → 音画校准 → 开始', 23, L.safeTop + 56, {
+    this._text('戴好胸带 → 音画校准 → 开始', 23, L.safeTop + 56, {
       size: 10.5, weight: '500', color: C.inkSoft
     })
     this._button('back', W - 66, L.safeTop + 12, 52, 34, '返回', { variant: 'link', size: 11 })
@@ -1367,7 +1769,7 @@ class RhythmRenderer {
     // 三步
     const steps = [
       { t: '传感器卡在胸带上', d: '胸带从腋下最高点绕一圈固定' },
-      { t: '保持中立位 3 秒', d: '坐稳或站稳，双手自然放下' },
+      { t: '坐稳或站稳', d: '双手自然放下，身体保持中立位' },
       { t: '听 ' + (Number(this.cfg.get('prepBeats')) || 2) + ' 拍预备音', d: '音乐开始后跟着拍子左右移动' }
     ]
     const stepTop = waveY + 46
@@ -1384,27 +1786,23 @@ class RhythmRenderer {
       this._text(s.d, cardX + 44, sy + 16, { size: 9, weight: '500', color: C.inkMute })
     })
 
-    // 标定进度 / 结果
+    // 零点：只报状态，不做独立标定
+    // 零点全 App 只有一份，统一在「零点标定」页设置；这里再放一套就等于让用户标两遍
     const calY = stepTop + steps.length * 40 + 2
-    if (vm.state === 'CALIBRATING') {
-      const p = clamp((vm.calibration && vm.calibration.elapsed) / 3000 || 0, 0, 1)
-      this._text('正在标定：请保持不动', cardX + 18, calY + 8, { size: 10.5, weight: '600', color: C.cyan })
-      rr(ctx, cardX + 18, calY + 14, cardW - 36, 7, 3.5)
-      ctx.fillStyle = 'rgba(120,145,175,0.14)'
-      ctx.fill()
-      rr(ctx, cardX + 18, calY + 14, Math.max(4, (cardW - 36) * p), 7, 3.5)
-      ctx.fillStyle = C.cyan
-      ctx.fill()
-    } else if (vm.calibration && vm.calibration.result) {
-      const ok = vm.calibration.result === 'ok'
-      this._text(ok ? '标定完成：中立位已记录' : (vm.calibration.message || '标定失败'), cardX + 18, calY + 10, {
-        size: 10, weight: '600', color: ok ? C.mintDeep : C.danger
+    const z = vm.zero || { roll: 0, pitch: 0, set: false }
+    const fDeg = (v) => (v >= 0 ? '+' : '') + (Math.round(v * 10) / 10).toFixed(1) + '°'
+    if (z.set) {
+      this._text('当前零点 ' + fDeg(z.roll) + ' / ' + fDeg(z.pitch), cardX + 18, calY + 10, {
+        size: 10, weight: '600', color: C.mintDeep
       })
-    } else if (!vm.calibrated) {
-      this._text('还没有标定：连接传感器后先做一次零点标定', cardX + 18, calY + 10, {
-        size: 9.5, weight: '500', color: C.inkMute
+    } else {
+      this._text('还没设置零点，读数按传感器原始角度算', cardX + 18, calY + 10, {
+        size: 9.5, weight: '600', color: C.danger
       })
     }
+    this._button('zero:set', cardX + cardW - 92, calY, 74, 26, z.set ? '重设' : '去标定', {
+      variant: 'ghost', size: 10
+    })
 
     // 音画校准：贴在按钮上方
     const btnH = 46
@@ -1459,15 +1857,10 @@ class RhythmRenderer {
 
     // 按钮
     this._button('enter', cardX + 18, by, cardW - 36, btnH, '进入游戏', {
-      variant: 'primary', icon: 'play', size: 15,
-      disabled: vm.state === 'CALIBRATING'
+      variant: 'primary', icon: 'play', size: 15
     })
-    const halfW = (cardW - 46) / 2
-    this._button('calibrate', cardX + 18, ghostTop, halfW, 38, vm.calibrated ? '重新标定' : '开始标定', {
-      variant: 'ghost', icon: 'refresh', size: 11
-    })
-    this._button(vm.sim ? 'sim:off' : 'sim:on', cardX + 28 + halfW, ghostTop, halfW, 38,
-      vm.sim ? '关闭模拟' : '使用模拟', { variant: 'ghost', icon: 'check', size: 11 })
+    this._button(vm.sim ? 'sim:off' : 'sim:on', cardX + 18, ghostTop, cardW - 36, 38,
+      vm.sim ? '关闭模拟' : '使用模拟数据', { variant: 'ghost', icon: 'check', size: 11 })
   }
 
   // ---------------------------------------------------------------- 结算页
@@ -1732,22 +2125,23 @@ class RhythmRenderer {
   _drawSimPad(vm) {
     const ctx = this.ctx
     const L = this.L
+    // 收成左上角一枚小标签：测试用，别抢画面
     const x = 12
-    const y = L.hudBottom + 6
-    const w = this.simOpen ? L.W - 24 : 74
+    const y = L.stageTop + 1
+    const w = this.simOpen ? L.W - 24 : 46
     const rowH = 26
-    const h = this.simOpen ? 30 + rowH * 2 : 26
+    const h = this.simOpen ? 26 + rowH * 2 : 18
 
-    rr(ctx, x, y, w, h, 12)
-    ctx.fillStyle = 'rgba(255,226,150,0.45)'
+    rr(ctx, x, y, w, h, 9)
+    ctx.fillStyle = 'rgba(255,226,150,0.55)'
     ctx.fill()
     ctx.lineWidth = 1
     ctx.strokeStyle = 'rgba(232,148,42,0.45)'
     ctx.stroke()
-    this._text('模拟 ' + (this.simOpen ? '▴' : '▾'), x + 12, y + 17, {
-      size: 9.5, weight: '700', color: '#B57A1E'
+    this._text('模拟' + (this.simOpen ? ' ▴' : ' ▾'), x + 8, y + (this.simOpen ? 17 : 13), {
+      size: 8.5, weight: '700', color: '#B57A1E'
     })
-    this.buttons.push({ id: 'sim:toggle', x: x, y: y, w: this.simOpen ? 74 : w, h: 26 })
+    this.buttons.push({ id: 'sim:toggle', x: x, y: y, w: this.simOpen ? 74 : w, h: this.simOpen ? 26 : 18 })
 
     if (!this.simOpen) return
     const items = [
@@ -1859,6 +2253,14 @@ class RhythmRenderer {
       bg = 'rgba(206,242,232,0.85)'
       fg = C.mintDeep
       border = 'rgba(94,211,184,0.7)'
+    } else if (variant === 'panel') {
+      bg = 'rgba(255,255,255,0.97)'
+      fg = C.ink
+      border = 'rgba(120,145,175,0.22)'
+    } else if (variant === 'panelOn') {
+      bg = 'rgba(214,247,236,0.98)'
+      fg = C.mintDeep
+      border = 'rgba(94,211,184,0.55)'
     } else if (variant === 'mini') {
       bg = 'rgba(255,255,255,0.85)'
       fg = C.inkSoft
@@ -1875,7 +2277,7 @@ class RhythmRenderer {
       ctx.shadowBlur = 12
       ctx.shadowOffsetY = 4
     }
-    rr(ctx, x, y, w, h, h / 2)
+    rr(ctx, x, y, w, h, opt.radius || (h / 2))
     ctx.fillStyle = bg
     ctx.fill()
     ctx.shadowBlur = 0

@@ -1,33 +1,54 @@
 # 赛车引擎（race/engine.js）
 
-`pages/race` 使用的核心来自独立小游戏工程 **NEON REHAB RACER**（`D:/Desktop/sc`，4638 行 / 26 个 ES Module）。
+`pages/race` 使用的核心来自独立小游戏工程 **NEON REHAB RACER**。
+
+> **重要：原始小游戏工程（`D:/Desktop/sc`，26 个 ES Module）已被删除。**
+> 现在唯一的维护基线是**反格式化出来的单文件源码** `src/engine.src.js`（约 4900 行）。
+> 所有康复改造（去蓝牙入口、HUD 换侧屈角度、滤波参数、巡航油门…）已经内联在里面，
+> 不再靠打包时打补丁。
 
 小游戏与小程序运行时不同，不能直接 `require game.js`，这里做了三件事：
 
-1. **esbuild 打包**：`src/**` → 单文件 CommonJS `race/engine.js`（约 78KB）
+1. **esbuild 打包**：`src/engine.src.js` → 单文件 CommonJS `race/engine.js`（约 83KB）
 2. **画布替换**：页面 `<canvas type="2d">` 节点替代 `wx.createCanvas()`
 3. **输入桥接**：页面 touch → `engine.onPointerDown/Move/Up`，坐标直接交给 `engine.toDesign()`
 
 ## 怎么改
 
-源码请改 `D:/Desktop/sc`，然后重新打包：
+改 `pkgRace/race/src/engine.src.js`，然后重新打包：
 
 ```bash
-npm i esbuild
-node tools/build_race.js            # 默认读 D:/Desktop/sc
-SC_DIR=/path/to/sc node tools/build_race.js
+npm run build:race     # 打包 + 自检
+npm run check:race     # 只自检现有产物，不重新打包
 ```
 
-esbuild 不在项目里时，可以装到托管工作区再用 `NODE_PATH` 指过去：
+`src/` 目录已在 `project.config.json` 的 `packOptions.ignore` 里，**不进小程序包**；
+产物 `engine.js` 才是运行时加载的那份。
+
+打包脚本做两件事：压缩，以及一组**出厂自检**。自检分三类，别混：
+
+| 类别 | 查谁 | 内容 |
+| --- | --- | --- |
+| `MUST_HAVE` | 产物 | 「侧屈」「体感待机」「模拟模式（触屏驱动）」等文案还在 |
+| `MUST_NOT_HAVE` | 产物 | 「连接 WT9011 传感器」「.02,1.6」「Debug：方向键」必须消失 |
+| `SRC_ONLY` | 源码 | `RoadRenderer2` 等类名（压缩后会被改名，只能查源码） |
+
+产物还会真的 `require()` 一次，确认导出 `GameEngine` 且 `update / render / setState /
+onPointerDown / toDesign` 五个方法齐全 —— 纯字符串检查抓不到「打成 ESM」这类问题。
+
+> esbuild 的 Go 二进制在本项目里**写文件会被拦**（`tools/` 下报 Access denied），
+> 所以构建用 `write:false` 拿回内存再自己落盘，别改回 `outfile`。
+
+## 改完必须跑测试
 
 ```bash
-npm --prefix ~/.workbuddy/binaries/node/workspace i esbuild
-NODE_PATH=~/.workbuddy/binaries/node/workspace/node_modules node tools/build_race.js
+node tools/race-headless-test.js     # 已并入 npm test（13 套之一）
 ```
 
-打包时会做这些「产物改造」（源码工程保持原样）：去掉 BLE 菜单与状态文案、
-HUD 换成 `侧屈 ±X°`、回调滤波参数、注入巡航油门/初速度/低速转向。
-全部用字符串精确匹配，源码结构一变就报错，不会悄悄失效；产物出厂前还会自检。
+84 项断言，覆盖的不是「能不能跑」而是「康复参数有没有被改坏」：跟手延迟、
+死区、巡航、渲染确定性、NaN 毒性、长跑稳定性、结算字段、记录映射、音频生命周期。
+细节见脚本头部注释。
+
 
 ## 传感器：不用游戏自带的蓝牙
 
@@ -74,7 +95,7 @@ feedSensor(d) {
 | 改前 | 133ms | 333ms | 433ms |
 | 改后 | **50ms** | **117ms** | **130ms** |
 
-（`tools/race_page_test.js` 里有阶跃响应断言，超过 160ms 会失败。）
+（`tools/race-headless-test.js` 里有阶跃响应断言，超过 160ms 会失败。）
 噪声抑制仍有 ~0.2×，而 WT9011 角度噪声本身只有 ±0.2° 量级，画面上看不出抖动。
 觉得还不够跟手就继续调大 `q`（0.6 → 约 83ms），觉得画面发抖就调小。
 
@@ -179,5 +200,62 @@ const SWAP_AXES = true   // 佩戴方向相反时改成 false
 `wx.createWebAudioContext`（不可用时自动降级为静音）。
 
 引擎里的 `BLEManager` 代码仍随包存在，但菜单入口已移除、页面也不再调用它的扫描/连接，
-**实际不会触碰 `wx.openBluetoothAdapter` 等 BLE 接口**（`tools/race_page_test.js` 里有断言）。
+**实际不会触碰 `wx.openBluetoothAdapter` 等 BLE 接口**
+（`tools/race-headless-test.js` 第 10 节把 BLE 接口全部记数，断言整套流程一次都没调）。
 小游戏专属的 `wx.onTouchStart/Move/End`、`wx.onKeyDown` 在引擎里都有 `typeof` 保护，小程序下不会执行。
+
+## 配套页面（2026-10-29 补齐）
+
+赛车原本只有游戏页，另外三个游戏都有「设置 / 记录」，赛车没有——治疗师改不了参数，
+一局跑完也没有任何数据留下来。现补齐两页，版式与其余游戏一致：
+
+| 页面 | 路径 | 作用 |
+|---|---|---|
+| 训练设置 | `pkgRace/pages/race-settings/` | 13 项参数的滑块/开关、五档赛道对比与套用、康复推荐值与恢复默认 |
+| 训练记录 | `pkgRace/pages/race-records/` | 概览三格、最好成绩、6 个 KPI、9 行参数快照、逐条/批量上报 |
+
+入口在**游戏菜单与结算页**的左下角（`race.wxml` 的 `.side-nav`）。对局中完全隐藏：
+那两枚按钮压在画布左下角，比赛中会挡视线，`catchtap` 还会把本该给画布的触摸吃掉
+（模拟模式下等于半个方向失灵）。
+
+### 设置页与引擎的存储契约（改这里之前必读）
+
+设置页不拥有自己的存储，它直接写引擎的 `nrr_therapist_params_v1`，因此有两条
+**静默失效**路径：
+
+1. **必须同时写种子标记 `race_motion_seed_v2`**。`race.js` 的 `seedMotionParams()`
+   在「没有种子」时会把 `MOTION_TUNE` 整套盖回去，只改参数不落种子 =「设置改了没生效」。
+2. **`brakeOn` 是虚拟开关**。引擎只认 `brakeAngle`，`999` = 永不刹车。关刹车写 999，
+   开刹车要写回 8（引擎默认值），不能把 999 留着。
+
+还有两个数值细节：
+
+- `smoothing` 的步长必须是 **0.01**。用 0.05 会把康复推荐值 0.18 对齐成 0.2
+  （跟手延迟 117ms → 150ms 以上），等于把实测调过的跟手性悄悄改钝。
+- 步长网格必须**从 `min` 起算**（`min + round((v-min)/step)*step`）。从 0 起算会飘：
+  `smoothing` 的 min 是 0.05、step 0.01，0.18 会落到 0.185。
+
+参数**只在下一局生效**——引擎在构造函数里读一次并缓存到 `motion.params`，对局中途改
+不会热更新。页面顶部必须明说，否则治疗师会以为改坏了。
+
+上述每一条都由 `tools/race-settings-test.js`（51 项）钉住，最后一节直接
+`new GameEngine` 读 `engine.motion.params`，断言的是「设置页写下的东西引擎真的读到了」，
+而不是「存储里有个看着对的 JSON」。
+
+### 记录页的统计口径
+
+「最好成绩」只统计 `dataSource !== 'simulation'` 的记录。触屏模拟模式容易跑出高分，
+混进榜首会让治疗师误判患者进步。模拟记录仍留在列表里（带 `模拟` 标签），但不上报。
+
+## 自检一览
+
+| 命令 | 覆盖 |
+|---|---|
+| `npm run build:race` | esbuild 打包 `engine.src.js` → `engine.js` + 三类自检 |
+| `npm run check:race` | 只做自检不写盘（CI 用） |
+| `node tools/race-headless-test.js` | 引擎 85 项：跟手延迟、死区、巡航、确定性、2000 帧长跑、不碰 BLE |
+| `node tools/race_page_test.js` | 页面层：letterbox、姿态链路、记录映射、音频生命周期 |
+| `node tools/race-settings-test.js` | 设置页 51 项：存储契约、虚拟开关、步长对齐、引擎侧闭环 |
+| `node tools/race-records-test.js` | 记录页 35 项：最好成绩口径、字段映射、缺快照兜底、时长格式化 |
+
+全部并入 `npm test`（现 16 套）。

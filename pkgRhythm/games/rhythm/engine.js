@@ -755,7 +755,9 @@ class RhythmEngine {
       quality: this.motion.quality,
       stale: this.motion.stale,
       live: this.motion.isLive(),
-      calibrated: !!(this.motion.cal && this.motion.cal.result === 'ok') || this.simMode,
+      // 零点全 App 共用：本局标过、标定页标过、别的游戏标过，都算已标定
+      calibrated: !!this.simMode || this.motion.hasZero(),
+      zero: this.motion.zeroInfo(),
       calibration: this.motion.cal,
       sim: this.simMode,
       audioMode: this.mode,

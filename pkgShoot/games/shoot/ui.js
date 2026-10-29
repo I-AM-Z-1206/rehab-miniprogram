@@ -2,7 +2,7 @@
 // games/shoot/ui.js —— 射击训练的「页面层」UI（画在引擎画面之上）
 // ----------------------------------------------------------------------------
 // 为什么单独一层：
-//   · 引擎只管玩法（背景 / 保持区 / 角色 / 怪兽 / 子弹 / HUD）；
+//   · 引擎只管玩法（背景 / 城市灯火 / 保持区 / 角色 / 光核 / 子弹 / HUD）；
 //   · 开始页、暂停页、结算页、底部按钮条、传感器状态，都属于页面 UI。
 //   把治疗师参数面板从游戏页搬走以后（改到 pages/shoot-settings），
 //   游戏页就是「整屏画布 + 这一层 UI」，和接水果 / 走钢丝 / 节奏训练一致。
@@ -16,7 +16,7 @@
 const STATE = { READY: 'ready', RUNNING: 'running', PAUSED: 'paused', ENDED: 'ended' }
 
 const C = {
-  scrim: 'rgba(4,9,18,0.74)',
+  scrim: 'rgba(4,9,18,0.68)',
   card: 'rgba(14,28,46,0.97)',
   cardLine: 'rgba(79,209,197,0.42)',
   ink: '#FFFFFF',
@@ -326,7 +326,7 @@ class ShootUI {
     let y = top + 26
     this._text('射击训练', W / 2, y, { size: 21, weight: '800', color: C.ink, align: 'center' })
     y += 22
-    this._text('身体保持在中间，对准小怪兽自动开火', W / 2, y, {
+    this._text('身体保持在中间，机头对准光核自动开火', W / 2, y, {
       size: 11, weight: '500', color: C.mute, align: 'center'
     })
     y += 20
@@ -334,7 +334,7 @@ class ShootUI {
     const steps = [
       '戴好传感器，先做一次零点标定',
       '身体保持在绿色「保持区」里',
-      '自动开火，击中小怪兽累计得分'
+      '自动开火，点亮一座城市'
     ]
     steps.forEach((t, i) => {
       const sy = y + i * rowH + 6

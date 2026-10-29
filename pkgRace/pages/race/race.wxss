@@ -51,8 +51,40 @@ page {
   transform: rotate(180deg);
 }
 
-/* 首次进入提示 */
-.race-hint {
+/* 记录 / 设置入口：左下角空白区，与引擎菜单左列（x≥357）不重叠 */
+.side-nav {
+  position: absolute;
+  left: calc(24rpx + env(safe-area-inset-left));
+  bottom: calc(40rpx + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+}
+
+.side-btn {
+  width: 108rpx;
+  height: 60rpx;
+  margin-top: 14rpx;
+  border-radius: 30rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(8, 10, 24, 0.55);
+  border: 1rpx solid rgba(180, 140, 255, 0.42);
+}
+
+.side-btn:active {
+  background-color: rgba(8, 10, 24, 0.88);
+  border-color: rgba(220, 180, 255, 0.75);
+}
+
+.side-label {
+  font-size: 24rpx;
+  letter-spacing: 2rpx;
+  color: #d9c8ff;
+}
+
+/* 首次进入提示 */.race-hint {
   position: absolute;
   left: 50%;
   bottom: calc(36rpx + env(safe-area-inset-bottom));

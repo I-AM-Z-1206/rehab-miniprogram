@@ -20,7 +20,7 @@ const { getStore } = require('../../../utils/fruit-config.js')
 const { FruitEngine } = require('../../games/fruit/engine.js')
 const { FruitRenderer } = require('../../games/fruit/renderer.js')
 const { AudioKit } = require('../../../utils/game/audio.js')
-const records = require('../../../utils/fruit-record.js')
+const records = require('../../utils/fruit-record.js')
 const { getNickname } = require('../../../utils/tab.js')
 
 const SENSOR_HZ = 50
@@ -304,9 +304,8 @@ Page({
     if (!summary) return
     const rec = this.persistRecord()
     if (!rec) return
-    if (rec.dataSource === 'real' && records.getUploadConfig().url) {
-      this.askUpload(rec.recordId, rec)
-    }
+    // 静默上报已在 records.save() 内部触发：家用场景没人会点确认弹窗。
+    // 需要重传时去「训练记录」页手动操作。
   },
 
   // ---------------------------------------------------------------- 记录
@@ -314,6 +313,9 @@ Page({
     if (!this.engine || !this.engine.summary) return null
     if (this.recordSaved) return this.savedRecord || null
     const s = this.engine.summary
+    // 参数快照：治疗师之后改难度/容差时，历史数据仍能解释自己（可跨周比较）
+    const cfgSnap = getStore().all()
+    cfgSnap.version = Number(wx.getStorageSync('cfg_ver_fruit')) || 0
     const rec = {
       recordId: s.recordId,
       nickname: getNickname(),
@@ -354,7 +356,8 @@ Page({
       grade: s.grade,
       startedAt: s.startedAt,
       endedAt: s.endedAt,
-      calibration: s.calibration
+      calibration: s.calibration,
+      configSnapshot: cfgSnap
     }
     records.save(rec)
     this.recordSaved = true
@@ -487,12 +490,9 @@ Page({
       case 'connect':
         wx.navigateTo({ url: '/pages/wit/wit' })
         break
-      case 'calibrate':
-        if (!engine.simMode && !engine.motion.isLive()) {
-          wx.showToast({ title: '请先连接传感器', icon: 'none' })
-          return
-        }
-        engine.calibrate()
+      // 零点统一在「零点标定」页设置，游戏内不再做独立标定
+      case 'zero:set':
+        wx.navigateTo({ url: '/pages/calibrate/calibrate' })
         break
       case 'back':
         engine.toIntro()

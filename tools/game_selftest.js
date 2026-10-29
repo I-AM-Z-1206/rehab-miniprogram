@@ -5,11 +5,11 @@
 //       HitDetector 判定范围热更新、BulletSystem 对象池、PoseTracker 左右映射
 // ============================================================================
 
-const { ConfigStore, DIFFICULTIES } = require('../utils/game/config.js')
-const { ScoreManager } = require('../utils/game/score.js')
-const { HitDetector } = require('../utils/game/hit.js')
-const { BulletSystem } = require('../utils/game/bullet.js')
-const { PoseTracker } = require('../utils/game/pose.js')
+const { ConfigStore, DIFFICULTIES } = require('../pkgShoot/games/shoot/config.js')
+const { ScoreManager } = require('../pkgShoot/games/shoot/score.js')
+const { HitDetector } = require('../pkgShoot/games/shoot/hit.js')
+const { BulletSystem } = require('../pkgShoot/games/shoot/bullet.js')
+const { PoseTracker } = require('../pkgShoot/games/shoot/pose.js')
 
 let pass = 0
 let fail = 0

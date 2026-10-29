@@ -1,0 +1,12 @@
+services:
+  rehab-server:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    environment:
+      # 换成你自己的长随机串：openssl rand -hex 24
+      UPLOAD_TOKEN: "请替换为你的令牌"
+    volumes:
+      - ./data:/app/data
+      - ./static:/app/static

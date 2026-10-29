@@ -59,7 +59,9 @@ function pushLog(kind, detail) {
 App({
   globalData: {
     errorLog: [],
-    launchedAt: 0
+    launchedAt: 0,
+    // 云端状态：ready=false 时小程序照常可用，只是记录只存本地
+    cloud: { ready: false, role: '', patientId: '', error: '' }
   },
 
   onLaunch() {
@@ -68,6 +70,16 @@ App({
       const saved = wx.getStorageSync(LOG_KEY)
       if (Array.isArray(saved)) this.globalData.errorLog = saved
     } catch (e) { /* 忽略 */ }
+    this.bootCloud()
+  },
+
+  onShow() {
+    // 回到前台补传离线记录：家庭网络失败是常态，不能指望一次就传上去
+    if (this.globalData.cloud.ready) {
+      try {
+        require('./utils/training-record.js').flushAll().catch(function () { /* 忽略 */ })
+      } catch (e) { /* 忽略 */ }
+    }
   },
 
   /** 运行期未捕获错误 */
@@ -86,6 +98,81 @@ App({
   onPageNotFound(res) {
     pushLog('page404', res && res.path)
     wx.reLaunch({ url: '/pages/index/index' })
+  },
+
+  // ---------------------------------------------------------------- 云端
+  /**
+   * 静默登录 + 拉参数 + 补传。
+   * 任何一步失败都只影响联网功能，本地训练和本地记录完全不受影响。
+   */
+  bootCloud() {
+    const that = this
+    let auth, remote, rec
+    try {
+      auth = require('./utils/auth.js')
+      remote = require('./utils/remote-config.js')
+      rec = require('./utils/training-record.js')
+    } catch (e) {
+      this.globalData.cloud.error = '模块加载失败'
+      console.warn('[app] 云端模块加载失败', e && e.message)
+      return
+    }
+
+    auth.bootstrap().then(function (me) {
+      that.globalData.cloud = {
+        ready: true,
+        role: me.role || 'patient',
+        patientId: (me.patient && me.patient.id) || '',
+        error: ''
+      }
+      // 先把旧版本固定键、以及登录前产生的 anon 记录归到当前账号名下，
+      // 必须在补传之前做，否则这些记录永远传不上去（owner 为空会被当成别人的）
+      try {
+        const moved = rec.migrateStores()
+        if (moved) console.log('[app] 已把 ' + moved + ' 条历史记录归到当前账号')
+      } catch (e) { /* 忽略 */ }
+      // 拉参数：治疗师改了难度，患者下次打开就生效
+      remote.pullAll().catch(function () { /* 忽略 */ })
+      // 补传离线队列
+      rec.flushAll().catch(function () { /* 忽略 */ })
+      // 首次使用询问一次隐私授权，之后静默上报
+      that.maybeAskPrivacy()
+    }).catch(function (err) {
+      that.globalData.cloud = {
+        ready: false,
+        role: '',
+        patientId: '',
+        error: (err && err.message) || '登录失败'
+      }
+      console.warn('[app] 云端登录失败，进入离线模式：', err && err.message)
+    })
+  },
+
+  /** 只在首次询问一次；拒绝后不再自动打扰 */
+  maybeAskPrivacy() {
+    const auth = require('./utils/auth.js')
+    if (auth.hasPrivacyConsent()) return
+    let asked = false
+    try { asked = wx.getStorageSync('privacy_prompted_v1') === true } catch (e) { /* 忽略 */ }
+    if (asked) return
+
+    setTimeout(function () {
+      wx.showModal({
+        title: '训练数据上传',
+        content: '上传后治疗师才能看到你的训练情况并调整难度。\n\n· 只上传得分、时长、姿态稳定率等训练指标\n· 不含姓名、身份证、手机号\n· 只有你绑定的治疗师能看\n· 可随时在「我的」页关闭并删除',
+        confirmText: '同意',
+        cancelText: '暂不上传',
+        success: function (res) {
+          try { wx.setStorageSync('privacy_prompted_v1', true) } catch (e) { /* 忽略 */ }
+          if (res.confirm) {
+            auth.setPrivacyConsent()
+            try {
+              require('./utils/training-record.js').flushAll().catch(function () { /* 忽略 */ })
+            } catch (e) { /* 忽略 */ }
+          }
+        }
+      })
+    }, 1500)
   },
 
   // ---------------------------------------------------------------- 错误日志

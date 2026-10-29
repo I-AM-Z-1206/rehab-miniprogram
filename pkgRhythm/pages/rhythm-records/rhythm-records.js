@@ -1,5 +1,5 @@
 // rhythm-records.js —— 节奏训练：训练记录（本地为准，可逐条或批量上报）
-const records = require('../../../utils/rhythm-record.js')
+const records = require('../../utils/rhythm-record.js')
 
 const STATE_TEXT = {
   local: '待上报',

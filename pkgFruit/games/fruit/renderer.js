@@ -20,6 +20,8 @@
 
 const { drawFruit, drawBasket } = require('./fruits.js')
 const { FRUIT_TYPES, DESIGN_WIDTH } = require('./spawner.js')
+// 2.5D 纵深原语（地平线雾 / 远景剪影 / 透视地面 / 软阴影 / 浮尘 / 暗角）
+const depth = require('../../../utils/scene/depth.js')
 
 const C = {
   ink: '#152D22',
@@ -166,6 +168,9 @@ class FruitRenderer {
       horizonY: H * (short ? 0.5 : 0.52),
       fruitScale: W / DESIGN_WIDTH
     }
+
+    // 花粉 / 浮尘：尺寸变化时重建一次，每帧只读
+    this.dust = depth.buildDust(W, H, fieldTop, groundY + 24, 26, 5)
   }
 
   _safeTop() {
@@ -316,6 +321,28 @@ class FruitRenderer {
       g.stroke()
     })
     g.restore()
+
+    // 最远一层山脊：只做层次、不做细节，颜色贴近天空（大气透视）
+    depth.ridge(g, {
+      w: W,
+      hz: hz,
+      bands: [
+        { amp: 0.24, rise: 0.02, freq: 3.6, alpha: 0.46, color: '150,186,208', seed: 0.8 }
+      ]
+    })
+
+    // 地平线大气光：只在中间亮、两端淡出。
+    // ⚠️ 不能用全宽纵向渐变 —— 那等于给屏幕画一条水位线，把山脊全切断。
+    depth.haze(g, {
+      cx: W * 0.5,
+      y: hz + 1,
+      rx: W * 0.76,
+      ry: 0.095,
+      color: '255,247,219',
+      alpha: 0.34,
+      lineAlpha: 0.16,
+      w: W * 1.15
+    })
 
     // 远山两层
     this._paintHills(g)
@@ -522,6 +549,15 @@ class FruitRenderer {
     g.closePath()
     g.fill()
 
+    // 空气透视：靠地平线的一带融进天色。
+    // 少了这一层，草地就是一块从下到上一样绿的色块 —— 有透视也没纵深。
+    const air = g.createLinearGradient(0, hz, 0, hz + (H - hz) * 0.30)
+    air.addColorStop(0, 'rgba(246,247,228,0.62)')
+    air.addColorStop(0.45, 'rgba(240,246,222,0.24)')
+    air.addColorStop(1, 'rgba(240,246,222,0)')
+    g.fillStyle = air
+    g.fillRect(0, hz, W, (H - hz) * 0.30)
+
     // 中间一块柔和阳光斑：让接取区亮一点，画面有中心
     const pool = g.createRadialGradient(W * 0.5, hz + (H - hz) * 0.55, 10,
       W * 0.5, hz + (H - hz) * 0.55, W * 0.62)
@@ -531,44 +567,41 @@ class FruitRenderer {
     g.fillStyle = pool
     g.fillRect(0, hz, W, H - hz)
 
-    // 透视横向弧线（地块纹理）：越近越疏、越粗
-    g.save()
-    g.lineCap = 'round'
-    for (let i = 1; i <= 8; i++) {
-      const t = i / 8
-      const y = hz + Math.pow(t, 1.9) * (H - hz) * 0.82
-      const a = 0.07 + t * 0.10
-      g.beginPath()
-      g.moveTo(-W * 0.04, y)
-      g.quadraticCurveTo(W * 0.5, y - (1 - t) * H * 0.006, W * 1.04, y)
-      g.lineWidth = 1 + t * 2.4
-      g.strokeStyle = 'rgba(255,255,255,' + a + ')'
-      g.stroke()
-    }
-    // 透视车道（把视线引向篮子，同时不抢水果）
-    const vx = W * 0.5
-    for (let i = -2; i <= 2; i++) {
-      g.beginPath()
-      g.moveTo(vx + i * W * 0.055, hz + 4)
-      g.lineTo(vx + i * W * 0.32, H)
-      g.lineWidth = 1
-      g.strokeStyle = 'rgba(255,255,255,0.075)'
-      g.stroke()
-    }
-    g.restore()
+    // 透视地块：横线按 y = hz + floorH / u 分布（越远越密），纵线从消失点放射。
+    // 这是草地「有纵深」的唯一凭据 —— 之前用 pow(t,1.9) 手调，近处过密、远处全糊在一起。
+    // 隔带填色做出割草条纹，绿色比地面略深，只负责「这是一片地」。
+    depth.perspectiveFloor(g, {
+      w: W,
+      h: H,
+      hz: hz,
+      cx: W * 0.5,
+      rows: 9,
+      cols: 5,
+      spread: 0.30,
+      topSpread: 0.05,
+      color: '72,104,58',
+      farAlpha: 0.055,
+      nearAlpha: 0.17,
+      stripe: { color: '52,90,46', alpha: 0.075 },
+      lineWidth: 1
+    })
 
-    // 细草纹理：稀疏短线，草地不再是一块平涂的绿
+    // 细草纹理：草叶必须按远近换尺寸，否则一片"等大的短线"等于噪点。
+    // 近处大、深、密，远处小、淡、疏 —— 这是最便宜的纵深线索之一。
     g.save()
     g.lineCap = 'round'
-    for (let i = 0; i < 110; i++) {
+    for (let i = 0; i < 150; i++) {
       const gx = W * hash(i, 42)
-      const gy = hz + Math.pow(hash(i, 43), 0.75) * (H - hz) * 0.92
-      const len = 1.8 + hash(i, 44) * 5
-      g.lineWidth = 0.7 + hash(i, 45) * 0.9
-      g.strokeStyle = 'rgba(255,255,255,' + (0.05 + hash(i, 46) * 0.09).toFixed(3) + ')'
+      const gy = hz + Math.pow(hash(i, 43), 0.62) * (H - hz) * 0.95
+      const d = depth.depthT(gy, hz, H)
+      const len = (1.2 + hash(i, 44) * 4.2) * (0.55 + d * 1.35)
+      const lean = (hash(i, 47) - 0.5) * len * 0.7
+      g.lineWidth = (0.6 + hash(i, 45) * 0.7) * (0.7 + d * 0.9)
+      g.strokeStyle = 'rgba(' + (d > 0.5 ? '66,102,52' : '104,140,84') + ',' +
+        (0.07 + hash(i, 46) * 0.10 * (0.5 + d)).toFixed(3) + ')'
       g.beginPath()
       g.moveTo(gx, gy)
-      g.quadraticCurveTo(gx + 1, gy - len * 0.6, gx + 2.4, gy - len)
+      g.quadraticCurveTo(gx + lean * 0.5, gy - len * 0.6, gx + lean, gy - len)
       g.stroke()
     }
     g.restore()
@@ -635,6 +668,16 @@ class FruitRenderer {
     ctx.fillStyle = beam
     ctx.fillRect(W * 0.14, L.fieldTop, W * 0.72, L.groundY - L.fieldTop)
 
+    // 花粉 / 浮尘：贴着草地缓慢上浮。便宜（26 个小圆），但画面立刻有「空气」
+    if (this.dust) {
+      depth.drawDust(ctx, this.dust, this.clock, {
+        top: L.fieldTop,
+        bottom: L.groundY + 24,
+        color: '255,252,214',
+        alpha: 0.6
+      })
+    }
+
     // 两只小蝴蝶：贴着两侧花丛轻轻飞（纯装饰，低不透明度，不抢水果）
     if (screen === 'play' || screen === 'countdown') {
       for (let i = 0; i < 2; i++) {
@@ -662,12 +705,7 @@ class FruitRenderer {
 
     // 果篮脚下的暗影要跟着篮子走，否则篮子一动就像在"滑冰"
     const bx = vm.basket ? clamp(vm.basket.x, 0, 1) : 0.5
-    ctx.save()
-    ctx.globalAlpha = 0.1
-    ellipse(ctx, bx * W, L.groundY + 2, L.basketHalfW * 1.5, 7)
-    ctx.fillStyle = '#33502C'
-    ctx.fill()
-    ctx.restore()
+    depth.softShadow(ctx, bx * W, L.groundY + 2, L.basketHalfW * 1.55, 9, 0.30, '44,72,40')
 
     // 水果（先画，被篮口覆盖）
     this._drawFruits(vm)
@@ -680,12 +718,8 @@ class FruitRenderer {
     // 粒子与飘字
     this._drawFx(vm)
 
-    // 屏幕边缘暗角（轻微，不闪烁）
-    const vig = ctx.createRadialGradient(W * 0.5, H * 0.55, W * 0.42, W * 0.5, H * 0.55, W * 0.95)
-    vig.addColorStop(0, 'rgba(20,50,30,0)')
-    vig.addColorStop(1, 'rgba(20,50,30,0.1)')
-    ctx.fillStyle = vig
-    ctx.fillRect(0, 0, W, H)
+    // 屏幕边缘暗角：环境绿而不是纯黑，纯黑在暖色草地上会发脏
+    depth.vignette(ctx, { w: W, h: H, color: '32,60,40', alpha: 0.17, cy: 0.55, inner: 0.40, outer: 0.98 })
   }
 
   _fruitPx(f) {
@@ -749,6 +783,9 @@ class FruitRenderer {
         ctx.fill()
         ctx.restore()
       }
+      // 离开背景：先铺一层向右下的软投影，水果才「浮」在草地上而不是贴上去
+      depth.softShadow(ctx, p.x + r0 * 0.14, p.y + r0 * 0.18,
+        r0 * 0.95, r0 * 0.78, 0.13, '46,74,42')
       drawFruit(ctx, f.type, p.x, p.y, r0 * depthScale, f.rot)
     }
   }
@@ -1451,7 +1488,7 @@ class FruitRenderer {
     const headShift = Math.max(0, Math.min(46, (cardY - (L.safeTop + 76) - 92) * 0.34))
 
     this._text('设备准备', 22, L.safeTop + 34 + headShift, { size: 24, weight: '800', color: C.ink })
-    this._text('佩戴传感器 → 零点标定 → 开始训练', 23, L.safeTop + 56 + headShift, {
+    this._text('戴好胸带，坐稳或站稳就能开始', 23, L.safeTop + 56 + headShift, {
       size: 11, weight: '600', color: C.inkSoft
     })
     this._button('back', W - 66, L.safeTop + 12 + headShift, 52, 34, '返回', { variant: 'link', size: 11 })
@@ -1487,8 +1524,8 @@ class FruitRenderer {
     const tw = cardW - (tx - cardX) - 16
     const steps = [
       { t: '传感器卡在胸带上', d: '胸带从腋下最高点绕一圈固定' },
-      { t: '保持中立位 3 秒', d: '坐稳或站稳，双手自然放下' },
-      { t: '标定完成后进入游戏', d: '身体左右倾，果篮跟着过去接水果' }
+      { t: '坐稳或站稳', d: '双手自然放下，身体保持中立位' },
+      { t: '身体左右倾', d: '果篮跟着过去接水果' }
     ]
     const stepGap2 = cardH > 560 ? 56 : (cardH > 480 ? 52 : 46)
     steps.forEach((s, i) => {
@@ -1505,42 +1542,32 @@ class FruitRenderer {
       void tw
     })
 
-    // 标定进度 / 结果
+    // 零点：只报状态，不做独立标定
+    // 零点全 App 只有一份，统一在「零点标定」页设置；这里再放一套就等于让用户标两遍
     const infoY = cardY + 66 + 3 * stepGap2 - 8
-    if (vm.state === 'CALIBRATING') {
-      const p = clamp(vm.calibrationProgress || 0, 0, 1)
-      this._text('正在标定：请保持不动', cardX + 18, infoY + 8, { size: 11, weight: '600', color: C.tealDeep })
-      rr(ctx, cardX + 18, infoY + 16, cardW - 36, 8, 4)
-      ctx.fillStyle = 'rgba(21,45,34,0.08)'
-      ctx.fill()
-      rr(ctx, cardX + 18, infoY + 16, Math.max(4, (cardW - 36) * p), 8, 4)
-      ctx.fillStyle = C.tealLight
-      ctx.fill()
-    } else if (vm.calibration && !vm.calibration.simulated) {
-      const ok = !!vm.calibration.ok
-      this._text(ok ? '标定完成：当前姿态已记为中立位' : (vm.calibration.message || '标定失败'),
-        cardX + 18, infoY + 12, {
-          size: 10.5, weight: '600', color: ok ? C.tealDeep : C.danger
-        })
-    } else if (!vm.calibrated) {
-      this._text('还没有标定。连接传感器后先做一次零点标定。', cardX + 18, infoY + 12, {
-        size: 10, weight: '500', color: C.inkMute
+    const z = vm.zero || { roll: 0, pitch: 0, set: false }
+    const fDeg = (v) => (v >= 0 ? '+' : '') + (Math.round(v * 10) / 10).toFixed(1) + '°'
+    if (z.set) {
+      this._text('当前零点 ' + fDeg(z.roll) + ' / ' + fDeg(z.pitch), cardX + 18, infoY + 12, {
+        size: 10.5, weight: '600', color: C.tealDeep
+      })
+    } else {
+      this._text('还没设置零点，读数按传感器原始角度算', cardX + 18, infoY + 12, {
+        size: 10, weight: '600', color: C.danger
       })
     }
+    this._button('zero:set', cardX + cardW - 92, infoY + 1, 74, 26, z.set ? '重设' : '去标定', {
+      variant: 'ghost', size: 10
+    })
 
     // 按钮
     const btnH = 46
     const by = cardY + cardH - btnH - 16
     this._button('enter', cardX + 18, by, cardW - 36, btnH, '进入游戏', {
-      variant: 'primary', icon: 'play', size: 15, disabled: vm.state === 'CALIBRATING'
+      variant: 'primary', icon: 'play', size: 15
     })
-    const halfW = (cardW - 46) / 2
-    this._button('calibrate', cardX + 18, by - 44, halfW, 38, vm.calibrated ? '重新标定' : '开始标定', {
-      variant: 'ghost', icon: 'refresh', size: 11
-    })
-    this._button(vm.sim ? 'sim:off' : 'sim:on', cardX + 28 + halfW, by - 44, halfW, 38, vm.sim ? '关闭模拟' : '使用模拟', {
-      variant: 'ghost', icon: 'check', size: 11
-    })
+    this._button(vm.sim ? 'sim:off' : 'sim:on', cardX + 18, by - 44, cardW - 36, 38,
+      vm.sim ? '关闭模拟数据' : '使用模拟数据', { variant: 'ghost', icon: 'check', size: 11 })
 
     // 训练条件 + 标定小贴士：优先贴着按钮区往上排；
     // 短屏放不下整块时，至少保留「本局条件」这一行，别在卡片中间留一大片空白
@@ -1585,11 +1612,11 @@ class FruitRenderer {
         rr(ctx, cardX + 16, noteY, cardW - 32, tipsH, 12)
         ctx.fillStyle = 'rgba(15,156,140,0.06)'
         ctx.fill()
-        this._text('标定小贴士', cardX + 30, noteY + 19, { size: 10, weight: '700', color: C.tealDeep })
+        this._text('佩戴与零点', cardX + 30, noteY + 19, { size: 10, weight: '700', color: C.tealDeep })
         const tips = [
           '胸带别松：松了传感器会晃，读数跟着抖；',
-          '标定时保持安静，不要转头、抬手或调整坐姿；',
-          '若提示"检测到晃动"，坐稳后重新点「开始标定」。'
+          '换人或换佩戴方式，去「零点标定」页重设一次；',
+          '摆好姿势后尽量别乱动，果篮跟着身体走。'
         ]
         tips.forEach((t, i) => {
           this._text(t, cardX + 30, noteY + 35 + i * 14, {

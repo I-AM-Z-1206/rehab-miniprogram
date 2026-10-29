@@ -111,7 +111,9 @@ global.Page = (obj) => { global.__page = obj }
 // ------------------------------------------------------------------ 加载页面
 let page = null
 try {
-  require('../../pages/shoot/shoot.js')
+  // 页面已经挪进分包：pkgShoot/pages/shoot（早期在 pages/shoot，路径过期会导致
+  // esbuild 保留 dynamic require，预览页直接报「页面 JS 加载失败」）
+  require('../../pkgShoot/pages/shoot/shoot.js')
   page = global.__page
 } catch (e) {
   fail('页面 JS 加载失败', e)

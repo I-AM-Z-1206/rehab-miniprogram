@@ -65,7 +65,12 @@ jsFiles.forEach((f) => {
     const spec = m[1]
     if (!spec.startsWith('.')) continue
     const target = path.resolve(path.dirname(f), spec)
-    if (!exists(target)) {
+    // 兼容 Node 风格的无扩展名 require：依次尝试 .js / .json / /index.js
+    const resolved = exists(target) ||
+      exists(target + '.js') ||
+      exists(target + '.json') ||
+      exists(path.join(target, 'index.js'))
+    if (!resolved) {
       problems.push('require 解析失败：' + rel(f) + ' → ' + spec)
     }
   }

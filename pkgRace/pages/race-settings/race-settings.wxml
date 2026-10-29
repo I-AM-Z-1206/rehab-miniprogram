@@ -1,0 +1,134 @@
+<!--race-settings.wxml —— 体感赛车：治疗师训练参数-->
+<navigation-bar title="赛车 · 训练设置" back="{{true}}" color="black" background="#FFFFFF"></navigation-bar>
+
+<scroll-view class="body" scroll-y>
+  <!-- 摘要 -->
+  <view class="hero">
+    <view class="hero-left">
+      <text class="hero-kicker">当前档位</text>
+      <text class="hero-title">{{difficultyLabel}}</text>
+      <text class="hero-desc">保存后下一局生效，本局中途不会热更新</text>
+    </view>
+    <view class="hero-badge">第 {{difficulty}} 档</view>
+  </view>
+
+  <!-- 生效时机提示：这是本页最容易误解的一点 -->
+  <view class="alert warn">
+    <text class="alert-title">改动何时生效</text>
+    <text class="alert-line">· 参数保存在本机，与本游戏内的长按面板共用同一份数据</text>
+    <text class="alert-line">· 引擎只在开局时读取一次，正在跑的一局不会改变手感</text>
+    <text class="alert-line">· 想立即验证：退出到菜单，重新点「开始」</text>
+    <text class="alert-line" wx:if="{{savedAt}}">· 最近一次保存：{{savedAt}}</text>
+  </view>
+
+  <!-- 档位 -->
+  <view class="card">
+    <view class="card-head">
+      <text class="card-title">难度档位</text>
+      <text class="card-sub">套用推荐值</text>
+    </view>
+    <view class="presets">
+      <view
+        wx:for="{{levelRows}}"
+        wx:key="lv"
+        class="preset {{item.active ? 'active' : ''}}"
+        data-lv="{{item.lv}}"
+        bindtap="onLevelTap"
+      >
+        <text class="preset-lv">L{{item.lv}}</text>
+        <text class="preset-name">{{item.short}}</text>
+      </view>
+    </view>
+    <text class="card-tip">档位决定赛道宽度、障碍密度、速度上限与单局时长；套用后仍可逐项微调。</text>
+
+    <view class="ptable">
+      <view class="ptable-row head">
+        <text class="pc-lv">档</text>
+        <text class="pc-name">名称</text>
+        <text class="pc">障碍</text>
+        <text class="pc">速度</text>
+        <text class="pc">时长</text>
+      </view>
+      <view class="ptable-row {{item.active ? 'active' : ''}}" wx:for="{{levelRows}}" wx:key="lv">
+        <text class="pc-lv">{{item.lv}}</text>
+        <text class="pc-name">{{item.short}}</text>
+        <text class="pc">{{item.density}}</text>
+        <text class="pc">{{item.speed}}</text>
+        <text class="pc">{{item.session}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 参数分组 -->
+  <view class="card" wx:for="{{groups}}" wx:key="name" wx:for-item="group">
+    <view class="card-head">
+      <text class="card-title">{{group.name}}</text>
+    </view>
+
+    <view class="item" wx:for="{{group.items}}" wx:key="key" wx:for-item="it">
+      <view class="item-head">
+        <text class="item-label">{{it.label}}</text>
+        <text class="item-value">{{it.display}}</text>
+      </view>
+
+      <slider
+        wx:if="{{it.type === 'number'}}"
+        class="item-slider"
+        min="{{it.min}}"
+        max="{{it.max}}"
+        step="{{it.step}}"
+        value="{{it.value}}"
+        activeColor="#0f9c8c"
+        backgroundColor="#e8edf1"
+        block-size="22"
+        data-key="{{it.key}}"
+        bindchanging="onSlide"
+        bindchange="onSlideEnd"
+      />
+
+      <view class="item-switch" wx:elif="{{it.type === 'bool'}}">
+        <switch checked="{{it.value}}" color="#0f9c8c" data-key="{{it.key}}" bindchange="onToggle" />
+      </view>
+
+      <text class="item-tip" wx:if="{{it.tip}}">{{it.tip}}</text>
+    </view>
+  </view>
+
+  <!-- 数据上报 -->
+  <view class="card">
+    <view class="card-head">
+      <text class="card-title">训练数据上报</text>
+      <text class="tag {{uploadReady ? 'ok' : ''}}">{{uploadState}}</text>
+    </view>
+    <text class="card-tip">
+      接口地址由管理员在记录页填写，不写死在代码里。未配置时成绩只保存在本机；模拟数据不会上报。
+    </text>
+    <view class="kv">
+      <text class="kv-key">服务端</text>
+      <text class="kv-val">{{endpoint || '未配置'}}</text>
+    </view>
+    <view class="btn-row">
+      <view class="btn ghost" bindtap="onGoRecords">查看记录与上报</view>
+    </view>
+  </view>
+
+  <!-- 快捷动作 -->
+  <view class="card">
+    <view class="card-head">
+      <text class="card-title">快捷套用</text>
+    </view>
+    <text class="card-tip">两套预设覆盖最常见的两种场景，套用后可在上方继续微调。</text>
+    <view class="btn-row">
+      <view class="btn primary" bindtap="onApplyRehab">康复推荐参数</view>
+    </view>
+    <view class="btn-row">
+      <view class="btn ghost" bindtap="onReset">恢复引擎默认</view>
+    </view>
+    <text class="card-tip small">康复推荐值针对活动范围小的患者（侧屈 10° 打满、死区 1.5°、滤波 0.18）。引擎默认值偏迟钝，仅用于对照。</text>
+  </view>
+
+  <view class="foot">
+    <text class="foot-line">所有默认值均为待真机实测的游戏参数，</text>
+    <text class="foot-line">不代表医疗安全区间，也不构成康复疗效结论。</text>
+  </view>
+</scroll-view>

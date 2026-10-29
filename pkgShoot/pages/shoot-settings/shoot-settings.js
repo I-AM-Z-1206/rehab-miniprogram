@@ -4,11 +4,11 @@
 // 这些参数原来挤在游戏页的治疗师控制台里（占掉半个屏幕），现在独立成页，
 // 和接水果 / 走钢丝 / 节奏训练一致：游戏页只有画面，参数来这里调。
 //
-// 所有改动写进 utils/game/config.js（存储键 shoot_cfg_v2），
+// 所有改动写进 pkgShoot/games/shoot/config.js（存储键 shoot_cfg_v2），
 // 回到游戏页后引擎下一帧就按新参数跑，不需要重开一局。
 // ============================================================================
 
-const { getStore, SCHEMA, PANEL_GROUPS } = require('../../../utils/game/config.js')
+const { getStore, SCHEMA, PANEL_GROUPS } = require('../../games/shoot/config.js')
 
 // 单位里的「±°」只是面板写法，展示时用普通度号
 const UNIT_TEXT = { '±°': '°' }

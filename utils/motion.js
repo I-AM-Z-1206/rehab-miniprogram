@@ -206,6 +206,31 @@ class MotionTracker {
   }
 
   // ---------------------------------------------------------------- 标定
+  /**
+   * 是否已有可用的零点。
+   * 零点存在 utils/zero.js 里，全 App 共用一份：零点标定页标过、或别的游戏标过，
+   * 这里都应当算数。以前各游戏只认「本次进入游戏内做过的标定」，导致已经标好的
+   * 用户每进一个游戏都被要求再标一次，重复劳动。
+   */
+  hasZero() {
+    if (this.cal && this.cal.result === 'ok') return true
+    try {
+      return !!zero.get().set
+    } catch (e) {
+      return false
+    }
+  }
+
+  /** 当前零点偏移量（度）。界面用它说明"沿用的是哪个零点" */
+  zeroInfo() {
+    try {
+      const z = zero.get()
+      return { roll: z.roll, pitch: z.pitch, set: !!z.set }
+    } catch (e) {
+      return { roll: 0, pitch: 0, set: false }
+    }
+  }
+
   beginCalibration() {
     this.cal.active = true
     this.cal.startedAt = Date.now()

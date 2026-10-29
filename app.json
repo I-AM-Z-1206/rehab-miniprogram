@@ -86,7 +86,9 @@
       "root": "pkgRace",
       "name": "race",
       "pages": [
-        "pages/race/race"
+        "pages/race/race",
+        "pages/race-settings/race-settings",
+        "pages/race-records/race-records"
       ]
     }
   ]

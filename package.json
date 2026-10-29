@@ -15,7 +15,14 @@
     "preview:fruit": "esbuild tools/fruit-preview/main.js --bundle --format=iife --target=es2018 --define:global=window --outfile=tools/fruit-preview/bundle.js",
     "preview:wire": "esbuild tools/wire-preview/main.js --bundle --format=iife --target=es2018 --define:global=window --outfile=tools/wire-preview/bundle.js",
     "preview:shoot": "esbuild tools/shoot-preview/main.js --bundle --format=iife --target=es2018 --define:global=window --outfile=tools/shoot-preview/bundle.js",
-    "audio:rhythm": "python tools/gen_rhythm_audio.py"
+    "audio:rhythm": "python tools/gen_rhythm_audio.py",
+    "server": "node server/app.js",
+    "test:server": "node tools/server-smoke-test.js",
+    "test:schema": "node tools/schema-check.js",
+    "pack:server": "node tools/pack-server.js",
+    "build:race": "node tools/build_race.js",
+    "check:race": "node tools/build_race.js --check",
+    "preview:race": "esbuild tools/race-preview/main.js --bundle --format=iife --target=es2018 --define:global=window --outfile=tools/race-preview/bundle.js"
   },
   "devDependencies": {
     "esbuild": "^0.21.5"

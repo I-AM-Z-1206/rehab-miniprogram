@@ -1,83 +1,128 @@
-<!-- calibrate.wxml —— 零点标定页 -->
+<!-- calibrate.wxml —— 零点标定
+  排版原则（针对之前"反人类"的反馈重做）：
+  1. 先给结论（当前角度是多少、标没标定），再给操作。以前是一上来先读
+     5 行说明、再看 3 个数字格、再翻两屏图表，按钮沉在最底下；
+  2. 主按钮必须在首屏可见，不被图表和数据隔断；
+  3. 曲线、分布图、统计这些技术细节默认展开，标定时能直接看到点云长出来；
+  4. 说明是一句话，放在最后，不是放在最前面挡路。-->
 <navigation-bar title="零点标定" back="{{true}}" color="black" background="#FFF"></navigation-bar>
 <scroll-view class="scrollarea" scroll-y type="list">
   <view class="page-body">
 
-    <!-- 状态卡 -->
-    <view class="card status-card">
-      <view class="status-row">
-        <view class="status-dot {{status === 'connected' ? 'on' : (status === 'scanning' ? 'scan' : '')}}"></view>
-        <view class="status-text">{{statusText}}</view>
-        <view class="flex-spacer"></view>
-        <view class="btn-mini {{status === 'scanning' ? 'btn-stop' : ''}}" bindtap="{{status === 'scanning' ? 'onStopScan' : 'startScan'}}">
-          {{status === 'scanning' ? '停止' : '扫描'}}
-        </view>
-      </view>
-
-      <!-- 设备列表 -->
-      <view wx:if="{{status === 'scanning' || (devices.length > 0 && status !== 'connected')}}">
-        <view class="dev-item" wx:for="{{devices}}" wx:key="deviceId" data-id="{{item.deviceId}}" bindtap="onPickDevice">
-          <view class="dev-info">
-            <view class="dev-name">{{item.name || '未命名设备'}}</view>
-            <view class="dev-id">{{item.deviceId}}</view>
-          </view>
-          <view class="dev-rssi">{{item.rssi}} dBm</view>
-          <view class="dev-connect">连接</view>
-        </view>
-        <view class="empty-tip" wx:if="{{devices.length === 0}}">正在搜索…请确认传感器已开机（蓝灯闪烁）</view>
+    <!-- 传感器：标定是它的前置条件，放在最上面 -->
+    <view class="bar">
+      <view class="dot {{status === 'connected' ? 'on' : (status === 'scanning' ? 'scan' : '')}}"></view>
+      <text class="bar-text">{{statusText}}</text>
+      <view class="spacer"></view>
+      <view class="link {{status === 'scanning' ? 'link-stop' : ''}}" bindtap="{{status === 'scanning' ? 'onStopScan' : 'startScan'}}">
+        {{status === 'scanning' ? '停止' : '重新扫描'}}
       </view>
     </view>
 
-    <!-- 姿态虚拟零点（两个全局变量：zeroRoll / zeroPitch） -->
-    <view class="card">
-      <view class="card-title">姿态虚拟零点（Roll / Pitch）</view>
-      <view class="cal-desc">在传感器 roll / pitch 上叠加一个固定偏移量，让当前佩戴姿势读数归零。点「重新标定零点」后保持静止 3 秒，取这 3 秒的平均值作为零点；偏移量全局生效，重启小程序仍保留，可随时手动重新标定。</view>
-
-      <view class="zero-grid">
-        <view class="zero-cell">
-          <view class="zero-label">当前姿态（零点后）</view>
-          <view class="zero-val mono">{{curRoll}}° / {{curPitch}}°</view>
+    <view wx:if="{{status === 'scanning' || (devices.length > 0 && status !== 'connected')}}">
+      <view class="dev" wx:for="{{devices}}" wx:key="deviceId" data-id="{{item.deviceId}}" bindtap="onPickDevice">
+        <view class="dev-l">
+          <view class="dev-name">{{item.name || '未命名设备'}}</view>
+          <view class="dev-id">{{item.deviceId}}</view>
         </view>
-        <view class="zero-cell">
-          <view class="zero-label">传感器原始值</view>
-          <view class="zero-val mono">{{rawRoll}}° / {{rawPitch}}°</view>
-        </view>
-        <view class="zero-cell">
-          <view class="zero-label">零点偏移（全局）</view>
-          <view class="zero-val mono accent">{{zeroRoll}} / {{zeroPitch}}</view>
-        </view>
+        <view class="dev-rssi">{{item.rssi}} dBm</view>
+        <view class="dev-go">连接</view>
       </view>
+      <view class="hint" wx:if="{{devices.length === 0}}">正在搜索…确认传感器已开机（蓝灯闪烁）</view>
+    </view>
 
-      <!-- Roll / Pitch 实时曲线（ECharts） -->
-      <view class="zero-charts">
-        <view class="zero-chart-item">
-          <view class="zero-chart-label">Roll 实时曲线（°）</view>
-          <view class="chart-box-sm">
-            <canvas type="2d" id="chartRoll" class="chart-canvas"></canvas>
-          </view>
-        </view>
-        <view class="zero-chart-item">
-          <view class="zero-chart-label">Pitch 实时曲线（°）</view>
-          <view class="chart-box-sm">
-            <canvas type="2d" id="chartPitch" class="chart-canvas"></canvas>
-          </view>
-        </view>
+    <!-- 标题 -->
+    <view class="h1">零点标定</view>
+
+    <!-- 结论：当前姿态。数字要够大，一眼能读 -->
+    <view class="readout">
+      <view class="ro-item">
+        <view class="ro-num mono">{{curRoll}}<text class="ro-unit">°</text></view>
+        <view class="ro-label">Roll 前后</view>
       </view>
-
-      <view class="zero-state {{zeroSet ? 'on' : ''}}">
-        <text class="zero-state-dot"></text>
-        <text>{{zeroSet ? '零点已标定 · 所有页面共用' : '尚未标定零点 · 当前使用传感器原始角度'}}</text>
-      </view>
-
-      <view class="btn-row">
-        <view class="cal-btn2 {{status === 'connected' ? '' : 'off'}} {{zeroCalibrating ? 'running' : ''}}" bindtap="onZeroCalibrate">{{zeroCalibrating ? '标定中 ' + zeroRemain + 's' : '重新标定零点'}}</view>
-        <view class="cal-btn2 ghost" bindtap="onZeroClear">清除零点</view>
+      <view class="ro-sep"></view>
+      <view class="ro-item">
+        <view class="ro-num mono">{{curPitch}}<text class="ro-unit">°</text></view>
+        <view class="ro-label">Pitch 左右</view>
       </view>
     </view>
 
-    <view class="help-tip">
-      说明：本页只保留「姿态虚拟零点」—— 在传感器 roll / pitch 上叠加两个全局偏移量。标定后所有页面的角度都会自动加减，重启小程序仍保留；换佩戴姿势或换人时重新点一次即可。
+    <!-- 状态徽章：一句话说清现在是标过还是没标过 -->
+    <view class="badge {{zeroSet ? 'badge-on' : 'badge-off'}}">
+      <view class="badge-dot"></view>
+      <text>{{zeroSet ? '已标定，所有页面共用这个零点' : '还没标定，当前读数是传感器原始角度'}}</text>
     </view>
+
+    <!-- 操作：标定中显示倒计时，否则显示两个按钮 -->
+    <view wx:if="{{zeroCalibrating}}" class="running">
+      <!-- 转动的只是外面那圈描边，数字必须固定，否则会跟着转圈 -->
+      <view class="ring">
+        <view class="ring-track"></view>
+        <view class="ring-body">
+          <text class="ring-num">{{zeroRemain}}</text>
+          <text class="ring-unit">秒</text>
+        </view>
+      </view>
+      <view class="ring-text">保持静止，正在测量当前姿势</view>
+    </view>
+
+    <view wx:else class="acts">
+      <view class="btn-primary {{status === 'connected' ? '' : 'disabled'}}" bindtap="onZeroCalibrate">
+        {{zeroSet ? '重新标定零点' : '标定零点'}}
+      </view>
+      <view wx:if="{{zeroSet}}" class="btn-plain" bindtap="onZeroClear">清除零点，恢复原始角度</view>
+      <view wx:if="{{status !== 'connected'}}" class="hint">需要先连接传感器</view>
+    </view>
+
+    <!-- 结果：标定完成后才出现 -->
+    <view wx:if="{{zeroSet && !zeroCalibrating}}" class="result">
+      <view class="res-row">
+        <text class="res-k">零点偏移</text>
+        <text class="res-v mono">{{zeroRoll}} / {{zeroPitch}}</text>
+      </view>
+      <view class="res-row">
+        <text class="res-k">原始读数</text>
+        <text class="res-v mono">{{rawRoll}}° / {{rawPitch}}°</text>
+      </view>
+      <view class="res-row" wx:if="{{zeroQualityText}}">
+        <text class="res-k">稳定性</text>
+        <text class="res-v {{zeroQuality === 'warn' ? 'warn' : 'ok'}}">{{zeroQualityText}}</text>
+      </view>
+    </view>
+
+    <!-- 技术细节：默认展开。图表区用 wx:if 而不是 hidden，
+         收起时彻底销毁 canvas 省内存，展开时由 toggleDetail 重建 -->
+    <view class="fold" bindtap="toggleDetail">
+      <text>{{showDetail ? '收起' : '曲线与分布图'}}</text>
+      <view class="fold-arrow {{showDetail ? 'up' : ''}}"></view>
+    </view>
+
+    <view wx:if="{{showDetail}}" class="detail">
+      <view class="sub">Roll 实时（°）</view>
+      <view class="chart"><canvas type="2d" id="chartRoll" class="cv"></canvas></view>
+      <view class="sub">Pitch 实时（°）</view>
+      <view class="chart"><canvas type="2d" id="chartPitch" class="cv"></canvas></view>
+
+      <view class="sub">标定时的姿势分布</view>
+      <view class="hint">横轴 Roll，纵轴 Pitch</view>
+      <view class="chart chart-lg"><canvas type="2d" id="chartZero" class="cv"></canvas></view>
+
+      <view class="legend">
+        <view class="lg"><view class="sw sw-sd"></view><text>1σ 范围</text></view>
+        <view class="lg"><view class="sw sw-range"></view><text>最大抖动</text></view>
+        <view class="lg"><view class="sw-dot"></view><text>零点</text></view>
+      </view>
+
+      <view class="stats">
+        <view class="st"><view class="st-n">{{zeroCount}}</view><view class="st-l">采样点</view></view>
+        <view class="st"><view class="st-n">{{zeroSpanR}}°</view><view class="st-l">前后抖动</view></view>
+        <view class="st"><view class="st-n">{{zeroSpanP}}°</view><view class="st-l">左右抖动</view></view>
+        <view class="st"><view class="st-n {{zeroQuality === 'warn' ? 'warn' : 'ok'}}">{{zeroSd}}°</view><view class="st-l">标准差</view></view>
+      </view>
+    </view>
+
+    <!-- 说明：一句话，放在最后 -->
+    <view class="note">标定就是把现在的姿势算作 0°。换佩戴方式或换人，重新点一次。</view>
 
   </view>
 </scroll-view>

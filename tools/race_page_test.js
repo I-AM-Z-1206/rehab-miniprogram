@@ -84,7 +84,7 @@ global.wx = {
   }
 }
 
-require(path.join(__dirname, '..', 'pages', 'race', 'race.js'))
+require(path.join(__dirname, '..', 'pkgRace', 'pages', 'race', 'race.js'))
 
 if (!pageObj) {
   console.error('Page() 未被调用')
@@ -242,7 +242,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms))
   pass('卸载后解绑旋转监听', resizeHandlers.length === handlersBefore - 1,
     handlersBefore + ' → ' + resizeHandlers.length)
 
-  const bundle = require('fs').readFileSync(path.join(__dirname, '..', 'race', 'engine.js'), 'utf8')
+  const bundle = require('fs').readFileSync(path.join(__dirname, '..', 'pkgRace', 'race', 'engine.js'), 'utf8')
   pass('引擎产物无蓝牙入口文案', bundle.indexOf('连接 WT9011 传感器') < 0)
   pass('引擎产物 HUD 已换成体感角度', bundle.indexOf('侧屈 ') >= 0)
   pass('引擎产物已注入开局初速度', bundle.indexOf('this.diff.maxSpeed*.3') >= 0)

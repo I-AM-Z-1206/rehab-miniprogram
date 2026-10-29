@@ -1,11 +1,7 @@
 (() => {
   var __getOwnPropNames = Object.getOwnPropertyNames;
   var __commonJS = (cb, mod) => function __require() {
-    try {
-      return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
-    } catch (e) {
-      throw mod = 0, e;
-    }
+    return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
   };
 
   // utils/config-store.js
@@ -840,6 +836,29 @@
           return this.simMode || !this.stale && this.hasSignal;
         }
         // ---------------------------------------------------------------- 标定
+        /**
+         * 是否已有可用的零点。
+         * 零点存在 utils/zero.js 里，全 App 共用一份：零点标定页标过、或别的游戏标过，
+         * 这里都应当算数。以前各游戏只认「本次进入游戏内做过的标定」，导致已经标好的
+         * 用户每进一个游戏都被要求再标一次，重复劳动。
+         */
+        hasZero() {
+          if (this.cal && this.cal.result === "ok") return true;
+          try {
+            return !!zero.get().set;
+          } catch (e) {
+            return false;
+          }
+        }
+        /** 当前零点偏移量（度）。界面用它说明"沿用的是哪个零点" */
+        zeroInfo() {
+          try {
+            const z = zero.get();
+            return { roll: z.roll, pitch: z.pitch, set: !!z.set };
+          } catch (e) {
+            return { roll: 0, pitch: 0, set: false };
+          }
+        }
         beginCalibration() {
           this.cal.active = true;
           this.cal.startedAt = Date.now();
@@ -1429,7 +1448,7 @@
           this.refreshGeometry();
           this.setState(STATE.READY);
           this.motion.reset();
-          this.calibrated = !!this.lastCalibration && this.lastCalibration.ok;
+          this.calibrated = this.motion.hasZero();
           return this.state;
         }
         calibrate() {
@@ -1732,7 +1751,7 @@
                 message: this.motion.cal.message,
                 at: Date.now()
               };
-              this.calibrated = !!this.lastCalibration.ok;
+              this.calibrated = !!this.lastCalibration.ok || this.motion.hasZero();
               this._emit("calibrate", this.lastCalibration);
               this.setState(STATE.READY);
             }
@@ -2049,6 +2068,7 @@
             difficulty: Number(cfg2.get("difficulty")) || 2,
             calibrated: this.calibrated,
             calibration: this.lastCalibration,
+            zero: this.motion.zeroInfo(),
             calibrationProgress: this.state === STATE.CALIBRATING ? clamp(this.motion.cal.elapsed / this.motion.cal.total, 0, 1) : 0,
             interrupted: this.interruption,
             canResume: this.state === STATE.SENSOR_ERROR && !this.motion.stale
@@ -2471,11 +2491,375 @@
     }
   });
 
+  // utils/scene/depth.js
+  var require_depth = __commonJS({
+    "utils/scene/depth.js"(exports, module) {
+      var TAU = Math.PI * 2;
+      function clamp(v, lo, hi) {
+        return v < lo ? lo : v > hi ? hi : v;
+      }
+      function lerp(a, b, t) {
+        return a + (b - a) * t;
+      }
+      function finite() {
+        for (let i = 0; i < arguments.length; i++) {
+          const v = arguments[i];
+          if (typeof v !== "number" || !isFinite(v)) return false;
+        }
+        return true;
+      }
+      function depthT(y, hz, h) {
+        if (!finite(y, hz, h) || h - hz <= 0) return 0;
+        return clamp((y - hz) / (h - hz), 0, 1);
+      }
+      function fillEllipse(ctx, x, y, rx, ry, style) {
+        if (!finite(x, y, rx, ry) || rx <= 0 || ry <= 0) return;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(1, ry / rx);
+        ctx.fillStyle = style;
+        ctx.beginPath();
+        ctx.arc(0, 0, rx, 0, TAU);
+        ctx.fill();
+        ctx.restore();
+      }
+      function ringEllipse(ctx, x, y, rx, ry, style, lw) {
+        if (!finite(x, y, rx, ry) || rx <= 0 || ry <= 0) return;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(1, ry / rx);
+        ctx.beginPath();
+        ctx.arc(0, 0, rx, 0, TAU);
+        ctx.strokeStyle = style;
+        ctx.lineWidth = lw || 1;
+        ctx.stroke();
+        ctx.restore();
+      }
+      function softShadow(ctx, x, y, rx, ry, alpha, color) {
+        if (!finite(x, y, rx, ry) || rx <= 0 || ry <= 0) return;
+        const a = clamp(alpha, 0, 1);
+        if (a <= 4e-3) return;
+        const c = color || "0,0,0";
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(1, ry / rx);
+        const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+        g.addColorStop(0, "rgba(" + c + "," + a.toFixed(3) + ")");
+        g.addColorStop(0.5, "rgba(" + c + "," + (a * 0.55).toFixed(3) + ")");
+        g.addColorStop(1, "rgba(" + c + ",0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(0, 0, rx, 0, TAU);
+        ctx.fill();
+        ctx.restore();
+      }
+      function haze(ctx, o) {
+        if (!o || !finite(o.cx, o.y, o.rx)) return;
+        const ry = o.ry || 0.07;
+        const a = o.alpha === void 0 ? 0.22 : o.alpha;
+        if (o.rx <= 0 || a <= 4e-3) return;
+        const c = o.color || "255,246,220";
+        ctx.save();
+        ctx.translate(o.cx, o.y);
+        ctx.scale(1, ry);
+        const g = ctx.createRadialGradient(0, 0, 0, 0, 0, o.rx);
+        g.addColorStop(0, "rgba(" + c + "," + a.toFixed(3) + ")");
+        g.addColorStop(0.55, "rgba(" + c + "," + (a * 0.4).toFixed(3) + ")");
+        g.addColorStop(1, "rgba(" + c + ",0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(0, 0, o.rx, 0, TAU);
+        ctx.fill();
+        ctx.restore();
+        if (o.lineAlpha && o.lineAlpha > 4e-3) {
+          const w = o.w || o.rx * 2;
+          const x0 = o.cx - w / 2;
+          const lg = ctx.createLinearGradient(x0, 0, x0 + w, 0);
+          lg.addColorStop(0, "rgba(" + c + ",0)");
+          lg.addColorStop(0.34, "rgba(" + c + "," + (o.lineAlpha * 0.55).toFixed(3) + ")");
+          lg.addColorStop(0.5, "rgba(" + c + "," + o.lineAlpha.toFixed(3) + ")");
+          lg.addColorStop(0.66, "rgba(" + c + "," + (o.lineAlpha * 0.55).toFixed(3) + ")");
+          lg.addColorStop(1, "rgba(" + c + ",0)");
+          ctx.fillStyle = lg;
+          ctx.fillRect(x0, o.y - 0.5, w, 1);
+        }
+      }
+      function ridge(ctx, o) {
+        if (!o || !finite(o.w, o.hz)) return;
+        const w = o.w;
+        const hz = o.hz;
+        const bands = o.bands || [];
+        for (let L = 0; L < bands.length; L++) {
+          const p = bands[L];
+          const amp = p.amp === void 0 ? 0.1 : p.amp;
+          const rise = p.rise === void 0 ? 0.05 : p.rise;
+          const freq = p.freq || 6.1;
+          const seed = p.seed || 1.3;
+          const a = p.alpha === void 0 ? 0.6 : p.alpha;
+          ctx.beginPath();
+          ctx.moveTo(-4, hz + 2);
+          const step = o.step || 6;
+          for (let x = -4; x <= w + 4; x += step) {
+            const u = x / w;
+            const wave = Math.sin(u * freq + seed) * 0.5 + Math.sin(u * freq * 2.24 + seed * 2) * 0.3 + Math.sin(u * freq * 4.8 + seed * 3) * 0.14;
+            const y = hz - (wave + 0.9) * w * amp * 0.5 + w * rise * 0.5;
+            ctx.lineTo(x, y);
+          }
+          ctx.lineTo(w + 4, hz + 2);
+          ctx.closePath();
+          ctx.fillStyle = "rgba(" + (p.color || "40,70,90") + "," + a + ")";
+          ctx.fill();
+        }
+      }
+      function perspectiveFloor(ctx, o) {
+        if (!o || !finite(o.w, o.h, o.hz, o.cx)) return;
+        const w = o.w;
+        const h = o.h;
+        const hz = o.hz;
+        const cx = o.cx;
+        const floorH = h - hz;
+        if (floorH <= 0) return;
+        const rows = o.rows || 10;
+        const phase = o.phase || 0;
+        const col = o.color || "255,255,255";
+        const nearA = o.nearAlpha === void 0 ? 0.14 : o.nearAlpha;
+        const farA = o.farAlpha === void 0 ? 0.05 : o.farAlpha;
+        const lw = o.lineWidth || 1;
+        const ys = [];
+        for (let i = 1; i <= rows + 1; i++) {
+          const u = i - phase % 1;
+          if (u < 0.06) {
+            ys.push(null);
+            continue;
+          }
+          const y = hz + floorH / u;
+          ys.push(y > h + 4 ? null : y);
+        }
+        if (o.stripe) {
+          const sc = o.stripe.color || "255,255,255";
+          const sa = o.stripe.alpha === void 0 ? 0.05 : o.stripe.alpha;
+          for (let i = 0; i < ys.length - 1; i++) {
+            const y0 = ys[i + 1];
+            const y1 = ys[i];
+            if (y0 === null || y1 === null || y1 - y0 < 1) continue;
+            const t = depthT((y0 + y1) * 0.5, hz, h);
+            ctx.fillStyle = "rgba(" + sc + "," + (sa * (0.35 + t * 0.9)).toFixed(3) + ")";
+            ctx.fillRect(0, Math.max(hz, y0), w, Math.min(h, y1) - Math.max(hz, y0));
+          }
+        }
+        if (o.cols) {
+          const spread = o.spread === void 0 ? 0.17 : o.spread;
+          const topSpread = o.topSpread === void 0 ? 0.012 : o.topSpread;
+          ctx.beginPath();
+          for (let i = -o.cols; i <= o.cols; i++) {
+            const bx = cx + i * (w * spread);
+            const tx = cx + i * (w * topSpread);
+            if (bx < -w || bx > w * 2) continue;
+            ctx.moveTo(tx, hz);
+            ctx.lineTo(bx, h);
+          }
+          ctx.strokeStyle = "rgba(" + col + "," + (farA * 1.1).toFixed(3) + ")";
+          ctx.lineWidth = lw;
+          ctx.stroke();
+        }
+        const bands = [
+          { lo: 5.5, hi: 999, k: 0 },
+          { lo: 2.6, hi: 5.5, k: 0.55 },
+          { lo: 0, hi: 2.6, k: 1 }
+        ];
+        for (let b = 0; b < bands.length; b++) {
+          const band = bands[b];
+          ctx.beginPath();
+          let drew = false;
+          for (let i = 0; i < ys.length; i++) {
+            const y = ys[i];
+            if (y === null) continue;
+            const u = i + 1 - phase % 1;
+            if (u < band.lo || u >= band.hi) continue;
+            if (y < hz + 1) continue;
+            ctx.moveTo(0, y);
+            ctx.lineTo(w, y);
+            drew = true;
+          }
+          if (!drew) continue;
+          const a = lerp(farA, nearA, band.k);
+          ctx.strokeStyle = "rgba(" + col + "," + a.toFixed(3) + ")";
+          ctx.lineWidth = lw * (1 + band.k * 0.9);
+          ctx.stroke();
+        }
+        if (o.fadeSide) {
+          const sc = o.fadeColor || "0,0,0";
+          const k = o.fadeSide;
+          const side = ctx.createLinearGradient(0, 0, w, 0);
+          side.addColorStop(0, "rgba(" + sc + "," + (0.9 * k).toFixed(3) + ")");
+          side.addColorStop(0.2, "rgba(" + sc + "," + (0.55 * k).toFixed(3) + ")");
+          side.addColorStop(0.42, "rgba(" + sc + "," + (0.08 * k).toFixed(3) + ")");
+          side.addColorStop(0.5, "rgba(" + sc + ",0)");
+          side.addColorStop(0.58, "rgba(" + sc + "," + (0.08 * k).toFixed(3) + ")");
+          side.addColorStop(0.8, "rgba(" + sc + "," + (0.55 * k).toFixed(3) + ")");
+          side.addColorStop(1, "rgba(" + sc + "," + (0.9 * k).toFixed(3) + ")");
+          ctx.fillStyle = side;
+          ctx.fillRect(0, hz, w, floorH);
+        }
+        if (o.fadeBottom) {
+          const sc = o.fadeColor || "0,0,0";
+          const bh = floorH * 0.34;
+          const bottom = ctx.createLinearGradient(0, h - bh, 0, h);
+          bottom.addColorStop(0, "rgba(" + sc + ",0)");
+          bottom.addColorStop(1, "rgba(" + sc + "," + o.fadeBottom.toFixed(3) + ")");
+          ctx.fillStyle = bottom;
+          ctx.fillRect(0, h - bh, w, bh);
+        }
+      }
+      function cloudSea(ctx, o) {
+        if (!o || !finite(o.w, o.y)) return;
+        const w = o.w;
+        const y = o.y;
+        const c = o.color || "255,255,255";
+        const a = o.alpha === void 0 ? 0.6 : o.alpha;
+        const n = o.count || 7;
+        const h = o.h || 22;
+        const seed = o.seed || 3.1;
+        for (let i = 0; i < n; i++) {
+          const u = (i + 0.5) / n;
+          const x = w * u + Math.sin(i * 2.7 + seed) * w * 0.03 + (o.drift || 0);
+          const r = w * (0.09 + i * 37 % 11 / 11 * 0.09) * (o.scale || 1);
+          const ry = h * (0.5 + i * 53 % 7 / 7 * 0.5);
+          fillEllipse(ctx, x, y, r, ry, "rgba(" + c + "," + (a * 0.85).toFixed(3) + ")");
+          fillEllipse(
+            ctx,
+            x - r * 0.28,
+            y - ry * 0.5,
+            r * 0.55,
+            ry * 0.75,
+            "rgba(" + c + "," + (a * 0.7).toFixed(3) + ")"
+          );
+          fillEllipse(
+            ctx,
+            x + r * 0.3,
+            y - ry * 0.36,
+            r * 0.45,
+            ry * 0.6,
+            "rgba(" + c + "," + (a * 0.55).toFixed(3) + ")"
+          );
+        }
+      }
+      function rimLight(ctx, o) {
+        if (!o || !finite(o.x, o.y, o.rx, o.ry)) return;
+        const a = o.alpha === void 0 ? 0.34 : o.alpha;
+        if (a <= 4e-3 || o.rx <= 0 || o.ry <= 0) return;
+        const c = o.color || "255,255,255";
+        const from = o.from === void 0 ? -2.3 : o.from;
+        ctx.save();
+        ctx.translate(o.x, o.y);
+        ctx.scale(1, o.ry / o.rx);
+        ctx.beginPath();
+        ctx.arc(0, 0, o.rx, from - 1.15, from + 1.15);
+        const g = ctx.createLinearGradient(
+          Math.cos(from - 1.15) * o.rx,
+          Math.sin(from - 1.15) * o.rx,
+          Math.cos(from + 1.15) * o.rx,
+          Math.sin(from + 1.15) * o.rx
+        );
+        g.addColorStop(0, "rgba(" + c + ",0)");
+        g.addColorStop(0.5, "rgba(" + c + "," + a.toFixed(3) + ")");
+        g.addColorStop(1, "rgba(" + c + ",0)");
+        ctx.strokeStyle = g;
+        ctx.lineWidth = o.lw || 1.6;
+        ctx.stroke();
+        ctx.restore();
+      }
+      function buildDust(w, h, top, bottom, n, seedBase) {
+        const list = [];
+        const s = seedBase || 0;
+        for (let i = 0; i < n; i++) {
+          const r1 = (Math.sin((i + 1) * 12.9898 + s) * 43758.5453 % 1 + 1) % 1;
+          const r2 = (Math.sin((i + 1) * 78.233 + s) * 12345.6789 % 1 + 1) % 1;
+          const r3 = (Math.sin((i + 1) * 39.425 + s) * 9876.5432 % 1 + 1) % 1;
+          list.push({
+            x: w * r1,
+            y: top + (bottom - top) * r2,
+            r: 0.7 + r3 * 1.9,
+            a: 0.08 + r2 * 0.2,
+            sp: 3 + r1 * 8,
+            p: r3 * TAU
+          });
+        }
+        return list;
+      }
+      function drawDust(ctx, list, t, o) {
+        if (!list || !list.length) return;
+        const opt = o || {};
+        const top = opt.top === void 0 ? 0 : opt.top;
+        const bottom = opt.bottom === void 0 ? 0 : opt.bottom;
+        const span = bottom - top;
+        const c = opt.color || "255,255,255";
+        const amp = opt.alpha === void 0 ? 1 : opt.alpha;
+        ctx.save();
+        for (let i = 0; i < list.length; i++) {
+          const d = list[i];
+          let y = d.y - t * d.sp % (span > 0 ? span : 1);
+          if (span > 0 && y < top) y = bottom - (top - y);
+          const a = d.a * amp * (0.5 + 0.5 * Math.sin(t * 1.6 + d.p));
+          if (a <= 0.01) continue;
+          ctx.fillStyle = "rgba(" + c + "," + a.toFixed(3) + ")";
+          ctx.beginPath();
+          ctx.arc(d.x + Math.sin(t * 0.5 + d.p) * 4, y, d.r, 0, TAU);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+      function vignette(ctx, o) {
+        if (!o || !finite(o.w, o.h)) return;
+        const w = o.w;
+        const h = o.h;
+        const a = o.alpha === void 0 ? 0.5 : o.alpha;
+        if (a <= 4e-3) return;
+        const c = o.color || "0,0,0";
+        const cy = o.cy === void 0 ? 0.5 : o.cy;
+        const inner = o.inner === void 0 ? 0.34 : o.inner;
+        const outer = o.outer === void 0 ? 0.78 : o.outer;
+        const g = ctx.createRadialGradient(
+          w * 0.5,
+          h * cy,
+          Math.min(w, h) * inner,
+          w * 0.5,
+          h * (cy + 0.04),
+          Math.max(w, h) * outer
+        );
+        g.addColorStop(0, "rgba(" + c + ",0)");
+        g.addColorStop(0.7, "rgba(" + c + "," + (a * 0.31).toFixed(3) + ")");
+        g.addColorStop(1, "rgba(" + c + "," + a.toFixed(3) + ")");
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, w, h);
+      }
+      module.exports = {
+        TAU,
+        clamp,
+        lerp,
+        finite,
+        depthT,
+        fillEllipse,
+        ringEllipse,
+        softShadow,
+        haze,
+        ridge,
+        perspectiveFloor,
+        cloudSea,
+        rimLight,
+        buildDust,
+        drawDust,
+        vignette
+      };
+    }
+  });
+
   // pkgFruit/games/fruit/renderer.js
   var require_renderer = __commonJS({
     "pkgFruit/games/fruit/renderer.js"(exports, module) {
       var { drawFruit, drawBasket } = require_fruits();
       var { FRUIT_TYPES, DESIGN_WIDTH } = require_spawner();
+      var depth = require_depth();
       var C = {
         ink: "#152D22",
         inkSoft: "#35503F",
@@ -2605,6 +2989,7 @@
             horizonY: H * (short ? 0.5 : 0.52),
             fruitScale: W / DESIGN_WIDTH
           };
+          this.dust = depth.buildDust(W, H, fieldTop, groundY + 24, 26, 5);
         }
         _safeTop() {
           try {
@@ -2730,6 +3115,23 @@
             g.stroke();
           });
           g.restore();
+          depth.ridge(g, {
+            w: W,
+            hz,
+            bands: [
+              { amp: 0.24, rise: 0.02, freq: 3.6, alpha: 0.46, color: "150,186,208", seed: 0.8 }
+            ]
+          });
+          depth.haze(g, {
+            cx: W * 0.5,
+            y: hz + 1,
+            rx: W * 0.76,
+            ry: 0.095,
+            color: "255,247,219",
+            alpha: 0.34,
+            lineAlpha: 0.16,
+            w: W * 1.15
+          });
           this._paintHills(g);
           this._paintTrees(g);
           this._paintField(g);
@@ -2913,6 +3315,12 @@
           g.lineTo(0, H);
           g.closePath();
           g.fill();
+          const air = g.createLinearGradient(0, hz, 0, hz + (H - hz) * 0.3);
+          air.addColorStop(0, "rgba(246,247,228,0.62)");
+          air.addColorStop(0.45, "rgba(240,246,222,0.24)");
+          air.addColorStop(1, "rgba(240,246,222,0)");
+          g.fillStyle = air;
+          g.fillRect(0, hz, W, (H - hz) * 0.3);
           const pool = g.createRadialGradient(
             W * 0.5,
             hz + (H - hz) * 0.55,
@@ -2926,40 +3334,34 @@
           pool.addColorStop(1, "rgba(255,252,214,0)");
           g.fillStyle = pool;
           g.fillRect(0, hz, W, H - hz);
+          depth.perspectiveFloor(g, {
+            w: W,
+            h: H,
+            hz,
+            cx: W * 0.5,
+            rows: 9,
+            cols: 5,
+            spread: 0.3,
+            topSpread: 0.05,
+            color: "72,104,58",
+            farAlpha: 0.055,
+            nearAlpha: 0.17,
+            stripe: { color: "52,90,46", alpha: 0.075 },
+            lineWidth: 1
+          });
           g.save();
           g.lineCap = "round";
-          for (let i = 1; i <= 8; i++) {
-            const t = i / 8;
-            const y = hz + Math.pow(t, 1.9) * (H - hz) * 0.82;
-            const a = 0.07 + t * 0.1;
-            g.beginPath();
-            g.moveTo(-W * 0.04, y);
-            g.quadraticCurveTo(W * 0.5, y - (1 - t) * H * 6e-3, W * 1.04, y);
-            g.lineWidth = 1 + t * 2.4;
-            g.strokeStyle = "rgba(255,255,255," + a + ")";
-            g.stroke();
-          }
-          const vx = W * 0.5;
-          for (let i = -2; i <= 2; i++) {
-            g.beginPath();
-            g.moveTo(vx + i * W * 0.055, hz + 4);
-            g.lineTo(vx + i * W * 0.32, H);
-            g.lineWidth = 1;
-            g.strokeStyle = "rgba(255,255,255,0.075)";
-            g.stroke();
-          }
-          g.restore();
-          g.save();
-          g.lineCap = "round";
-          for (let i = 0; i < 110; i++) {
+          for (let i = 0; i < 150; i++) {
             const gx = W * hash(i, 42);
-            const gy = hz + Math.pow(hash(i, 43), 0.75) * (H - hz) * 0.92;
-            const len = 1.8 + hash(i, 44) * 5;
-            g.lineWidth = 0.7 + hash(i, 45) * 0.9;
-            g.strokeStyle = "rgba(255,255,255," + (0.05 + hash(i, 46) * 0.09).toFixed(3) + ")";
+            const gy = hz + Math.pow(hash(i, 43), 0.62) * (H - hz) * 0.95;
+            const d = depth.depthT(gy, hz, H);
+            const len = (1.2 + hash(i, 44) * 4.2) * (0.55 + d * 1.35);
+            const lean = (hash(i, 47) - 0.5) * len * 0.7;
+            g.lineWidth = (0.6 + hash(i, 45) * 0.7) * (0.7 + d * 0.9);
+            g.strokeStyle = "rgba(" + (d > 0.5 ? "66,102,52" : "104,140,84") + "," + (0.07 + hash(i, 46) * 0.1 * (0.5 + d)).toFixed(3) + ")";
             g.beginPath();
             g.moveTo(gx, gy);
-            g.quadraticCurveTo(gx + 1, gy - len * 0.6, gx + 2.4, gy - len);
+            g.quadraticCurveTo(gx + lean * 0.5, gy - len * 0.6, gx + lean, gy - len);
             g.stroke();
           }
           g.restore();
@@ -3023,6 +3425,14 @@
           beam.addColorStop(1, "rgba(255,255,255,0)");
           ctx.fillStyle = beam;
           ctx.fillRect(W * 0.14, L.fieldTop, W * 0.72, L.groundY - L.fieldTop);
+          if (this.dust) {
+            depth.drawDust(ctx, this.dust, this.clock, {
+              top: L.fieldTop,
+              bottom: L.groundY + 24,
+              color: "255,252,214",
+              alpha: 0.6
+            });
+          }
           if (screen === "play" || screen === "countdown") {
             for (let i = 0; i < 2; i++) {
               const t = this.clock * (0.3 + i * 0.1) + i * 2.2;
@@ -3047,21 +3457,12 @@
             }
           }
           const bx = vm.basket ? clamp(vm.basket.x, 0, 1) : 0.5;
-          ctx.save();
-          ctx.globalAlpha = 0.1;
-          ellipse(ctx, bx * W, L.groundY + 2, L.basketHalfW * 1.5, 7);
-          ctx.fillStyle = "#33502C";
-          ctx.fill();
-          ctx.restore();
+          depth.softShadow(ctx, bx * W, L.groundY + 2, L.basketHalfW * 1.55, 9, 0.3, "44,72,40");
           this._drawFruits(vm);
           if (screen === "play") this._drawAimGuide(vm);
           if (screen !== "result") this._drawBasket(vm);
           this._drawFx(vm);
-          const vig = ctx.createRadialGradient(W * 0.5, H * 0.55, W * 0.42, W * 0.5, H * 0.55, W * 0.95);
-          vig.addColorStop(0, "rgba(20,50,30,0)");
-          vig.addColorStop(1, "rgba(20,50,30,0.1)");
-          ctx.fillStyle = vig;
-          ctx.fillRect(0, 0, W, H);
+          depth.vignette(ctx, { w: W, h: H, color: "32,60,40", alpha: 0.17, cy: 0.55, inner: 0.4, outer: 0.98 });
         }
         _fruitPx(f) {
           const L = this.L;
@@ -3113,6 +3514,15 @@
               ctx.fill();
               ctx.restore();
             }
+            depth.softShadow(
+              ctx,
+              p.x + r0 * 0.14,
+              p.y + r0 * 0.18,
+              r0 * 0.95,
+              r0 * 0.78,
+              0.13,
+              "46,74,42"
+            );
             drawFruit(ctx, f.type, p.x, p.y, r0 * depthScale, f.rot);
           }
         }
@@ -3487,7 +3897,6 @@
             });
             y += bh + gap;
           });
-          void W;
         }
         _miniChip(id, x, y, w, h, label, strong) {
           const ctx = this.ctx;
@@ -3772,7 +4181,7 @@
           let cardY = H - 18 - cardH;
           const headShift = Math.max(0, Math.min(46, (cardY - (L.safeTop + 76) - 92) * 0.34));
           this._text("\u8BBE\u5907\u51C6\u5907", 22, L.safeTop + 34 + headShift, { size: 24, weight: "800", color: C.ink });
-          this._text("\u4F69\u6234\u4F20\u611F\u5668 \u2192 \u96F6\u70B9\u6807\u5B9A \u2192 \u5F00\u59CB\u8BAD\u7EC3", 23, L.safeTop + 56 + headShift, {
+          this._text("\u6234\u597D\u80F8\u5E26\uFF0C\u5750\u7A33\u6216\u7AD9\u7A33\u5C31\u80FD\u5F00\u59CB", 23, L.safeTop + 56 + headShift, {
             size: 11,
             weight: "600",
             color: C.inkSoft
@@ -3803,8 +4212,8 @@
           const tw = cardW - (tx - cardX) - 16;
           const steps = [
             { t: "\u4F20\u611F\u5668\u5361\u5728\u80F8\u5E26\u4E0A", d: "\u80F8\u5E26\u4ECE\u814B\u4E0B\u6700\u9AD8\u70B9\u7ED5\u4E00\u5708\u56FA\u5B9A" },
-            { t: "\u4FDD\u6301\u4E2D\u7ACB\u4F4D 3 \u79D2", d: "\u5750\u7A33\u6216\u7AD9\u7A33\uFF0C\u53CC\u624B\u81EA\u7136\u653E\u4E0B" },
-            { t: "\u6807\u5B9A\u5B8C\u6210\u540E\u8FDB\u5165\u6E38\u620F", d: "\u8EAB\u4F53\u5DE6\u53F3\u503E\uFF0C\u679C\u7BEE\u8DDF\u7740\u8FC7\u53BB\u63A5\u6C34\u679C" }
+            { t: "\u5750\u7A33\u6216\u7AD9\u7A33", d: "\u53CC\u624B\u81EA\u7136\u653E\u4E0B\uFF0C\u8EAB\u4F53\u4FDD\u6301\u4E2D\u7ACB\u4F4D" },
+            { t: "\u8EAB\u4F53\u5DE6\u53F3\u503E", d: "\u679C\u7BEE\u8DDF\u7740\u8FC7\u53BB\u63A5\u6C34\u679C" }
           ];
           const stepGap2 = cardH > 560 ? 56 : cardH > 480 ? 52 : 46;
           steps.forEach((s, i) => {
@@ -3821,56 +4230,43 @@
             });
             this._text(s.t, tx + 24, sy + 4, { size: 11, weight: "600", color: C.ink });
             this._text(s.d, tx + 24, sy + 18, { size: 9, weight: "500", color: C.inkMute });
-            void tw;
           });
           const infoY = cardY + 66 + 3 * stepGap2 - 8;
-          if (vm.state === "CALIBRATING") {
-            const p = clamp(vm.calibrationProgress || 0, 0, 1);
-            this._text("\u6B63\u5728\u6807\u5B9A\uFF1A\u8BF7\u4FDD\u6301\u4E0D\u52A8", cardX + 18, infoY + 8, { size: 11, weight: "600", color: C.tealDeep });
-            rr(ctx, cardX + 18, infoY + 16, cardW - 36, 8, 4);
-            ctx.fillStyle = "rgba(21,45,34,0.08)";
-            ctx.fill();
-            rr(ctx, cardX + 18, infoY + 16, Math.max(4, (cardW - 36) * p), 8, 4);
-            ctx.fillStyle = C.tealLight;
-            ctx.fill();
-          } else if (vm.calibration && !vm.calibration.simulated) {
-            const ok = !!vm.calibration.ok;
-            this._text(
-              ok ? "\u6807\u5B9A\u5B8C\u6210\uFF1A\u5F53\u524D\u59FF\u6001\u5DF2\u8BB0\u4E3A\u4E2D\u7ACB\u4F4D" : vm.calibration.message || "\u6807\u5B9A\u5931\u8D25",
-              cardX + 18,
-              infoY + 12,
-              {
-                size: 10.5,
-                weight: "600",
-                color: ok ? C.tealDeep : C.danger
-              }
-            );
-          } else if (!vm.calibrated) {
-            this._text("\u8FD8\u6CA1\u6709\u6807\u5B9A\u3002\u8FDE\u63A5\u4F20\u611F\u5668\u540E\u5148\u505A\u4E00\u6B21\u96F6\u70B9\u6807\u5B9A\u3002", cardX + 18, infoY + 12, {
+          const z = vm.zero || { roll: 0, pitch: 0, set: false };
+          const fDeg = (v) => (v >= 0 ? "+" : "") + (Math.round(v * 10) / 10).toFixed(1) + "\xB0";
+          if (z.set) {
+            this._text("\u5F53\u524D\u96F6\u70B9 " + fDeg(z.roll) + " / " + fDeg(z.pitch), cardX + 18, infoY + 12, {
+              size: 10.5,
+              weight: "600",
+              color: C.tealDeep
+            });
+          } else {
+            this._text("\u8FD8\u6CA1\u8BBE\u7F6E\u96F6\u70B9\uFF0C\u8BFB\u6570\u6309\u4F20\u611F\u5668\u539F\u59CB\u89D2\u5EA6\u7B97", cardX + 18, infoY + 12, {
               size: 10,
-              weight: "500",
-              color: C.inkMute
+              weight: "600",
+              color: C.danger
             });
           }
+          this._button("zero:set", cardX + cardW - 92, infoY + 1, 74, 26, z.set ? "\u91CD\u8BBE" : "\u53BB\u6807\u5B9A", {
+            variant: "ghost",
+            size: 10
+          });
           const btnH = 46;
           const by = cardY + cardH - btnH - 16;
           this._button("enter", cardX + 18, by, cardW - 36, btnH, "\u8FDB\u5165\u6E38\u620F", {
             variant: "primary",
             icon: "play",
-            size: 15,
-            disabled: vm.state === "CALIBRATING"
+            size: 15
           });
-          const halfW = (cardW - 46) / 2;
-          this._button("calibrate", cardX + 18, by - 44, halfW, 38, vm.calibrated ? "\u91CD\u65B0\u6807\u5B9A" : "\u5F00\u59CB\u6807\u5B9A", {
-            variant: "ghost",
-            icon: "refresh",
-            size: 11
-          });
-          this._button(vm.sim ? "sim:off" : "sim:on", cardX + 28 + halfW, by - 44, halfW, 38, vm.sim ? "\u5173\u95ED\u6A21\u62DF" : "\u4F7F\u7528\u6A21\u62DF", {
-            variant: "ghost",
-            icon: "check",
-            size: 11
-          });
+          this._button(
+            vm.sim ? "sim:off" : "sim:on",
+            cardX + 18,
+            by - 44,
+            cardW - 36,
+            38,
+            vm.sim ? "\u5173\u95ED\u6A21\u62DF\u6570\u636E" : "\u4F7F\u7528\u6A21\u62DF\u6570\u636E",
+            { variant: "ghost", icon: "check", size: 11 }
+          );
           const ghostTop = by - 44;
           const chipsH = 46;
           const tipsH = 78;
@@ -3915,11 +4311,11 @@
               rr(ctx, cardX + 16, noteY, cardW - 32, tipsH, 12);
               ctx.fillStyle = "rgba(15,156,140,0.06)";
               ctx.fill();
-              this._text("\u6807\u5B9A\u5C0F\u8D34\u58EB", cardX + 30, noteY + 19, { size: 10, weight: "700", color: C.tealDeep });
+              this._text("\u4F69\u6234\u4E0E\u96F6\u70B9", cardX + 30, noteY + 19, { size: 10, weight: "700", color: C.tealDeep });
               const tips = [
                 "\u80F8\u5E26\u522B\u677E\uFF1A\u677E\u4E86\u4F20\u611F\u5668\u4F1A\u6643\uFF0C\u8BFB\u6570\u8DDF\u7740\u6296\uFF1B",
-                "\u6807\u5B9A\u65F6\u4FDD\u6301\u5B89\u9759\uFF0C\u4E0D\u8981\u8F6C\u5934\u3001\u62AC\u624B\u6216\u8C03\u6574\u5750\u59FF\uFF1B",
-                '\u82E5\u63D0\u793A"\u68C0\u6D4B\u5230\u6643\u52A8"\uFF0C\u5750\u7A33\u540E\u91CD\u65B0\u70B9\u300C\u5F00\u59CB\u6807\u5B9A\u300D\u3002'
+                "\u6362\u4EBA\u6216\u6362\u4F69\u6234\u65B9\u5F0F\uFF0C\u53BB\u300C\u96F6\u70B9\u6807\u5B9A\u300D\u9875\u91CD\u8BBE\u4E00\u6B21\uFF1B",
+                "\u6446\u597D\u59FF\u52BF\u540E\u5C3D\u91CF\u522B\u4E71\u52A8\uFF0C\u679C\u7BEE\u8DDF\u7740\u8EAB\u4F53\u8D70\u3002"
               ];
               tips.forEach((t, i) => {
                 this._text(t, cardX + 30, noteY + 35 + i * 14, {

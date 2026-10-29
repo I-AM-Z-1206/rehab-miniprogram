@@ -464,7 +464,7 @@ console.log('\n[7] 渲染层冒烟测试（Mock Canvas）')
 // ---------------------------------------------------------------- 8. 记录
 console.log('\n[8] 训练记录：防重复 + 模拟不上报 + 与走钢丝分库')
 {
-  const fruit = require('../utils/fruit-record.js')
+  const fruit = require('../pkgFruit/utils/fruit-record.js')
   const wire = require('../utils/training-record.js')
   fruit.clear()
   wire.clear()

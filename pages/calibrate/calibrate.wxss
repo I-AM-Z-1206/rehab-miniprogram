@@ -1,9 +1,20 @@
-/** calibrate.wxss —— 零点标定页 */
+/** calibrate.wxss —— 零点标定页
+ *
+ * 设计说明（针对"一股 AI 味"的反馈）：
+ *   AI 生成界面的三个典型套路，这里都刻意避开——
+ *     1. 灰底(#f5f6fa)上堆一圈白卡片 + 大圆角 + 柔和阴影：改为纯白底、
+ *        用 1rpx 细线和留白分区，阴影只给主按钮这一个真正需要浮起来的元素；
+ *     2. 所有区块都套同样的卡片容器、看起来层层叠叠：只有真正需要成组的
+ *        内容才给底色，其余靠字号 / 字重 / 颜色建立层级；
+ *     3. 渐变紫蓝按钮、装饰性色块、无意义的居中排版：颜色只承担功能，
+ *        主色=可操作，红橙=需要注意，灰=次要。
+ */
+
 page {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: #f5f6fa;
+  background-color: #ffffff;
 }
 
 .scrollarea {
@@ -12,282 +23,429 @@ page {
 }
 
 .page-body {
-  padding: 24rpx;
-}
-
-.card {
-  background-color: #fff;
-  border-radius: 20rpx;
-  padding: 28rpx 32rpx;
-  margin-bottom: 24rpx;
-  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.04);
-}
-
-.card-title {
-  font-size: 28rpx;
-  color: #666;
-  margin-bottom: 18rpx;
-}
-
-.flex-spacer {
-  flex: 1;
+  padding: 24rpx 32rpx 64rpx;
 }
 
 .mono {
-  font-family: monospace;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
 }
 
-/* ---------- 状态 ---------- */
-.status-row {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-}
+.spacer { flex: 1; }
 
-.status-dot {
-  width: 20rpx;
-  height: 20rpx;
-  border-radius: 50%;
-  background-color: #ccc;
-  margin-right: 14rpx;
-}
-
-.status-dot.on {
-  background-color: #0f9c8c;
-  box-shadow: 0 0 8rpx rgba(15, 156, 140, 0.6);
-}
-
-.status-dot.scan {
-  background-color: #ffc34d;
-  animation: blink 800ms infinite;
-}
-
-@keyframes blink {
-  0% { opacity: 1; }
-  50% { opacity: 0.25; }
-  100% { opacity: 1; }
-}
-
-.status-text {
-  font-size: 30rpx;
-  font-weight: 600;
-  color: #333;
-}
-
-.btn-mini {
-  padding: 10rpx 30rpx;
-  border-radius: 28rpx;
-  background-color: #0f9c8c;
-  color: #fff;
-  font-size: 24rpx;
-  font-weight: 600;
-}
-
-.btn-mini.btn-stop {
-  background-color: #ffc34d;
-}
-
-/* ---------- 设备列表 ---------- */
-.dev-item {
+/* ---------- 传感器状态行 ---------- */
+.bar {
   display: flex;
   flex-direction: row;
   align-items: center;
   padding: 20rpx 0;
-  border-bottom: 2rpx solid #f2f3f5;
+  border-bottom: 1rpx solid #ececf0;
 }
 
-.dev-info {
-  flex: 1;
-  overflow: hidden;
+.dot {
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 50%;
+  background-color: #d4d4d8;
+  margin-right: 14rpx;
 }
+
+.dot.on {
+  background-color: #0f9c8c;
+}
+
+.dot.scan {
+  background-color: #e8a33d;
+  animation: pulse 800ms infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.3; }
+  100% { opacity: 1; }
+}
+
+.bar-text {
+  font-size: 27rpx;
+  color: #1a1d21;
+}
+
+.link {
+  font-size: 27rpx;
+  color: #0f9c8c;
+  padding: 8rpx 4rpx;
+}
+
+.link-stop { color: #e8a33d; }
+
+/* ---------- 设备列表 ---------- */
+.dev {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 22rpx 0;
+  border-bottom: 1rpx solid #f4f4f6;
+}
+
+.dev-l { flex: 1; }
 
 .dev-name {
-  font-size: 28rpx;
-  font-weight: 600;
-  color: #333;
+  font-size: 29rpx;
+  color: #1a1d21;
 }
 
 .dev-id {
+  font-size: 22rpx;
+  color: #a1a1aa;
   margin-top: 4rpx;
-  font-size: 20rpx;
-  color: #bbb;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .dev-rssi {
-  font-size: 22rpx;
-  color: #999;
+  font-size: 24rpx;
+  color: #a1a1aa;
   margin-right: 20rpx;
 }
 
-.dev-connect {
-  padding: 10rpx 28rpx;
-  border-radius: 28rpx;
-  background-color: #0f9c8c;
-  color: #fff;
-  font-size: 24rpx;
+.dev-go {
+  font-size: 26rpx;
+  color: #0f9c8c;
+}
+
+/* ---------- 标题 ---------- */
+.h1 {
+  font-size: 42rpx;
   font-weight: 600;
+  color: #1a1d21;
+  margin: 40rpx 0 28rpx;
+  letter-spacing: -0.5rpx;
 }
 
-.empty-tip {
-  padding: 24rpx 0 8rpx;
-  text-align: center;
-  font-size: 24rpx;
-  color: #999;
-}
-
-/* ---------- 标定控制 ---------- */
-.cal-desc {
-  font-size: 24rpx;
-  color: #8b8f9a;
-  line-height: 1.6;
-  margin-bottom: 24rpx;
-}
-
-/* ---------- 姿态虚拟零点 ---------- */
-.zero-grid {
+/* ---------- 当前读数：这一屏最该被看到的信息 ---------- */
+.readout {
   display: flex;
   flex-direction: row;
-  padding: 6rpx 0 18rpx;
+  align-items: stretch;
+  background-color: #f7f9fa;
+  border-radius: 16rpx;
+  padding: 36rpx 0;
+  margin-bottom: 20rpx;
 }
 
-.zero-cell {
+.ro-item {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
-.zero-label {
-  font-size: 20rpx;
+.ro-sep {
+  width: 1rpx;
+  background-color: #e4e8ea;
+  margin: 8rpx 0;
+}
+
+.ro-num {
+  font-size: 62rpx;
+  font-weight: 500;
+  color: #1a1d21;
+  line-height: 1.1;
+}
+
+.ro-unit {
+  font-size: 30rpx;
   color: #9aa0a6;
-  margin-bottom: 8rpx;
-  text-align: center;
+  margin-left: 2rpx;
 }
 
-.zero-val {
-  font-size: 26rpx;
-  font-weight: 700;
-  color: #333;
-  white-space: nowrap;
+.ro-label {
+  font-size: 23rpx;
+  color: #8b9198;
+  margin-top: 10rpx;
 }
 
-.zero-val.accent {
-  color: #0f9c8c;
-}
-
-.zero-state {
+/* ---------- 状态徽章 ---------- */
+.badge {
   display: flex;
   flex-direction: row;
   align-items: center;
-  padding: 12rpx 20rpx;
-  border-radius: 14rpx;
-  background-color: #f5f6fa;
-  font-size: 22rpx;
-  color: #9aa0a6;
-  margin-bottom: 20rpx;
+  padding: 18rpx 24rpx;
+  border-radius: 12rpx;
+  font-size: 25rpx;
+  margin-bottom: 36rpx;
 }
 
-.zero-state.on {
-  background-color: #e8f6f4;
-  color: #0f9c8c;
-}
-
-.zero-state-dot {
+.badge-dot {
   width: 12rpx;
   height: 12rpx;
   border-radius: 50%;
-  background-color: #c9cdd4;
-  margin-right: 12rpx;
+  margin-right: 14rpx;
+  flex-shrink: 0;
 }
 
-.zero-state.on .zero-state-dot {
+.badge-on {
+  background-color: #eef8f6;
+  color: #0b7a6a;
+}
+
+.badge-on .badge-dot { background-color: #0f9c8c; }
+
+.badge-off {
+  background-color: #fdf3e7;
+  color: #96631a;
+}
+
+.badge-off .badge-dot { background-color: #e8a33d; }
+
+/* ---------- 主操作 ---------- */
+.acts {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 36rpx;
+}
+
+.btn-primary {
+  height: 96rpx;
+  line-height: 96rpx;
+  text-align: center;
   background-color: #0f9c8c;
+  color: #ffffff;
+  font-size: 32rpx;
+  font-weight: 500;
+  border-radius: 16rpx;
+  box-shadow: 0 6rpx 16rpx rgba(15, 156, 140, 0.24);
 }
 
-.btn-row {
+.btn-primary.disabled {
+  background-color: #c8d3d1;
+  box-shadow: none;
+}
+
+.btn-plain {
+  margin-top: 24rpx;
+  text-align: center;
+  font-size: 27rpx;
+  color: #71767c;
+  padding: 16rpx 0;
+}
+
+/* ---------- 标定中 ---------- */
+.running {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32rpx 0 40rpx;
+  margin-bottom: 36rpx;
+}
+
+/* 只有 .ring-track 旋转，数字层 .ring-body 绝对定位盖在上面，保持不动 */
+.ring {
+  position: relative;
+  width: 168rpx;
+  height: 168rpx;
+  margin-bottom: 28rpx;
+}
+
+.ring-track {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 168rpx;
+  height: 168rpx;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 6rpx solid #0f9c8c;
+  border-top-color: #e6f4f2;
+  animation: spin 1s linear infinite;
+}
+
+.ring-body {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 168rpx;
+  height: 168rpx;
   display: flex;
   flex-direction: row;
+  align-items: center;
+  justify-content: center;
 }
 
-.cal-btn2 {
-  flex: 1;
-  height: 84rpx;
-  line-height: 84rpx;
-  text-align: center;
-  border-radius: 42rpx;
-  background-color: #0f9c8c;
-  color: #fff;
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.ring-num {
+  font-size: 60rpx;
+  font-weight: 500;
+  color: #0f9c8c;
+  line-height: 1;
+}
+
+.ring-unit {
+  font-size: 24rpx;
+  color: #0f9c8c;
+  margin-left: 2rpx;
+}
+
+.ring-text {
   font-size: 28rpx;
-  font-weight: 700;
-  margin-right: 16rpx;
+  color: #4a4f55;
 }
 
-.cal-btn2:last-child {
-  margin-right: 0;
+/* ---------- 结果：用列表而不是三个并排格子 ---------- */
+.result {
+  border-top: 1rpx solid #ececf0;
+  padding-top: 8rpx;
+  margin-bottom: 36rpx;
 }
 
-.cal-btn2.off {
-  background-color: #c9cdd4;
+.res-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22rpx 0;
+  border-bottom: 1rpx solid #f4f4f6;
 }
 
-.cal-btn2.running {
-  background-color: #ffc34d;
-  color: #6b4a00;
+.res-k {
+  font-size: 27rpx;
+  color: #8b9198;
 }
 
-.cal-btn2.ghost {
-  background-color: #f5f6fa;
-  color: #666;
-  font-weight: 600;
-  border: 2rpx solid #e4e6eb;
-  box-sizing: border-box;
+.res-v {
+  font-size: 29rpx;
+  color: #1a1d21;
 }
 
-/* ---------- 图表 ---------- */
-.chart-canvas {
+.res-v.ok { color: #0f9c8c; }
+.res-v.warn { color: #e8845a; }
+
+/* ---------- 折叠区 ---------- */
+.fold {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 26rpx 0;
+  border-top: 1rpx solid #ececf0;
+  font-size: 28rpx;
+  color: #4a4f55;
+}
+
+.fold-arrow {
+  width: 14rpx;
+  height: 14rpx;
+  margin-left: 12rpx;
+  border-right: 3rpx solid #a1a1aa;
+  border-bottom: 3rpx solid #a1a1aa;
+  transform: rotate(45deg);
+  transition: transform 200ms;
+}
+
+.fold-arrow.up {
+  transform: rotate(-135deg);
+}
+
+.detail {
+  padding-bottom: 20rpx;
+}
+
+.sub {
+  font-size: 26rpx;
+  color: #4a4f55;
+  margin: 20rpx 0 12rpx;
+}
+
+.chart {
+  height: 200rpx;
+  background-color: #fafbfc;
+  border-radius: 12rpx;
+}
+
+.chart-lg {
+  height: 440rpx;
+}
+
+.cv {
   width: 100%;
   height: 100%;
-  display: block;
 }
 
-/* 姿态实时曲线（Roll / Pitch 并排） */
-.zero-charts {
+/* ---------- 图例与统计 ---------- */
+.legend {
   display: flex;
   flex-direction: row;
-  margin: 8rpx 0 20rpx;
+  flex-wrap: wrap;
+  margin: 18rpx 0 24rpx;
 }
 
-.zero-chart-item {
+.lg {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin-right: 32rpx;
+  font-size: 23rpx;
+  color: #8b9198;
+}
+
+.sw {
+  width: 26rpx;
+  height: 10rpx;
+  border-radius: 4rpx;
+  margin-right: 10rpx;
+}
+
+.sw-sd { background-color: #0f9c8c; }
+.sw-range { background-color: #8fd4cb; }
+.sw-dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 50%;
+  background-color: #e8845a;
+  margin-right: 10rpx;
+}
+
+.stats {
+  display: flex;
+  flex-direction: row;
+  background-color: #fafbfc;
+  border-radius: 12rpx;
+  padding: 24rpx 0;
+}
+
+.st {
   flex: 1;
-  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-.zero-chart-item + .zero-chart-item {
-  margin-left: 16rpx;
+.st-n {
+  font-size: 30rpx;
+  color: #1a1d21;
 }
 
-.zero-chart-label {
+.st-n.ok { color: #0f9c8c; }
+.st-n.warn { color: #e8845a; }
+
+.st-l {
   font-size: 22rpx;
-  color: #999;
-  margin-bottom: 6rpx;
+  color: #a1a1aa;
+  margin-top: 8rpx;
 }
 
-.chart-box-sm {
-  width: 100%;
-  height: 200rpx;
+/* ---------- 说明与提示：一句话，放在最后 ---------- */
+.note {
+  font-size: 25rpx;
+  color: #a1a1aa;
+  line-height: 1.7;
+  padding-top: 28rpx;
+  border-top: 1rpx solid #ececf0;
 }
 
-/* ---------- 说明 ---------- */
-.help-tip {
-  margin-top: 4rpx;
-  padding: 20rpx 24rpx;
-  border-radius: 14rpx;
-  background-color: #fff6e2;
-  font-size: 22rpx;
-  color: #96700a;
-  line-height: 1.6;
-  margin-bottom: 40rpx;
+.hint {
+  font-size: 24rpx;
+  color: #a1a1aa;
+  padding: 12rpx 0;
 }

@@ -1,196 +1,120 @@
 // ============================================================================
-// tools/build_race.js —— 把「NEON REHAB RACER」小游戏源码打包成小程序可用的 CJS
+// tools/build_race.js —— 把赛车源码基线打包成小程序可用的单文件 CJS
 // ----------------------------------------------------------------------------
-// 小游戏（game.js）与小程序运行时不同，不能直接 require；这里用 esbuild 把
-// src/**（26 个 ES Module）打成单文件 CommonJS，交给 pages/race 使用。
+// 历史：这套赛车原本是独立小游戏工程（D:/Desktop/sc，26 个 ES Module），
+// 由本脚本用 esbuild 打包并「打补丁」（去蓝牙入口、改滤波参数、HUD 换侧屈角度…）。
+// 那个工程后来被删了，打包链断掉，产物无法再复现。
+//
+// 现在的做法：把压缩产物反向格式化成可读源码 pkgRace/race/src/engine.src.js
+// 作为唯一维护基线，所有界面/参数改造都已内联在里面，不再需要字符串打补丁。
+// 本脚本只做「压缩 + 自检」两件事。
 //
 // 用法：
-//   npm i esbuild
-//   node tools/build_race.js                  # 默认读 D:/Desktop/sc
-//   SC_DIR=/path/to/sc node tools/build_race.js
+//   npm run build:race
+//   node tools/build_race.js            # 打包 + 自检
+//   node tools/build_race.js --check     # 只自检，不重新打包
 //
-// 产物：race/engine.js（约 82KB，压缩后）
+// 输出：pkgRace/race/engine.js
 //
-// 打包时还会做一次「界面改造」（源码工程保持原样，只在产物里生效）：
-//   1. 菜单去掉「连接 WT9011 传感器」按钮 —— 小程序侧已统一连接，游戏不再自己连
-//   2. 菜单底部去掉蓝牙状态文案
-//   3. HUD 左上角的「传感器已连接 xxHz」换成实时侧屈角度
-// 改造用字符串精确匹配，源码结构变了会直接报错，避免悄悄失效。
+// 注意：esbuild 的 Go 二进制在本项目里写文件会被拦（Temp、tools/ 下都报
+// Access denied，只有项目根目录能写）。所以一律 write:false 拿回内存 buffer，
+// 再由 Node 自己落盘 —— 这样输出路径放哪都行，也不需要中间临时目录。
 // ============================================================================
 
 const fs = require('fs')
 const path = require('path')
 
-const SC_DIR = process.env.SC_DIR || 'D:/Desktop/sc'
-const ENTRY = path.join(__dirname, '.race_entry.js')
-const OUT = path.join(__dirname, '..', 'race', 'engine.js')
+const ROOT = path.resolve(__dirname, '..')
+const SRC = path.join(ROOT, 'pkgRace', 'race', 'src', 'engine.src.js')
+const OUT = path.join(ROOT, 'pkgRace', 'race', 'engine.js')
 
-// ---------------------------------------------------------------- 界面改造
-function replaceOnce(src, from, to, label) {
-  const i = src.indexOf(from)
-  if (i < 0) throw new Error('改造失败：找不到「' + label + '」\n  期望片段：' + from.slice(0, 80))
-  if (src.indexOf(from, i + 1) >= 0) throw new Error('改造失败：「' + label + '」出现了多次')
-  return src.slice(0, i) + to + src.slice(i + from.length)
+// ---------------------------------------------------------------- 产物自检
+// 这些断言钉住的是「康复场景专用改造」，一旦丢失就是功能回退，
+// 而且肉眼看不出来（游戏照样能跑，只是患者用不了）。所以必须进构建门禁。
+//
+// 分两类，别混：
+//   MUST_HAVE      —— 字符串字面量 / 导出名，压缩后仍存在，查【产物】
+//   SRC_ONLY       —— 源码里的类名/变量名，压缩后会被改名，只能查【源码】
+//   MUST_NOT_HAVE  —— 必须消失的旧文案/旧参数，查【产物】
+const SRC_ONLY = [
+  ['RoadRenderer2', 'v10 定版的赛道渲染器（有路旁灯柱/广告牌/反光柱、路面颗粒与接缝、椭圆地平线雾）']
+]
+
+const MUST_HAVE = [
+  ['侧屈', 'HUD 左上角显示实时侧屈角度（不是蓝牙状态）'],
+  ['体感待机', '传感器未连接时的待机文案'],
+  ['模拟模式（触屏驱动）', '模拟模式不再叫 Debug'],
+  ['长按右上角圆点', '触屏操作提示（小程序没有键盘）'],
+  ['身体姿态驱动', '副标题不强调传感器型号'],
+  ['GameEngine', '导出的类名']
+]
+
+const MUST_NOT_HAVE = [
+  ['连接 WT9011 传感器', '菜单里不能再有独立蓝牙入口（已统一由小程序侧连接）'],
+  ['.02,1.6', '卡尔曼滤波参数必须已是 q=0.3 / r=1.0（旧值滞后 210ms）'],
+  ['Debug：方向键', '不能在界面上提键盘快捷键']
+]
+
+function checkSource() {
+  const src = fs.readFileSync(SRC, 'utf8')
+  const errs = []
+  SRC_ONLY.forEach(([needle, why]) => {
+    if (src.indexOf(needle) < 0) errs.push('源码缺少「' + needle + '」—— ' + why)
+  })
+  if (errs.length) {
+    console.error('✗ 源码基线自检未通过（' + path.relative(ROOT, SRC) + '）')
+    errs.forEach((s) => console.error('  - ' + s))
+    return false
+  }
+  console.log('✓ 源码基线 自检通过（' + SRC_ONLY.length + ' 项结构标记）')
+  return true
 }
 
-/** src/ui/Screens.js：菜单不出现任何蓝牙入口 / 状态 */
-function patchScreens(src) {
-  // 1) 菜单按钮：删掉「连接 WT9011 传感器」（连同行偏移，后面按钮自动上移）
-  src = replaceOnce(
-    src,
-    "      mk('ble', '连接 WT9011 传感器', cx, y, bw, bh, COLORS.neonBlue); y += bh + 16\n",
-    '',
-    '菜单蓝牙按钮'
-  )
-  // 2) 菜单底部状态文案
-  src = replaceOnce(
-    src,
-    "    neonText(ctx, data.bleStatus || '', w * 0.5, h - 62, { size: 18, color: COLORS.textDim, align: 'center', blur: 4 })\n",
-    '',
-    '菜单蓝牙状态文案'
-  )
-  // 3) 副标题不再强调具体型号
-  src = replaceOnce(
-    src,
-    "体感赛车康复训练 · WT9011 姿态驱动",
-    "体感赛车康复训练 · 身体姿态驱动",
-    '菜单副标题'
-  )
-  // 4) 底部是键盘快捷键说明，小程序里没有键盘，改成触屏/长按提示
-  src = replaceOnce(
-    src,
-    "    neonText(ctx, 'Debug：方向键/WASD 模拟躯干位移 · T 打开治疗师面板 · P 暂停',\n",
-    "    neonText(ctx, '长按右上角圆点 1.2 秒打开治疗师面板 · 返回键在左上角',\n",
-    '菜单底部操作提示'
-  )
-  // 5) 模拟模式不再叫 Debug
-  src = replaceOnce(
-    src,
-    "'模拟模式（Debug）'",
-    "'模拟模式（触屏驱动）'",
-    '模拟模式按钮'
-  )
-  return src
-}
+function checkProduct(file, label) {
+  const code = fs.readFileSync(file, 'utf8')
+  const errs = []
 
-/**
- * src/motion/KalmanFilter.js：把姿态滤波调「跟手」。
- * 原参数 q=0.02 / r=1.6 的稳态卡尔曼增益只有 ~0.10，等效时间常数 10 个样本，
- * 50Hz 下换算成约 210ms 的纯滞后，再叠一层 WMA 就到 250ms+——
- * 患者侧屈后要小半秒车才有反应，这就是「不跟手、不精准」的主因。
- * 改成 q=0.3 / r=1.0：增益 ~0.30，90% 响应从 330ms 降到约 100ms，
- * 噪声抑制仍有 ~0.2×（WT9011 角度噪声本身只有 ±0.2° 量级，够用）。
- */
-function patchFilter(src) {
-  return replaceOnce(
-    src,
-    '    this.kalman = new Kalman1D(0.02, 1.6, initial)\n',
-    [
-      '    // 康复调优：原 0.02 / 1.6 的滞后太大（~210ms @50Hz），改为 0.3 / 1.0',
-      '    this.kalman = new Kalman1D(0.3, 1.0, initial)',
-      ''
-    ].join('\n'),
-    'KalmanFilter 参数'
-  )
-}
+  MUST_HAVE.forEach(([needle, why]) => {
+    if (code.indexOf(needle) < 0) errs.push('缺少「' + needle + '」—— ' + why)
+  })
+  MUST_NOT_HAVE.forEach(([needle, why]) => {
+    if (code.indexOf(needle) >= 0) errs.push('仍含「' + needle + '」—— ' + why)
+  })
 
-/** src/core/Player.js：巡航油门 + 低速也保留转向能力 */
-function patchPlayer(src) {
-  // 转向：原来横向速度正比于 speedPct，起步/慢速时几乎打不动方向
-  src = replaceOnce(
-    src,
-    '    const dx = dt * PHYSICS.steerRate * speedPct\n',
-    [
-      '    // 康复模式：低速也保留一半转向能力，避免「打了方向车不拐」的失控感',
-      '    const steerPct = Math.max(speedPct, 0.5)',
-      '    const dx = dt * PHYSICS.steerRate * steerPct',
-      ''
-    ].join('\n'),
-    'Player 低速转向'
-  )
-  return replaceOnce(
-    src,
-    '    const accel = control.throttle * PHYSICS.accelFactor\n',
-    [
-      '    // 康复模式：油门带基础巡航，患者不倾身也缓慢前进；前倾在此基础上继续加速',
-      '    const _cruise = 0.14',
-      '    const _th = _cruise + (1 - _cruise) * clamp(control.throttle, 0, 1)',
-      '    const accel = _th * PHYSICS.accelFactor',
-      ''
-    ].join('\n'),
-    'Player 基础巡航油门'
-  )
-}
-
-/** src/ui/HUD.js：左上角状态改为体感角度，不显示蓝牙连接信息 */
-function patchHud(src) {
-  src = replaceOnce(
-    src,
-    '    neonText(ctx, s.ble.statusText, 60, 54, { size: 18, color: COLORS.text, blur: 6 })\n',
-    [
-      '    const _m = s.motion || {}',
-      '    const _n = _m.neutral || { roll: 0 }',
-      '    const _sm = _m.smoothed || { roll: 0 }',
-      '    const _deg = Math.round((_sm.roll || 0) - (_n.roll || 0))',
-      "    neonText(ctx, _m.connected ? ('侧屈 ' + (_deg > 0 ? '+' : '') + _deg + '°') : '体感待机', 60, 54, { size: 18, color: COLORS.text, blur: 6 })",
-      ''
-    ].join('\n'),
-    'HUD 蓝牙状态文案'
-  )
-  return src
-}
-
-function patchEngine(src) {
-  src = replaceOnce(
-    src,
-    "'Debug 模式：方向键 / 触摸 模拟躯干位移'",
-    "'模拟模式：手指拖动模拟躯干位移'",
-    '模拟模式提示'
-  )
-  // 开局给一定初速度：车不等患者发力就先滑出去
-  src = replaceOnce(
-    src,
-    '    this.score.start(this.diff)\n    this.obstacles.reset()\n    this.player.reset()\n',
-    '    this.score.start(this.diff)\n    this.obstacles.reset()\n    this.player.reset()\n    this.player.speed = this.diff.maxSpeed * 0.3\n',
-    '开局初速度'
-  )
-  return src
-}
-
-function externalBlePlugin() {
-  const screensRe = /[\\/]ui[\\/]Screens\.js$/
-  const hudRe = /[\\/]ui[\\/]HUD\.js$/
-  return {
-    name: 'external-ble',
-    setup(build) {
-      build.onLoad({ filter: screensRe }, (args) => ({
-        contents: patchScreens(fs.readFileSync(args.path, 'utf8')),
-        loader: 'js'
-      }))
-      build.onLoad({ filter: hudRe }, (args) => ({
-        contents: patchHud(fs.readFileSync(args.path, 'utf8')),
-        loader: 'js'
-      }))
-      build.onLoad({ filter: /[\\/]core[\\/]GameEngine\.js$/ }, (args) => ({
-        contents: patchEngine(fs.readFileSync(args.path, 'utf8')),
-        loader: 'js'
-      }))
-      build.onLoad({ filter: /[\\/]core[\\/]Player\.js$/ }, (args) => ({
-        contents: patchPlayer(fs.readFileSync(args.path, 'utf8')),
-        loader: 'js'
-      }))
-      build.onLoad({ filter: /[\\/]motion[\\/]KalmanFilter\.js$/ }, (args) => ({
-        contents: patchFilter(fs.readFileSync(args.path, 'utf8')),
-        loader: 'js'
-      }))
+  // 真正的可用性验证：产物必须是能被 require 的 CJS，且真的导出 GameEngine。
+  // 纯字符串检查抓不到「打包出来是 ESM / 导出名写错」这类问题。
+  if (!errs.length) {
+    try {
+      delete require.cache[require.resolve(file)]
+      const m = require(file)
+      const GE = m && m.GameEngine
+      if (typeof GE !== 'function') {
+        errs.push('require 成功但没导出 GameEngine（实际：' + Object.keys(m || {}).join(',') + '）')
+      } else {
+        const proto = Object.getOwnPropertyNames(GE.prototype)
+        ;['update', 'render', 'setState', 'onPointerDown', 'toDesign'].forEach((fn) => {
+          if (proto.indexOf(fn) < 0) errs.push('GameEngine.prototype 缺方法 ' + fn)
+        })
+      }
+    } catch (e) {
+      errs.push('require 失败：' + String((e && e.message) || e))
     }
   }
-}
 
-async function main() {
-  const engineSrc = path.join(SC_DIR, 'src', 'core', 'GameEngine.js')
-  if (!fs.existsSync(engineSrc)) {
-    console.error('找不到源码：' + engineSrc + '（可用 SC_DIR 指定）')
+  const kb = (fs.statSync(file).size / 1024).toFixed(1)
+  if (errs.length) {
+    console.error('✗ ' + label + ' 自检未通过（' + kb + ' KB）')
+    errs.forEach((s) => console.error('  - ' + s))
+    return false
+  }
+  console.log('✓ ' + label + ' 自检通过（' + kb + ' KB，' + MUST_HAVE.length + ' 项必须存在 / ' +
+    MUST_NOT_HAVE.length + ' 项必须消失 / 5 个原型方法齐全）')
+  return true
+}
+// ---------------------------------------------------------------- 打包
+async function build() {
+  if (!fs.existsSync(SRC)) {
+    console.error('找不到源码基线：' + SRC)
     process.exit(1)
   }
 
@@ -202,51 +126,40 @@ async function main() {
     process.exit(1)
   }
 
-  fs.writeFileSync(
-    ENTRY,
-    'import { GameEngine } from ' + JSON.stringify(engineSrc.replace(/\\/g, '/')) + '\nexport { GameEngine }\n',
-    'utf8'
-  )
+  const t0 = Date.now()
+  const r = await esbuild.build({
+    entryPoints: [SRC],
+    bundle: true,
+    format: 'cjs',
+    platform: 'neutral',
+    target: 'es2017',
+    minify: true,
+    charset: 'utf8',
+    write: false,
+    logLevel: 'warning'
+  })
 
-  try {
-    await esbuild.build({
-      entryPoints: [ENTRY],
-      bundle: true,
-      format: 'cjs',
-      platform: 'neutral',
-      target: 'es2017',
-      minify: true,
-      charset: 'utf8',
-      outfile: OUT,
-      plugins: [externalBlePlugin()]
-    })
-  } finally {
-    if (fs.existsSync(ENTRY)) fs.unlinkSync(ENTRY)
-  }
+  const out = (r.outputFiles && r.outputFiles[0] && r.outputFiles[0].contents) || null
+  if (!out || !out.length) throw new Error('esbuild 没有产出内容')
+  fs.writeFileSync(OUT, out)
+  console.log('已打包 ' + path.relative(ROOT, SRC) + ' → ' + path.relative(ROOT, OUT) +
+    '（' + ((Date.now() - t0) / 1000).toFixed(2) + 's）')
+}
 
-  // 产物自检：改造必须真的生效
-  // 注：BLEManager 里的 statusText getter 仍会留一句「传感器已连接 xxHz」，
-  // 但 HUD / 菜单的引用都已改掉，不会再渲染出来。
-  const code = fs.readFileSync(OUT, 'utf8')
-  if (code.indexOf('连接 WT9011 传感器') >= 0) {
-    console.error('产物里仍有菜单蓝牙入口')
+async function main() {
+  const checkOnly = process.argv.indexOf('--check') >= 0
+  if (!checkSource()) process.exit(1)
+  if (!checkOnly) {
+    await build()
+  } else if (!fs.existsSync(OUT)) {
+    console.error('产物不存在，无法只自检：' + OUT)
     process.exit(1)
   }
-  if (code.indexOf('侧屈 ') < 0) {
-    console.error('HUD 改造未生效（找不到「侧屈」）')
-    process.exit(1)
-  }
-  // 滤波器参数：压缩后写成 new Me(.3,1,...)，旧值 .02,1.6 必须消失
-  if (code.indexOf('.02,1.6') >= 0) {
-    console.error('滤波参数未替换（仍是 q=0.02 / r=1.6）')
-    process.exit(1)
-  }
-
-  const kb = (fs.statSync(OUT).size / 1024).toFixed(1)
-  console.log('已生成 race/engine.js（' + kb + ' KB），蓝牙 UI 已移除')
+  const ok = checkProduct(OUT, checkOnly ? '现有产物' : '新产物')
+  if (!ok) process.exit(1)
 }
 
 main().catch((e) => {
-  console.error(String((e && e.message) || e))
+  console.error('构建失败：' + String((e && e.message) || e))
   process.exit(1)
 })

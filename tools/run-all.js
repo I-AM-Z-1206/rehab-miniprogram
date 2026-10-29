@@ -19,7 +19,17 @@ const SUITES = [
   { file: 'tools/wire-headless-test.js', name: '走钢丝' },
   { file: 'tools/game_selftest.js', name: '射击训练' },
   { file: 'tools/shoot-ui-test.js', name: '射击界面' },
-  { file: 'tools/audio-headless-test.js', name: '音频/公共' }
+  { file: 'tools/scene2d-test.js', name: '射击场景' },
+  { file: 'tools/race-headless-test.js', name: '赛车' },
+  { file: 'tools/race_page_test.js', name: '赛车页面' },
+  { file: 'tools/race-settings-test.js', name: '赛车设置' },
+  { file: 'tools/race-records-test.js', name: '赛车记录' },
+  { file: 'tools/depth-test.js', name: '纵深底座' },
+  { file: 'tools/audio-headless-test.js', name: '音频/公共' },
+  { file: 'tools/lightchart-test.js', name: '图表' },
+  { file: 'tools/record-isolation-test.js', name: '记录隔离' },
+  { file: 'tools/server-smoke-test.js', name: '后端接口' },
+  { file: 'tools/pack-size-check.js', name: '包体积' }
 ]
 
 // 各套自检的收尾格式不完全一样，这里统一判断

@@ -2,7 +2,7 @@
 // 所有参数写入 utils/rhythm-config.js（独立存储键 rhythm_cfg_v1），改动立即生效。
 const { getStore, SCHEMA, GROUPS, PRESETS, validate } = require('../../../utils/rhythm-config.js')
 const { SONGS, songById } = require('../../../utils/rhythm-songs.js')
-const records = require('../../../utils/rhythm-record.js')
+const records = require('../../utils/rhythm-record.js')
 
 const AXIS_LABEL = { pitch: 'Pitch 轴', roll: 'Roll 轴' }
 

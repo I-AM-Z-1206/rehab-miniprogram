@@ -158,9 +158,9 @@ const { HitJudge } = require('../pkgRhythm/games/rhythm/hit-judge.js')
 const { ScoreManager } = require('../pkgRhythm/games/rhythm/score.js')
 const { RhythmEngine } = require('../pkgRhythm/games/rhythm/engine.js')
 const { RhythmRenderer } = require('../pkgRhythm/games/rhythm/renderer.js')
-const rhythmRecords = require('../utils/rhythm-record.js')
+const rhythmRecords = require('../pkgRhythm/utils/rhythm-record.js')
 const wireRecords = require('../utils/training-record.js')
-const fruitRecords = require('../utils/fruit-record.js')
+const fruitRecords = require('../pkgFruit/utils/fruit-record.js')
 
 const DT = 1 / 60
 
@@ -281,6 +281,17 @@ console.log('\n[2] 谱面（确定性 + 结构）')
   // centerRate = 0 时退化为左右交替
   const twoWay = buildChart(Object.assign({}, base, { centerRate: 0 }))
   ok(twoWay.notes.every((n) => n.targetSide !== 'center'), 'centerRate=0 → 没有中间音符')
+
+  // 呼吸拍必须是「固定位置、单拍留空」：
+  // 曾经是随机留空，会连着空两三拍，手感就是"一堆音符之后半天没一个"
+  const gaps = []
+  for (let i = 1; i < a.notes.length; i++) gaps.push(a.notes[i].targetTimeMs - a.notes[i - 1].targetTimeMs)
+  const stepMs = Math.round(beat * base.noteStepBeats)
+  const odd = gaps.filter((g) => Math.abs(g - stepMs) > 60 && Math.abs(g - stepMs * 2) > 60)
+  ok(odd.length === 0, '音符间隔只有「一个步长」或「两个步长」（呼吸拍）', odd.slice(0, 3).join(','))
+  let doubleRest = 0
+  for (let i = 1; i < gaps.length; i++) if (gaps[i] > stepMs * 1.5 && gaps[i - 1] > stepMs * 1.5) doubleRest += 1
+  ok(doubleRest === 0, '呼吸拍不会连着空（不会出现 2 倍以上的长空白）', String(doubleRest))
   near(a.notes[0].targetTimeMs, Math.round(4 * beat), 2, '第一个音符落在第 4 拍（预备拍之后）')
 
   // 同向连续必须留够间隔（否则引擎的"一次动作一个音符"规则下打不出来）

@@ -62,6 +62,10 @@
         "value": "pkgRace/race/README.md"
       },
       {
+        "type": "folder",
+        "value": "pkgRace/race/src"
+      },
+      {
         "type": "file",
         "value": "pkgRhythm/audio/rhythm/slow_wave.wav"
       },
@@ -72,6 +76,14 @@
       {
         "type": "file",
         "value": "pkgRhythm/audio/rhythm/heart_pulse.wav"
+      },
+      {
+        "type": "folder",
+        "value": "dist"
+      },
+      {
+        "type": "folder",
+        "value": "logs"
       },
       {
         "type": "folder",
@@ -90,8 +102,24 @@
         "value": "package-lock.json"
       },
       {
+        "type": "file",
+        "value": ".gitignore"
+      },
+      {
+        "type": "file",
+        "value": ".eslintrc.js"
+      },
+      {
         "type": "folder",
         "value": ".git"
+      },
+      {
+        "type": "folder",
+        "value": ".tmp-assets"
+      },
+      {
+        "type": "folder",
+        "value": "server"
       }
     ],
     "include": []

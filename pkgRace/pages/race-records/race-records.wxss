@@ -1,0 +1,399 @@
+/*race-records.wxss —— 赛车训练记录*/
+
+page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f5f6fa;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  padding: 20rpx 24rpx 60rpx;
+}
+
+/* ---------------- 概览 ---------------- */
+.summary {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 28rpx 0;
+  border-radius: 28rpx;
+  background: linear-gradient(135deg, #eaf6f3 0%, #eef4fb 100%);
+  border: 1rpx solid rgba(15, 156, 140, 0.10);
+  margin-bottom: 18rpx;
+}
+
+.sum-cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.sum-num {
+  font-size: 38rpx;
+  font-weight: 700;
+  color: #13293a;
+}
+
+.sum-num.ok {
+  color: #0a7e72;
+}
+
+.sum-num.warn {
+  color: #e39a32;
+}
+
+.sum-label {
+  margin-top: 6rpx;
+  font-size: 21rpx;
+  color: #8b8f9a;
+}
+
+.sum-line {
+  width: 1rpx;
+  height: 44rpx;
+  background: rgba(19, 41, 58, 0.08);
+}
+
+/* ---------------- 最好成绩 ---------------- */
+.best {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 22rpx 28rpx;
+  border-radius: 28rpx;
+  background: #ffffff;
+  border: 1rpx solid rgba(19, 41, 58, 0.06);
+  box-shadow: 0 6rpx 20rpx rgba(19, 41, 58, 0.05);
+  margin-bottom: 18rpx;
+}
+
+.best-left {
+  display: flex;
+  flex-direction: column;
+}
+
+.best-label {
+  font-size: 21rpx;
+  color: #8b8f9a;
+}
+
+.best-level {
+  margin-top: 6rpx;
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #13293a;
+}
+
+.best-right {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+}
+
+.best-score {
+  font-size: 52rpx;
+  font-weight: 700;
+  color: #0f9c8c;
+  line-height: 1;
+}
+
+.best-unit {
+  margin-left: 6rpx;
+  font-size: 22rpx;
+  color: #8b8f9a;
+}
+
+/* ---------------- 提示条 ---------------- */
+.banner {
+  padding: 20rpx 24rpx;
+  border-radius: 22rpx;
+  background: #fdf6ea;
+  border: 1rpx solid rgba(227, 154, 50, 0.22);
+  margin-bottom: 18rpx;
+  display: flex;
+  flex-direction: column;
+}
+
+.banner.ok {
+  background: #eef8f6;
+  border-color: rgba(15, 156, 140, 0.22);
+}
+
+.banner-title {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #13293a;
+}
+
+.banner-desc {
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  line-height: 1.5;
+  color: #6b7280;
+}
+
+/* ---------------- 操作 ---------------- */
+.actions {
+  display: flex;
+  flex-direction: row;
+  margin-bottom: 18rpx;
+}
+
+.act {
+  flex: 1;
+  height: 84rpx;
+  border-radius: 22rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 27rpx;
+  font-weight: 600;
+  color: #0a7e72;
+  background: #ffffff;
+  border: 1rpx solid rgba(15, 156, 140, 0.28);
+}
+
+.act:active {
+  background: #eaf6f3;
+}
+
+/* ---------------- 空态 ---------------- */
+.empty {
+  padding: 90rpx 0 60rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.empty-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #13293a;
+}
+
+.empty-desc {
+  margin-top: 10rpx;
+  font-size: 23rpx;
+  color: #8b8f9a;
+}
+
+/* ---------------- 卡片 ---------------- */
+.card {
+  border-radius: 28rpx;
+  background: #ffffff;
+  border: 1rpx solid rgba(19, 41, 58, 0.06);
+  box-shadow: 0 6rpx 20rpx rgba(19, 41, 58, 0.05);
+  margin-bottom: 18rpx;
+  overflow: hidden;
+}
+
+.row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 24rpx 24rpx 16rpx;
+}
+
+.row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.row-head {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.row-score {
+  font-size: 32rpx;
+  font-weight: 700;
+  color: #13293a;
+}
+
+.row-rank {
+  margin-left: 12rpx;
+  padding: 2rpx 12rpx;
+  border-radius: 999rpx;
+  font-size: 20rpx;
+  color: #9a6414;
+  background: #fdf6ea;
+}
+
+.row-sim {
+  margin-left: 12rpx;
+  padding: 2rpx 12rpx;
+  border-radius: 999rpx;
+  font-size: 20rpx;
+  color: #8b5cf6;
+  background: #f3eeff;
+}
+
+.row-time {
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #8b8f9a;
+}
+
+.row-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.state {
+  font-size: 20rpx;
+  padding: 4rpx 14rpx;
+  border-radius: 999rpx;
+  color: #9a6414;
+  background: #fdf6ea;
+}
+
+.state.uploaded {
+  color: #0a7e72;
+  background: #eef8f6;
+}
+
+.state.failed {
+  color: #c0392b;
+  background: #fdeceb;
+}
+
+.state.skipped {
+  color: #8b5cf6;
+  background: #f3eeff;
+}
+
+.chev {
+  margin-top: 10rpx;
+  font-size: 21rpx;
+  color: #a9aeb8;
+}
+
+/* ---------------- KPI ---------------- */
+.row-kpi {
+  display: flex;
+  flex-direction: row;
+  padding: 6rpx 12rpx 22rpx;
+}
+
+.kpi {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.kpi-num {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #13293a;
+}
+
+.kpi-num.danger {
+  color: #c0392b;
+}
+
+.kpi-label {
+  margin-top: 4rpx;
+  font-size: 19rpx;
+  color: #8b8f9a;
+}
+
+/* ---------------- 详情 ---------------- */
+.detail {
+  padding: 4rpx 24rpx 24rpx;
+  border-top: 1rpx solid rgba(19, 41, 58, 0.06);
+  background: #fafbfd;
+  display: flex;
+  flex-direction: column;
+}
+
+.d-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 14rpx 0;
+}
+
+.d-key {
+  flex: 1;
+  font-size: 23rpx;
+  color: #6b7280;
+  padding-right: 20rpx;
+}
+
+.d-val {
+  font-size: 23rpx;
+  font-weight: 600;
+  color: #13293a;
+  text-align: right;
+}
+
+.d-note {
+  margin-top: 12rpx;
+  font-size: 20rpx;
+  line-height: 1.6;
+  color: #a9aeb8;
+}
+
+.d-actions {
+  display: flex;
+  flex-direction: row;
+  margin-top: 20rpx;
+}
+
+.d-btn {
+  flex: 1;
+  height: 76rpx;
+  margin-right: 16rpx;
+  border-radius: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #0a7e72;
+  background: #eef8f6;
+  border: 1rpx solid rgba(15, 156, 140, 0.22);
+}
+
+.d-btn:last-child {
+  margin-right: 0;
+}
+
+.d-btn.danger {
+  color: #c0392b;
+  background: #fdeceb;
+  border-color: rgba(192, 57, 43, 0.18);
+}
+
+/* ---------------- 底部 ---------------- */
+.clear {
+  margin-top: 10rpx;
+  height: 84rpx;
+  border-radius: 22rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 25rpx;
+  color: #c0392b;
+  background: #ffffff;
+  border: 1rpx solid rgba(192, 57, 43, 0.16);
+}
+
+.foot {
+  margin-top: 26rpx;
+  font-size: 20rpx;
+  line-height: 1.6;
+  color: #a9aeb8;
+  text-align: center;
+}

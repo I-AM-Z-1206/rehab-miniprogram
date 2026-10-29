@@ -20,6 +20,8 @@
 
 const { GameEngine } = require('../../race/engine.js')
 const WitBle = require('../../../utils/witble.js')
+const records = require('../../utils/race-record.js')
+const { getNickname } = require('../../../utils/tab.js')
 
 const MAX_DPR = 2
 const HINT_MS = 2600
@@ -56,7 +58,9 @@ const INVERT_THROTTLE = false
 Page({
   data: {
     showHint: true,
-    hintText: '左上角可返回'
+    hintText: '左上角可返回',
+    // 记录 / 设置入口只在菜单和结算页露出；对局中隐藏，避免误触打断训练
+    showNav: false
   },
 
   onLoad() {
@@ -70,6 +74,9 @@ Page({
     this.sensorReady = false
     this.rateSet = false
     this.motionSeeded = this.seedMotionParams()
+    // 一局只存一条记录：结算页可能停留很久，不能每帧都存
+    this.recordSaved = false
+    this.savedRecord = null
     this.bindResize()
   },
 
@@ -427,9 +434,21 @@ Page({
         console.error('[race] frame error', e)
         return
       }
+      // 进结算就落一条记录（只落一次）。赛车之前完全没有这一步，
+      // 治疗师那边一条数据都收不到，等于这局白练。
+      if (this.engine.state === 'result' && !this.recordSaved) {
+        try { this.persistRecord() } catch (e) { console.error('[race] 记录失败', e) }
+      }
+      // 结算页点「再来一局」是引擎内部切状态，页面这边要把标记复位，
+      // 否则第二局跑完不会存记录。
+      if (this.engine.state === 'play' && this.recordSaved) {
+        this.recordSaved = false
+        this.savedRecord = null
+      }
       // 每 ~0.5s 校一次视口，兜住不触发 resize 的机型
       this.frameCount = (this.frameCount || 0) + 1
       if (this.frameCount % 30 === 0) this.checkViewport()
+      this.syncNav(this.engine.state)
       this.raf = canvas.requestAnimationFrame(step)
     }
     this.raf = canvas.requestAnimationFrame(step)
@@ -459,6 +478,72 @@ Page({
     if (type === 'down') engine.onPointerDown(p.x, p.y)
     else if (type === 'move') engine.onPointerMove(p.x, p.y)
     else engine.onPointerUp()
+  },
+
+  // ---------------------------------------------------------------- 记录
+  /**
+   * 入口只在菜单/结算页显示。
+   * 对局中必须彻底隐藏：那两枚按钮压在画布左下角，比赛中会挡视线，
+   * 而且 catchtap 会把本该给画布的触摸吃掉（模拟模式下等于半个方向失灵）。
+   */
+  syncNav(state) {
+    const show = state === 'menu' || state === 'result'
+    if (show === this.navShown) return
+    this.navShown = show
+    this.setData({ showNav: show })
+  },
+
+  onGoRecords() {
+    wx.navigateTo({ url: '/pkgRace/pages/race-records/race-records' })
+  },
+
+  onGoSettings() {
+    wx.navigateTo({ url: '/pkgRace/pages/race-settings/race-settings' })
+  },
+
+  /**
+   * 把本局结算写进训练记录。
+   * 参数快照必须存：治疗师之后调了难度/死区，历史数据仍要能解释自己。
+   */
+  persistRecord() {
+    const engine = this.engine
+    if (!engine || !engine.result) return null
+    if (this.recordSaved) return this.savedRecord || null
+    const r = engine.result
+    const params = (engine.motion && engine.motion.params) || {}
+    const rec = {
+      recordId: records.makeId('race', r.date || Date.now()),
+      nickname: getNickname(),
+      gameId: 'race',
+      level: r.level,
+      levelName: r.levelName,
+      difficulty: r.level,
+      score: r.score,
+      combo: r.combo,
+      perfect: r.perfect,
+      hits: r.hits,
+      rings: r.rings,
+      accuracy: r.accuracy,
+      calories: r.calories,
+      distance: r.distance,
+      stableTime: r.stableTime,
+      durationSec: r.duration,
+      rank: r.rank,
+      dataSource: engine.ble && engine.ble.isMock ? 'simulation' : 'sensor',
+      endedAt: r.date,
+      startedAt: r.date ? r.date - (r.duration || 0) * 1000 : undefined,
+      configSnapshot: {
+        level: r.level,
+        maxAngle: params.maxAngle,
+        deadZone: params.deadZone,
+        smoothing: params.smoothing,
+        sessionSeconds: params.sessionSeconds
+      }
+    }
+    records.save(rec)
+    this.recordSaved = true
+    this.savedRecord = rec
+    return rec
   },
 
   // ---------------------------------------------------------------- 退出

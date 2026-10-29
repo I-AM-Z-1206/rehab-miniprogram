@@ -17,5 +17,23 @@ node_modules/
 __pycache__/
 *.pyc
 
+# 节奏训练音频中间产物（npm run audio:rhythm 生成，正式资源为同目录 m4a）
+pkgRhythm/audio/rhythm/*.wav
+
 # 编辑器/助手目录
 .workbuddy/
+
+# 后端运行时数据（训练记录落盘文件，不进仓库）
+server/data/
+server/static/uploads/
+
+# 后端部署包产物
+dist/
+
+# 本地预览截图与构建产物（调试用，不进仓库）
+tools/*/shots/
+tools/fruit-preview/bundle.js
+tools/rhythm-preview/bundle.js
+tools/wire-preview/bundle.js
+tools/shoot-preview/canvas-bundle.js
+tools/_*.tmp.js

@@ -1,11 +1,7 @@
 (() => {
   var __getOwnPropNames = Object.getOwnPropertyNames;
   var __commonJS = (cb, mod) => function __require() {
-    try {
-      return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
-    } catch (e) {
-      throw mod = 0, e;
-    }
+    return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
   };
 
   // utils/rhythm-songs.js
@@ -452,14 +448,14 @@
         },
         restRate: {
           group: "\u8282\u594F\u5224\u5B9A",
-          label: "\u4F11\u6B62\u62CD\u6BD4\u4F8B",
+          label: "\u547C\u5438\u62CD\u95F4\u9694",
           type: "num",
           unit: "",
           min: 0,
           max: 0.5,
-          step: 0.05,
-          def: 0.12,
-          tip: '\u968F\u673A\u7559\u7A7A\u7684\u62CD\u5B50\u6BD4\u4F8B\uFF0C\u7ED9\u60A3\u8005\u5598\u606F\uFF1B\u592A\u5927\u4F1A\u663E\u5F97"\u534A\u5929\u4E0D\u6765\u97F3\u7B26"'
+          step: 0.01,
+          def: 0.13,
+          tip: "\u6BCF N \u4E2A\u97F3\u7B26\u7A7A\u4E00\u62CD\uFF08\u56FA\u5B9A\u4F4D\u7F6E\uFF0C\u4E0D\u4F1A\u8FDE\u7740\u7A7A\uFF09\uFF1B0 = \u4E0D\u7559\u7A7A\u30020.13\u2248\u6BCF 8 \u4E2A\u7A7A\u4E00\u62CD"
         },
         sameSideRate: {
           group: "\u8282\u594F\u5224\u5B9A",
@@ -879,6 +875,29 @@
           return this.simMode || !this.stale && this.hasSignal;
         }
         // ---------------------------------------------------------------- 标定
+        /**
+         * 是否已有可用的零点。
+         * 零点存在 utils/zero.js 里，全 App 共用一份：零点标定页标过、或别的游戏标过，
+         * 这里都应当算数。以前各游戏只认「本次进入游戏内做过的标定」，导致已经标好的
+         * 用户每进一个游戏都被要求再标一次，重复劳动。
+         */
+        hasZero() {
+          if (this.cal && this.cal.result === "ok") return true;
+          try {
+            return !!zero.get().set;
+          } catch (e) {
+            return false;
+          }
+        }
+        /** 当前零点偏移量（度）。界面用它说明"沿用的是哪个零点" */
+        zeroInfo() {
+          try {
+            const z = zero.get();
+            return { roll: z.roll, pitch: z.pitch, set: !!z.set };
+          } catch (e) {
+            return { roll: 0, pitch: 0, set: false };
+          }
+        }
         beginCalibration() {
           this.cal.active = true;
           this.cal.startedAt = Date.now();
@@ -1101,19 +1120,24 @@
         const seed = Number(o.seed) || 7;
         const version = o.chartSeedVersion || "v1";
         const rng = mulberry32(hashSeed(song.songId + "|" + difficulty + "|" + seed + "|" + version));
+        const restEvery = restRate > 0 ? Math.max(4, Math.round(1 / restRate)) : 0;
         const notes = [];
         let lastSide = "right";
         let lastTime = -99999;
         let seq = 0;
         let restBeats = 0;
+        let slot = 0;
         for (let b = prepBeats; b * beat + offsetMs <= durationMs; b += step) {
           if (notes.length >= MAX_NOTES) break;
           const timeMs = Math.round(b * beat) + offsetMs;
           if (timeMs > durationMs) break;
           const early = b < prepBeats + 2 * step;
-          if (!early && rng() < restRate) {
-            restBeats += 1;
-            continue;
+          if (!early) {
+            slot += 1;
+            if (restEvery && slot % restEvery === 0) {
+              restBeats += 1;
+              continue;
+            }
           }
           let side = lastSide === "left" ? "right" : "left";
           if (centerRate > 0 && rng() < centerRate) side = "center";
@@ -2123,7 +2147,9 @@
             quality: this.motion.quality,
             stale: this.motion.stale,
             live: this.motion.isLive(),
-            calibrated: !!(this.motion.cal && this.motion.cal.result === "ok") || this.simMode,
+            // 零点全 App 共用：本局标过、标定页标过、别的游戏标过，都算已标定
+            calibrated: !!this.simMode || this.motion.hasZero(),
+            zero: this.motion.zeroInfo(),
             calibration: this.motion.cal,
             sim: this.simMode,
             audioMode: this.mode,
@@ -2194,6 +2220,416 @@
     }
   });
 
+  // utils/scene/depth.js
+  var require_depth = __commonJS({
+    "utils/scene/depth.js"(exports, module) {
+      var TAU = Math.PI * 2;
+      function clamp(v, lo, hi) {
+        return v < lo ? lo : v > hi ? hi : v;
+      }
+      function lerp(a, b, t) {
+        return a + (b - a) * t;
+      }
+      function finite() {
+        for (let i = 0; i < arguments.length; i++) {
+          const v = arguments[i];
+          if (typeof v !== "number" || !isFinite(v)) return false;
+        }
+        return true;
+      }
+      function depthT(y, hz, h) {
+        if (!finite(y, hz, h) || h - hz <= 0) return 0;
+        return clamp((y - hz) / (h - hz), 0, 1);
+      }
+      function fillEllipse(ctx, x, y, rx, ry, style) {
+        if (!finite(x, y, rx, ry) || rx <= 0 || ry <= 0) return;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(1, ry / rx);
+        ctx.fillStyle = style;
+        ctx.beginPath();
+        ctx.arc(0, 0, rx, 0, TAU);
+        ctx.fill();
+        ctx.restore();
+      }
+      function ringEllipse(ctx, x, y, rx, ry, style, lw) {
+        if (!finite(x, y, rx, ry) || rx <= 0 || ry <= 0) return;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(1, ry / rx);
+        ctx.beginPath();
+        ctx.arc(0, 0, rx, 0, TAU);
+        ctx.strokeStyle = style;
+        ctx.lineWidth = lw || 1;
+        ctx.stroke();
+        ctx.restore();
+      }
+      function softShadow(ctx, x, y, rx, ry, alpha, color) {
+        if (!finite(x, y, rx, ry) || rx <= 0 || ry <= 0) return;
+        const a = clamp(alpha, 0, 1);
+        if (a <= 4e-3) return;
+        const c = color || "0,0,0";
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(1, ry / rx);
+        const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+        g.addColorStop(0, "rgba(" + c + "," + a.toFixed(3) + ")");
+        g.addColorStop(0.5, "rgba(" + c + "," + (a * 0.55).toFixed(3) + ")");
+        g.addColorStop(1, "rgba(" + c + ",0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(0, 0, rx, 0, TAU);
+        ctx.fill();
+        ctx.restore();
+      }
+      function haze(ctx, o) {
+        if (!o || !finite(o.cx, o.y, o.rx)) return;
+        const ry = o.ry || 0.07;
+        const a = o.alpha === void 0 ? 0.22 : o.alpha;
+        if (o.rx <= 0 || a <= 4e-3) return;
+        const c = o.color || "255,246,220";
+        ctx.save();
+        ctx.translate(o.cx, o.y);
+        ctx.scale(1, ry);
+        const g = ctx.createRadialGradient(0, 0, 0, 0, 0, o.rx);
+        g.addColorStop(0, "rgba(" + c + "," + a.toFixed(3) + ")");
+        g.addColorStop(0.55, "rgba(" + c + "," + (a * 0.4).toFixed(3) + ")");
+        g.addColorStop(1, "rgba(" + c + ",0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(0, 0, o.rx, 0, TAU);
+        ctx.fill();
+        ctx.restore();
+        if (o.lineAlpha && o.lineAlpha > 4e-3) {
+          const w = o.w || o.rx * 2;
+          const x0 = o.cx - w / 2;
+          const lg = ctx.createLinearGradient(x0, 0, x0 + w, 0);
+          lg.addColorStop(0, "rgba(" + c + ",0)");
+          lg.addColorStop(0.34, "rgba(" + c + "," + (o.lineAlpha * 0.55).toFixed(3) + ")");
+          lg.addColorStop(0.5, "rgba(" + c + "," + o.lineAlpha.toFixed(3) + ")");
+          lg.addColorStop(0.66, "rgba(" + c + "," + (o.lineAlpha * 0.55).toFixed(3) + ")");
+          lg.addColorStop(1, "rgba(" + c + ",0)");
+          ctx.fillStyle = lg;
+          ctx.fillRect(x0, o.y - 0.5, w, 1);
+        }
+      }
+      function ridge(ctx, o) {
+        if (!o || !finite(o.w, o.hz)) return;
+        const w = o.w;
+        const hz = o.hz;
+        const bands = o.bands || [];
+        for (let L = 0; L < bands.length; L++) {
+          const p = bands[L];
+          const amp = p.amp === void 0 ? 0.1 : p.amp;
+          const rise = p.rise === void 0 ? 0.05 : p.rise;
+          const freq = p.freq || 6.1;
+          const seed = p.seed || 1.3;
+          const a = p.alpha === void 0 ? 0.6 : p.alpha;
+          ctx.beginPath();
+          ctx.moveTo(-4, hz + 2);
+          const step = o.step || 6;
+          for (let x = -4; x <= w + 4; x += step) {
+            const u = x / w;
+            const wave = Math.sin(u * freq + seed) * 0.5 + Math.sin(u * freq * 2.24 + seed * 2) * 0.3 + Math.sin(u * freq * 4.8 + seed * 3) * 0.14;
+            const y = hz - (wave + 0.9) * w * amp * 0.5 + w * rise * 0.5;
+            ctx.lineTo(x, y);
+          }
+          ctx.lineTo(w + 4, hz + 2);
+          ctx.closePath();
+          ctx.fillStyle = "rgba(" + (p.color || "40,70,90") + "," + a + ")";
+          ctx.fill();
+        }
+      }
+      function perspectiveFloor(ctx, o) {
+        if (!o || !finite(o.w, o.h, o.hz, o.cx)) return;
+        const w = o.w;
+        const h = o.h;
+        const hz = o.hz;
+        const cx = o.cx;
+        const floorH = h - hz;
+        if (floorH <= 0) return;
+        const rows = o.rows || 10;
+        const phase = o.phase || 0;
+        const col = o.color || "255,255,255";
+        const nearA = o.nearAlpha === void 0 ? 0.14 : o.nearAlpha;
+        const farA = o.farAlpha === void 0 ? 0.05 : o.farAlpha;
+        const lw = o.lineWidth || 1;
+        const ys = [];
+        for (let i = 1; i <= rows + 1; i++) {
+          const u = i - phase % 1;
+          if (u < 0.06) {
+            ys.push(null);
+            continue;
+          }
+          const y = hz + floorH / u;
+          ys.push(y > h + 4 ? null : y);
+        }
+        if (o.stripe) {
+          const sc = o.stripe.color || "255,255,255";
+          const sa = o.stripe.alpha === void 0 ? 0.05 : o.stripe.alpha;
+          for (let i = 0; i < ys.length - 1; i++) {
+            const y0 = ys[i + 1];
+            const y1 = ys[i];
+            if (y0 === null || y1 === null || y1 - y0 < 1) continue;
+            const t = depthT((y0 + y1) * 0.5, hz, h);
+            ctx.fillStyle = "rgba(" + sc + "," + (sa * (0.35 + t * 0.9)).toFixed(3) + ")";
+            ctx.fillRect(0, Math.max(hz, y0), w, Math.min(h, y1) - Math.max(hz, y0));
+          }
+        }
+        if (o.cols) {
+          const spread = o.spread === void 0 ? 0.17 : o.spread;
+          const topSpread = o.topSpread === void 0 ? 0.012 : o.topSpread;
+          ctx.beginPath();
+          for (let i = -o.cols; i <= o.cols; i++) {
+            const bx = cx + i * (w * spread);
+            const tx = cx + i * (w * topSpread);
+            if (bx < -w || bx > w * 2) continue;
+            ctx.moveTo(tx, hz);
+            ctx.lineTo(bx, h);
+          }
+          ctx.strokeStyle = "rgba(" + col + "," + (farA * 1.1).toFixed(3) + ")";
+          ctx.lineWidth = lw;
+          ctx.stroke();
+        }
+        const bands = [
+          { lo: 5.5, hi: 999, k: 0 },
+          { lo: 2.6, hi: 5.5, k: 0.55 },
+          { lo: 0, hi: 2.6, k: 1 }
+        ];
+        for (let b = 0; b < bands.length; b++) {
+          const band = bands[b];
+          ctx.beginPath();
+          let drew = false;
+          for (let i = 0; i < ys.length; i++) {
+            const y = ys[i];
+            if (y === null) continue;
+            const u = i + 1 - phase % 1;
+            if (u < band.lo || u >= band.hi) continue;
+            if (y < hz + 1) continue;
+            ctx.moveTo(0, y);
+            ctx.lineTo(w, y);
+            drew = true;
+          }
+          if (!drew) continue;
+          const a = lerp(farA, nearA, band.k);
+          ctx.strokeStyle = "rgba(" + col + "," + a.toFixed(3) + ")";
+          ctx.lineWidth = lw * (1 + band.k * 0.9);
+          ctx.stroke();
+        }
+        if (o.fadeSide) {
+          const sc = o.fadeColor || "0,0,0";
+          const k = o.fadeSide;
+          const side = ctx.createLinearGradient(0, 0, w, 0);
+          side.addColorStop(0, "rgba(" + sc + "," + (0.9 * k).toFixed(3) + ")");
+          side.addColorStop(0.2, "rgba(" + sc + "," + (0.55 * k).toFixed(3) + ")");
+          side.addColorStop(0.42, "rgba(" + sc + "," + (0.08 * k).toFixed(3) + ")");
+          side.addColorStop(0.5, "rgba(" + sc + ",0)");
+          side.addColorStop(0.58, "rgba(" + sc + "," + (0.08 * k).toFixed(3) + ")");
+          side.addColorStop(0.8, "rgba(" + sc + "," + (0.55 * k).toFixed(3) + ")");
+          side.addColorStop(1, "rgba(" + sc + "," + (0.9 * k).toFixed(3) + ")");
+          ctx.fillStyle = side;
+          ctx.fillRect(0, hz, w, floorH);
+        }
+        if (o.fadeBottom) {
+          const sc = o.fadeColor || "0,0,0";
+          const bh = floorH * 0.34;
+          const bottom = ctx.createLinearGradient(0, h - bh, 0, h);
+          bottom.addColorStop(0, "rgba(" + sc + ",0)");
+          bottom.addColorStop(1, "rgba(" + sc + "," + o.fadeBottom.toFixed(3) + ")");
+          ctx.fillStyle = bottom;
+          ctx.fillRect(0, h - bh, w, bh);
+        }
+      }
+      function cloudSea(ctx, o) {
+        if (!o || !finite(o.w, o.y)) return;
+        const w = o.w;
+        const y = o.y;
+        const c = o.color || "255,255,255";
+        const a = o.alpha === void 0 ? 0.6 : o.alpha;
+        const n = o.count || 7;
+        const h = o.h || 22;
+        const seed = o.seed || 3.1;
+        const jitter = o.jitter || 0;
+        for (let i = 0; i < n; i++) {
+          const u = (i + 0.5) / n;
+          const jx = Math.sin(i * 2.7 + seed) * w * 0.035;
+          const jy = jitter ? Math.sin(i * 5.3 + seed * 1.7) * jitter : 0;
+          const x = w * u + jx + (o.drift || 0);
+          const r = w * (0.09 + i * 37 % 11 / 11 * 0.09) * (o.scale || 1);
+          const ry = h * (0.5 + i * 53 % 7 / 7 * 0.5);
+          const yy = y + jy;
+          fillEllipse(ctx, x, yy, r, ry, "rgba(" + c + "," + (a * 0.85).toFixed(3) + ")");
+          fillEllipse(
+            ctx,
+            x - r * 0.3,
+            yy - ry * 0.55,
+            r * 0.55,
+            ry * 0.78,
+            "rgba(" + c + "," + (a * 0.72).toFixed(3) + ")"
+          );
+          fillEllipse(
+            ctx,
+            x + r * 0.28,
+            yy - ry * 0.4,
+            r * 0.46,
+            ry * 0.62,
+            "rgba(" + c + "," + (a * 0.58).toFixed(3) + ")"
+          );
+        }
+      }
+      function cloudBank(ctx, o) {
+        if (!o || !finite(o.w, o.y, o.h)) return;
+        const w = o.w;
+        const y = o.y;
+        const h = o.h;
+        if (h <= 0) return;
+        const c = o.color || "255,255,255";
+        const a = o.alpha === void 0 ? 0.5 : o.alpha;
+        if (a <= 4e-3) return;
+        const wave = o.wave === void 0 ? 10 : o.wave;
+        const freq = o.freq || 5.4;
+        const seed = o.seed || 1.9;
+        const step = o.step || 7;
+        ctx.beginPath();
+        ctx.moveTo(-4, y + h);
+        for (let x = -4; x <= w + 4; x += step) {
+          const u = x / w;
+          const yy = y + Math.sin(u * freq + seed) * wave + Math.sin(u * freq * 2.3 + seed * 2.1) * wave * 0.45 + Math.sin(u * freq * 4.7 + seed * 3.3) * wave * 0.18;
+          if (x <= -4) ctx.moveTo(x, yy);
+          else ctx.lineTo(x, yy);
+        }
+        ctx.lineTo(w + 4, y + h);
+        ctx.closePath();
+        const g = ctx.createLinearGradient(0, y - wave, 0, y + h);
+        g.addColorStop(0, "rgba(" + c + "," + a.toFixed(3) + ")");
+        g.addColorStop(0.55, "rgba(" + c + "," + (a * 0.66).toFixed(3) + ")");
+        g.addColorStop(1, "rgba(" + c + ",0)");
+        ctx.fillStyle = g;
+        ctx.fill();
+        if (o.rimAlpha && o.rimAlpha > 4e-3) {
+          ctx.beginPath();
+          for (let x = -4; x <= w + 4; x += step) {
+            const u = x / w;
+            const yy = y + Math.sin(u * freq + seed) * wave + Math.sin(u * freq * 2.3 + seed * 2.1) * wave * 0.45 + Math.sin(u * freq * 4.7 + seed * 3.3) * wave * 0.18;
+            if (x <= -4) ctx.moveTo(x, yy);
+            else ctx.lineTo(x, yy);
+          }
+          ctx.strokeStyle = "rgba(" + c + "," + o.rimAlpha.toFixed(3) + ")";
+          ctx.lineWidth = o.rimWidth || 1.4;
+          ctx.stroke();
+        }
+      }
+      function rimLight(ctx, o) {
+        if (!o || !finite(o.x, o.y, o.rx, o.ry)) return;
+        const a = o.alpha === void 0 ? 0.34 : o.alpha;
+        if (a <= 4e-3 || o.rx <= 0 || o.ry <= 0) return;
+        const c = o.color || "255,255,255";
+        const from = o.from === void 0 ? -2.3 : o.from;
+        ctx.save();
+        ctx.translate(o.x, o.y);
+        ctx.scale(1, o.ry / o.rx);
+        ctx.beginPath();
+        ctx.arc(0, 0, o.rx, from - 1.15, from + 1.15);
+        const g = ctx.createLinearGradient(
+          Math.cos(from - 1.15) * o.rx,
+          Math.sin(from - 1.15) * o.rx,
+          Math.cos(from + 1.15) * o.rx,
+          Math.sin(from + 1.15) * o.rx
+        );
+        g.addColorStop(0, "rgba(" + c + ",0)");
+        g.addColorStop(0.5, "rgba(" + c + "," + a.toFixed(3) + ")");
+        g.addColorStop(1, "rgba(" + c + ",0)");
+        ctx.strokeStyle = g;
+        ctx.lineWidth = o.lw || 1.6;
+        ctx.stroke();
+        ctx.restore();
+      }
+      function buildDust(w, h, top, bottom, n, seedBase) {
+        const list = [];
+        const s = seedBase || 0;
+        for (let i = 0; i < n; i++) {
+          const r1 = (Math.sin((i + 1) * 12.9898 + s) * 43758.5453 % 1 + 1) % 1;
+          const r2 = (Math.sin((i + 1) * 78.233 + s) * 12345.6789 % 1 + 1) % 1;
+          const r3 = (Math.sin((i + 1) * 39.425 + s) * 9876.5432 % 1 + 1) % 1;
+          list.push({
+            x: w * r1,
+            y: top + (bottom - top) * r2,
+            r: 0.7 + r3 * 1.9,
+            a: 0.08 + r2 * 0.2,
+            sp: 3 + r1 * 8,
+            p: r3 * TAU
+          });
+        }
+        return list;
+      }
+      function drawDust(ctx, list, t, o) {
+        if (!list || !list.length) return;
+        const opt = o || {};
+        const top = opt.top === void 0 ? 0 : opt.top;
+        const bottom = opt.bottom === void 0 ? 0 : opt.bottom;
+        const span = bottom - top;
+        const c = opt.color || "255,255,255";
+        const amp = opt.alpha === void 0 ? 1 : opt.alpha;
+        ctx.save();
+        for (let i = 0; i < list.length; i++) {
+          const d = list[i];
+          let y = d.y - t * d.sp % (span > 0 ? span : 1);
+          if (span > 0 && y < top) y = bottom - (top - y);
+          const a = d.a * amp * (0.5 + 0.5 * Math.sin(t * 1.6 + d.p));
+          if (a <= 0.01) continue;
+          ctx.fillStyle = "rgba(" + c + "," + a.toFixed(3) + ")";
+          ctx.beginPath();
+          ctx.arc(d.x + Math.sin(t * 0.5 + d.p) * 4, y, d.r, 0, TAU);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+      function vignette(ctx, o) {
+        if (!o || !finite(o.w, o.h)) return;
+        const w = o.w;
+        const h = o.h;
+        const a = o.alpha === void 0 ? 0.5 : o.alpha;
+        if (a <= 4e-3) return;
+        const c = o.color || "0,0,0";
+        const cy = o.cy === void 0 ? 0.5 : o.cy;
+        const inner = o.inner === void 0 ? 0.34 : o.inner;
+        const outer = o.outer === void 0 ? 0.78 : o.outer;
+        const g = ctx.createRadialGradient(
+          w * 0.5,
+          h * cy,
+          Math.min(w, h) * inner,
+          w * 0.5,
+          h * (cy + 0.04),
+          Math.max(w, h) * outer
+        );
+        g.addColorStop(0, "rgba(" + c + ",0)");
+        g.addColorStop(0.7, "rgba(" + c + "," + (a * 0.31).toFixed(3) + ")");
+        g.addColorStop(1, "rgba(" + c + "," + a.toFixed(3) + ")");
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, w, h);
+      }
+      module.exports = {
+        TAU,
+        clamp,
+        lerp,
+        finite,
+        depthT,
+        fillEllipse,
+        ringEllipse,
+        softShadow,
+        haze,
+        ridge,
+        perspectiveFloor,
+        cloudSea,
+        cloudBank,
+        rimLight,
+        buildDust,
+        drawDust,
+        vignette
+      };
+    }
+  });
+
   // pkgRhythm/games/rhythm/renderer.js
   var require_renderer = __commonJS({
     "pkgRhythm/games/rhythm/renderer.js"(exports, module) {
@@ -2225,6 +2661,7 @@
         shadow: "rgba(92,116,148,0.16)",
         page: "#EAF7FF"
       };
+      var depth = require_depth();
       function clamp(v, lo, hi) {
         return v < lo ? lo : v > hi ? hi : v;
       }
@@ -2297,30 +2734,40 @@
           const H = this.H;
           const short = H < 700;
           const safeTop = this._safeTop();
-          const hudY = safeTop + 6;
-          const hudH = short ? 100 : 114;
-          const btnY = H - (short ? 52 : 58);
-          const btnH = short ? 38 : 42;
-          const stageTop = hudY + hudH + 8;
-          const stageBottom = btnY - (short ? 10 : 14);
-          const stageH = Math.max(200, stageBottom - stageTop);
+          const pillY = safeTop + 4;
+          const pillH = short ? 30 : 34;
+          const statY = pillY + pillH + 8;
+          const statH = short ? 68 : 72;
+          const btnH = short ? 38 : 44;
+          const btnY = H - (short ? 8 : 10) - btnH;
+          const posH = short ? 44 : 50;
+          const posY = btnY - 8 - posH;
+          const stageTop = statY + statH + 10;
+          const stageBottom = posY - 8;
+          const stageH = Math.max(150, stageBottom - stageTop);
           this.L = {
             W,
             H,
             short,
             safeTop,
-            hudY,
-            hudH,
-            hudBottom: hudY + hudH,
+            pillY,
+            pillH,
+            statY,
+            statH,
+            hudY: pillY,
+            hudH: statY + statH - pillY,
+            hudBottom: statY + statH,
+            posY,
+            posH,
             btnY,
             btnH,
             stageTop,
             stageBottom,
             stageH,
-            horizonY: stageTop + stageH * (short ? 0.16 : 0.14),
-            judgeY: stageTop + stageH * 0.8,
+            horizonY: stageTop + stageH * (short ? 0.14 : 0.12),
+            judgeY: stageTop + stageH * 0.84,
             cx: W / 2,
-            roadTopHalf: Math.max(18, W * 0.055),
+            roadTopHalf: Math.max(16, W * 0.05),
             roadBottomHalf: W * 0.47,
             padHalfW: clamp(W * 0.085, 26, 42),
             padH: short ? 24 : 28
@@ -2354,7 +2801,6 @@
           this._drawWorld(vm, screen);
           if (screen === "play") {
             this._drawHud(vm);
-            this._drawCombo(vm);
             this._drawBottomBar(vm);
             if (vm.sim) this._drawSimPad(vm);
             if (vm.state === "COUNTDOWN") this._drawCountdown(vm);
@@ -2451,8 +2897,100 @@
             g.arc(x, y, r, 0, Math.PI * 2);
             g.fill();
           }
+          const hillY = L.horizonY;
+          const range = (col, h1, h2, lift) => {
+            g.beginPath();
+            g.moveTo(0, hillY + 3 + lift);
+            g.lineTo(W * 0.14, hillY - h1 * 0.55 + lift);
+            g.lineTo(W * 0.22, hillY - h1 + lift);
+            g.lineTo(W * 0.31, hillY - h2 * 0.5 + lift);
+            g.lineTo(W * 0.4, hillY - h2 + lift);
+            g.lineTo(W * 0.5, hillY - h1 * 0.45 + lift);
+            g.lineTo(W * 0.6, hillY - h2 * 0.85 + lift);
+            g.lineTo(W * 0.7, hillY - h1 * 0.4 + lift);
+            g.lineTo(W * 0.8, hillY - h2 * 0.95 + lift);
+            g.lineTo(W * 0.9, hillY - h1 * 0.55 + lift);
+            g.lineTo(W, hillY - h2 * 0.6 + lift);
+            g.lineTo(W, hillY + 6 + lift);
+            g.lineTo(0, hillY + 6 + lift);
+            g.closePath();
+            g.fillStyle = col;
+            g.fill();
+          };
+          range("rgba(150,196,214,0.75)", 66, 44, 0);
+          range("rgba(112,170,190,0.85)", 44, 30, 10);
+          const lake = g.createLinearGradient(0, hillY, 0, hillY + 74);
+          lake.addColorStop(0, "rgba(146,214,226,0.95)");
+          lake.addColorStop(1, "rgba(186,232,238,0.85)");
+          g.fillStyle = lake;
+          g.fillRect(0, hillY - 2, W, 76);
+          g.save();
+          g.strokeStyle = "rgba(255,255,255,0.45)";
+          g.lineWidth = 1;
+          for (let i = 0; i < 5; i++) {
+            const wy = hillY + 8 + i * 13;
+            g.beginPath();
+            g.moveTo(W * 0.02, wy);
+            g.quadraticCurveTo(W * 0.2, wy - 2, W * 0.38, wy);
+            g.stroke();
+            g.beginPath();
+            g.moveTo(W * 0.62, wy + 3);
+            g.quadraticCurveTo(W * 0.8, wy + 1, W * 0.98, wy + 3);
+            g.stroke();
+          }
+          g.restore();
+          const blossom = (tx, ty, r, alpha) => {
+            g.save();
+            g.globalAlpha = alpha;
+            g.fillStyle = "rgba(140,108,92,0.9)";
+            g.fillRect(tx - r * 0.09, ty - r * 0.9, r * 0.18, r * 0.95);
+            const grd = g.createRadialGradient(tx - r * 0.3, ty - r * 1.5, r * 0.1, tx, ty - r * 1.1, r * 1.15);
+            grd.addColorStop(0, "#FFD3E2");
+            grd.addColorStop(0.65, "#FFB4CE");
+            grd.addColorStop(1, "#F58FB4");
+            g.fillStyle = grd;
+            [[0, -1.1, 0.72], [-0.72, -0.86, 0.52], [0.74, -0.9, 0.5], [0.34, -1.42, 0.46], [-0.4, -1.36, 0.44]].forEach((p) => {
+              g.beginPath();
+              g.arc(tx + p[0] * r, ty + p[1] * r, r * p[2], 0, Math.PI * 2);
+              g.fill();
+            });
+            g.restore();
+          };
+          blossom(W * 0.055, hillY + 34, 24, 0.95);
+          blossom(W * 0.155, hillY + 26, 17, 0.9);
+          blossom(W * 0.945, hillY + 36, 24, 0.95);
+          blossom(W * 0.845, hillY + 26, 17, 0.9);
           this._paintRoad(g);
           this._paintGrid(g);
+          depth.haze(g, {
+            cx: L.cx,
+            y: L.horizonY + 1,
+            rx: W * 0.52,
+            ry: 0.055,
+            color: "255,251,235",
+            alpha: 0.62
+          });
+          const fogH = (L.stageBottom - L.horizonY) * 0.22;
+          const span = L.stageBottom + 20 - L.horizonY;
+          const halfAt = (y) => lerp(
+            L.roadTopHalf,
+            L.roadBottomHalf,
+            clamp((y - L.horizonY) / span, 0, 1)
+          );
+          const hTop = halfAt(L.horizonY) * 1.02;
+          const hBot = halfAt(L.horizonY + fogH) * 1.02;
+          const fog = g.createLinearGradient(0, L.horizonY, 0, L.horizonY + fogH);
+          fog.addColorStop(0, "rgba(255,251,238,0.92)");
+          fog.addColorStop(0.45, "rgba(255,251,238,0.42)");
+          fog.addColorStop(1, "rgba(255,251,238,0)");
+          g.beginPath();
+          g.moveTo(L.cx - hTop, L.horizonY);
+          g.lineTo(L.cx + hTop, L.horizonY);
+          g.lineTo(L.cx + hBot, L.horizonY + fogH);
+          g.lineTo(L.cx - hBot, L.horizonY + fogH);
+          g.closePath();
+          g.fillStyle = fog;
+          g.fill();
         }
         _paintRoad(g) {
           const L = this.L;
@@ -2481,9 +3019,9 @@
             g.fillStyle = col;
             g.fill();
           };
-          laneBand(-1, -0.23, "rgba(255,183,206,0.40)");
-          laneBand(-0.23, 0.23, "rgba(255,234,178,0.34)");
-          laneBand(0.23, 1, "rgba(150,231,205,0.38)");
+          laneBand(-1, -0.23, "rgba(255,175,201,0.55)");
+          laneBand(-0.23, 0.23, "rgba(255,226,158,0.52)");
+          laneBand(0.23, 1, "rgba(140,226,198,0.55)");
           const hg = g.createLinearGradient(cx - L.roadTopHalf, 0, cx + L.roadTopHalf, 0);
           hg.addColorStop(0, "rgba(255,255,255,0)");
           hg.addColorStop(0.5, "rgba(255,255,255,0.85)");
@@ -2494,18 +3032,18 @@
             g.beginPath();
             g.moveTo(cx + dir * L.roadTopHalf, topY);
             g.lineTo(cx + dir * L.roadBottomHalf, botY);
-            g.lineWidth = 3;
-            g.strokeStyle = "rgba(255,255,255,0.95)";
+            g.lineWidth = 4.5;
+            g.strokeStyle = col;
             g.stroke();
             g.beginPath();
             g.moveTo(cx + dir * L.roadTopHalf, topY);
             g.lineTo(cx + dir * L.roadBottomHalf, botY);
-            g.lineWidth = 1.6;
-            g.strokeStyle = col;
+            g.lineWidth = 2;
+            g.strokeStyle = "rgba(255,255,255,0.96)";
             g.stroke();
           };
-          edge(-1, "rgba(239,108,150,0.55)");
-          edge(1, "rgba(42,157,189,0.55)");
+          edge(-1, "rgba(239,108,150,0.75)");
+          edge(1, "rgba(52,176,203,0.75)");
           [-1, 1].forEach((k) => {
             g.lineCap = "round";
             for (let i = 0; i < 16; i++) {
@@ -2544,15 +3082,18 @@
           const jy = L.judgeY;
           const half = lerp(L.roadTopHalf, L.roadBottomHalf, (jy - topY) / (botY - topY));
           const band = g.createLinearGradient(cx - half, jy, cx + half, jy);
-          band.addColorStop(0, "rgba(255,143,177,0.35)");
-          band.addColorStop(0.5, "rgba(255,255,255,0.95)");
-          band.addColorStop(1, "rgba(94,211,184,0.35)");
+          band.addColorStop(0, "rgba(239,108,150,0.9)");
+          band.addColorStop(0.12, "rgba(255,255,255,0.98)");
+          band.addColorStop(0.88, "rgba(255,255,255,0.98)");
+          band.addColorStop(1, "rgba(52,176,203,0.9)");
           g.beginPath();
           g.moveTo(cx - half, jy);
           g.lineTo(cx + half, jy);
-          g.lineWidth = 4;
+          g.lineWidth = 5;
+          g.lineCap = "round";
           g.strokeStyle = band;
           g.stroke();
+          g.lineCap = "butt";
         }
         // ---------------------------------------------------------------- 舞台
         _laneX(side, t) {
@@ -2580,6 +3121,8 @@
           if (screen === "play") {
             this._drawPetals();
             this._drawJudgeGlow(vm);
+            this._drawBeatLines(vm);
+            this._drawTargetLane(vm);
             this._drawNotes(vm);
             this._drawPads(vm);
             this._drawPlayer(vm);
@@ -2588,6 +3131,15 @@
           } else if (screen === "intro") {
             this._drawIntroNotes(vm);
           }
+          depth.vignette(ctx, {
+            w: L.W,
+            h: L.H,
+            color: "54,74,96",
+            alpha: 0.15,
+            cy: 0.52,
+            inner: 0.44,
+            outer: 0.98
+          });
         }
         /** 飘落的小花瓣：让画面"活"起来，成本很低 */
         _drawPetals() {
@@ -2631,6 +3183,70 @@
           ctx.fillRect(L.cx - half, L.judgeY - 3, half * 2, 6);
           ctx.restore();
         }
+        /** 节拍横线：每一拍一条，顺着跑道流向判定线（也在提示"这一拍"的位置） */
+        _drawBeatLines(vm) {
+          const ctx = this.ctx;
+          const L = this.L;
+          const beat = vm.beatMs || 500;
+          if (!beat) return;
+          const approach = clamp(Number(this.cfg.get("approachMs")) || 2400, 900, 4e3);
+          const now = vm.musicMs || 0;
+          const phase = now % beat / beat;
+          const count = Math.ceil(approach / beat) + 2;
+          ctx.save();
+          for (let j = 0; j <= count; j++) {
+            const p = 1 - (j - phase) * beat / approach;
+            if (p < 0 || p > 1.02) continue;
+            const t = Math.pow(clamp(p, 0, 1), 1.15);
+            const y = lerp(L.horizonY, L.judgeY, t);
+            const half = lerp(L.roadTopHalf, L.roadBottomHalf, t);
+            const a = 0.14 + 0.2 * p;
+            ctx.beginPath();
+            ctx.moveTo(L.cx - half, y);
+            ctx.lineTo(L.cx + half, y);
+            ctx.lineWidth = 1.4 + t * 3;
+            ctx.strokeStyle = "rgba(126,158,190," + a.toFixed(3) + ")";
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+        /** 下一颗音符快到时，把它的车道按透视点亮一段：视线自动跟过去 */
+        _drawTargetLane(vm) {
+          const ctx = this.ctx;
+          const L = this.L;
+          const notes = vm.notes || [];
+          let next = null;
+          for (let i = 0; i < notes.length; i++) {
+            const n = notes[i];
+            if (n.judged) continue;
+            if (!next || n.progress < next.progress) next = n;
+          }
+          if (!next || next.progress < 0.55) return;
+          const k = clamp((next.progress - 0.55) / 0.45, 0, 1);
+          const t0 = Math.pow(0.55, 1.15);
+          const t1 = 1;
+          const y0 = lerp(L.horizonY, L.judgeY, t0);
+          const y1 = L.judgeY;
+          const half0 = lerp(L.roadTopHalf, L.roadBottomHalf, t0) * 0.23;
+          const half1 = lerp(L.roadTopHalf, L.roadBottomHalf, t1) * 0.23;
+          const x0 = this._laneX(next.side, t0);
+          const x1 = this._laneX(next.side, t1);
+          const col = next.side === "left" ? "255,143,177" : next.side === "center" ? "247,185,85" : "94,211,184";
+          const g = ctx.createLinearGradient(0, y0, 0, y1);
+          g.addColorStop(0, "rgba(" + col + ",0)");
+          g.addColorStop(0.72, "rgba(" + col + "," + (0.1 + k * 0.12).toFixed(3) + ")");
+          g.addColorStop(1, "rgba(" + col + "," + (0.2 + k * 0.18).toFixed(3) + ")");
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(x0 - half0 * 1.15, y0);
+          ctx.lineTo(x0 + half0 * 1.15, y0);
+          ctx.lineTo(x1 + half1 * 1.55, y1 + 6);
+          ctx.lineTo(x1 - half1 * 1.55, y1 + 6);
+          ctx.closePath();
+          ctx.fillStyle = g;
+          ctx.fill();
+          ctx.restore();
+        }
         _drawNotes(vm) {
           const ctx = this.ctx;
           const L = this.L;
@@ -2644,8 +3260,8 @@
             const t = Math.pow(clamp(p, 0, 1), 1.15);
             const y = this._noteY(p);
             const x = this._laneX(n.side, t);
-            const scale = 0.58 + 0.6 * Math.pow(clamp(p, 0, 1), 1.2);
-            const R = (n.type === "accent" ? 19 : 16) * scale;
+            const scale = 0.68 + 0.5 * Math.pow(clamp(p, 0, 1), 1.2);
+            const R = (n.type === "accent" ? 25 : 21) * scale;
             const color = tint[n.side] || C.pink;
             const deep = tintDeep[n.side] || C.pinkDeep;
             let alpha = 1;
@@ -2703,14 +3319,7 @@
             ctx.fillStyle = "rgba(255,255,255,0.92)";
             ctx.fill();
             ctx.globalAlpha = alpha;
-            if (n.side === "center") {
-              ctx.beginPath();
-              ctx.arc(x, y + R * 0.06, R * 0.18, 0, Math.PI * 2);
-              ctx.fillStyle = "rgba(255,255,255,0.95)";
-              ctx.fill();
-            } else {
-              this._arrow(x, y + R * 0.06, R * 0.34, n.side === "left" ? -1 : 1, "rgba(255,255,255,0.95)");
-            }
+            this._musicGlyph(x, y, R * 0.62, "rgba(255,255,255,0.97)");
             if (n.type === "accent") {
               ctx.globalAlpha = alpha * 0.55;
               ctx.beginPath();
@@ -2722,6 +3331,24 @@
             }
             ctx.restore();
           }
+        }
+        /** 双雪佛龙：表示方向，但不会读成"播放键" */
+        _chevron(x, y, r, dir, color, lw) {
+          const ctx = this.ctx;
+          ctx.save();
+          ctx.strokeStyle = color;
+          ctx.lineWidth = lw;
+          ctx.lineCap = "round";
+          ctx.lineJoin = "round";
+          for (let i = 0; i < 2; i++) {
+            const ox = x + dir * (i * r * 0.62 - r * 0.2);
+            ctx.beginPath();
+            ctx.moveTo(ox - dir * r * 0.28, y - r * 0.42);
+            ctx.lineTo(ox + dir * r * 0.22, y);
+            ctx.lineTo(ox - dir * r * 0.28, y + r * 0.42);
+            ctx.stroke();
+          }
+          ctx.restore();
         }
         _arrow(x, y, r, dir, color) {
           const ctx = this.ctx;
@@ -2739,39 +3366,38 @@
           const beatOn = this.cfg.get("beatPulseOn");
           const pulse = beatOn ? 1 - (vm.beatPhase || 0) : 0;
           const armed = vm.dir;
-          const soft = {
-            left: "rgba(255,214,228,0.95)",
-            center: "rgba(255,238,196,0.95)",
-            right: "rgba(206,242,232,0.95)"
-          };
+          const r = (L.padH || 26) * 1.05;
           ["left", "center", "right"].forEach((side) => {
             const x = this._laneX(side, 1);
             const y = L.judgeY;
-            const hw = side === "center" ? L.padHalfW * 0.74 : L.padHalfW;
-            const hh = L.padH;
             const isLeft = side === "left";
             const color = isLeft ? C.pink : side === "center" ? C.gold : C.mint;
-            const deep = isLeft ? C.pinkDeep : side === "center" ? "#E89A3C" : C.mintDeep;
+            const deep = isLeft ? C.pinkDeep : side === "center" ? "#E8942A" : C.mintDeep;
             const active = armed === side;
-            const lift = active ? 3 : 0;
+            const lift = active ? 2.5 : 0;
             ctx.save();
-            ctx.globalAlpha = 0.5;
-            rr(ctx, x - hw, y - hh + 5, hw * 2, hh * 2, hh);
-            ctx.fillStyle = "rgba(120,145,175,0.16)";
+            ctx.beginPath();
+            ctx.ellipse(x, y + 6, r * 0.92, r * 0.34, 0, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(120,145,175,0.14)";
             ctx.fill();
-            ctx.globalAlpha = 1;
-            const g = ctx.createLinearGradient(x, y - hh - lift, x, y + hh);
+            ctx.beginPath();
+            ctx.arc(x, y - lift, r, 0, Math.PI * 2);
+            const g = ctx.createLinearGradient(x, y - lift - r, x, y - lift + r);
             g.addColorStop(0, "#FFFFFF");
-            g.addColorStop(1, active ? soft[side] : "rgba(255,255,255,0.9)");
-            rr(ctx, x - hw, y - hh - lift, hw * 2, hh * 2, hh);
+            g.addColorStop(1, active ? "rgba(255,255,255,0.82)" : "rgba(255,255,255,0.94)");
             ctx.fillStyle = g;
             ctx.fill();
-            ctx.lineWidth = active ? 3 : 2;
+            ctx.lineWidth = active ? 3.2 : 2.4;
             ctx.strokeStyle = color;
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(x, y - lift, r * 0.74, 0, Math.PI * 2);
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = active ? "rgba(255,255,255,0.95)" : "rgba(120,145,175,0.14)";
             ctx.stroke();
             if (active && pulse > 0.01) {
               ctx.beginPath();
-              ctx.ellipse(x, y - lift, hw + (1 - pulse) * hw * 0.5, hh + (1 - pulse) * hh * 0.5, 0, 0, Math.PI * 2);
+              ctx.arc(x, y - lift, r + (1 - pulse) * r * 0.35, 0, Math.PI * 2);
               ctx.globalAlpha = 0.35 * pulse;
               ctx.lineWidth = 3;
               ctx.strokeStyle = color;
@@ -2779,16 +3405,11 @@
               ctx.globalAlpha = 1;
             }
             if (side === "center") {
-              this._text("\u4E2D", x, y + 5 - lift, {
-                size: 13,
-                weight: "800",
-                color: deep,
-                align: "center"
-              });
+              this._text("\u4E2D", x, y + 5 - lift, { size: 14, weight: "800", color: deep, align: "center" });
             } else {
-              this._arrow(x - hw * 0.5, y - lift, 6.5, isLeft ? -1 : 1, deep);
-              this._text(isLeft ? "\u5DE6" : "\u53F3", x + hw * 0.4, y + 5 - lift, {
-                size: 13,
+              this._chevron(x - r * 0.42, y - lift, 7, isLeft ? -1 : 1, deep, 2.2);
+              this._text(isLeft ? "\u5DE6" : "\u53F3", x + r * 0.26, y + 5 - lift, {
+                size: 14,
                 weight: "800",
                 color: deep,
                 align: "center"
@@ -2827,7 +3448,7 @@
           ctx.shadowBlur = 10;
           ctx.shadowOffsetY = 3;
           ctx.beginPath();
-          ctx.ellipse(x, y, 13, 12, 0, 0, Math.PI * 2);
+          ctx.ellipse(x, y, 15, 14, 0, 0, Math.PI * 2);
           ctx.fillStyle = "#FFFFFF";
           ctx.fill();
           ctx.shadowBlur = 0;
@@ -2913,23 +3534,28 @@
           const style = VERDICT_STYLE[f.verdict] || VERDICT_STYLE.good;
           const alpha = age < 0.12 ? age / 0.12 : 1 - Math.max(0, (age - 0.62) / 0.38);
           const scale = 1 + Math.max(0, 0.16 - age) * 1.4;
-          const y = L.judgeY - 68 - age * 18;
+          const y = L.judgeY - 106 - age * 14;
           ctx.save();
           ctx.globalAlpha = clamp(alpha, 0, 1);
           ctx.translate(L.cx, y);
           ctx.scale(scale, scale);
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.font = "800 26px " + FONT;
-          ctx.lineWidth = 5;
+          const label = style.mark + " " + style.en;
+          ctx.font = "800 20px " + FONT;
+          const tw = ctx.measureText(label).width;
+          rr(ctx, -tw / 2 - 12, -15, tw + 24, 30, 15);
+          ctx.fillStyle = "rgba(255,255,255,0.82)";
+          ctx.fill();
+          ctx.lineWidth = 4;
           ctx.strokeStyle = "rgba(255,255,255,0.95)";
-          ctx.strokeText(style.mark + " " + style.en, 0, 0);
+          ctx.strokeText(label, 0, 0);
           const ink = VERDICT_INK[f.verdict] || VERDICT_INK.good;
           ctx.shadowColor = "rgba(92,116,148,0.25)";
           ctx.shadowBlur = 6;
           ctx.shadowOffsetY = 2;
           ctx.fillStyle = ink;
-          ctx.fillText(style.mark + " " + style.en, 0, 0);
+          ctx.fillText(label, 0, 0);
           ctx.shadowBlur = 0;
           ctx.shadowOffsetY = 0;
           ctx.font = "600 10px " + FONT;
@@ -2964,178 +3590,333 @@
           ctx.restore();
         }
         // ---------------------------------------------------------------- HUD
+        /** 蓝色胶囊（顶部标题 / 曲目） */
+        _pill(x, y, w, h) {
+          const ctx = this.ctx;
+          ctx.save();
+          ctx.shadowColor = "rgba(58,84,200,0.28)";
+          ctx.shadowBlur = 10;
+          ctx.shadowOffsetY = 3;
+          rr(ctx, x, y, w, h, h / 2);
+          const g = ctx.createLinearGradient(x, y, x, y + h);
+          g.addColorStop(0, "#6C8AF5");
+          g.addColorStop(1, "#3E5BD8");
+          ctx.fillStyle = g;
+          ctx.fill();
+          ctx.restore();
+          rr(ctx, x, y, w, h, h / 2);
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = "rgba(255,255,255,0.38)";
+          ctx.stroke();
+        }
+        /** 数据卡里的小图标（杯子 / 准星 / 火苗 / 时钟） */
+        _statIcon(name, x, y, r, color) {
+          const ctx = this.ctx;
+          ctx.save();
+          ctx.strokeStyle = color;
+          ctx.fillStyle = color;
+          ctx.lineWidth = Math.max(1.2, r * 0.16);
+          ctx.lineCap = "round";
+          ctx.lineJoin = "round";
+          if (name === "trophy") {
+            ctx.beginPath();
+            ctx.moveTo(x - r * 0.55, y - r * 0.6);
+            ctx.lineTo(x + r * 0.55, y - r * 0.6);
+            ctx.lineTo(x + r * 0.32, y + r * 0.12);
+            ctx.lineTo(x - r * 0.32, y + r * 0.12);
+            ctx.closePath();
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x, y + r * 0.12);
+            ctx.lineTo(x, y + r * 0.5);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x - r * 0.42, y + r * 0.62);
+            ctx.lineTo(x + r * 0.42, y + r * 0.62);
+            ctx.stroke();
+          } else if (name === "target") {
+            ctx.beginPath();
+            ctx.arc(x, y, r * 0.66, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(x, y, r * 0.24, 0, Math.PI * 2);
+            ctx.fill();
+          } else if (name === "flame") {
+            ctx.beginPath();
+            ctx.moveTo(x, y - r * 0.72);
+            ctx.quadraticCurveTo(x + r * 0.62, y - r * 0.05, x + r * 0.28, y + r * 0.5);
+            ctx.quadraticCurveTo(x, y + r * 0.72, x - r * 0.28, y + r * 0.5);
+            ctx.quadraticCurveTo(x - r * 0.62, y - r * 0.05, x, y - r * 0.72);
+            ctx.closePath();
+            ctx.fill();
+          } else if (name === "clock") {
+            ctx.beginPath();
+            ctx.arc(x, y, r * 0.66, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x, y - r * 0.34);
+            ctx.lineTo(x, y);
+            ctx.lineTo(x + r * 0.3, y + r * 0.14);
+            ctx.stroke();
+          } else if (name === "note") {
+            this._musicGlyph(x, y, r * 0.9, color);
+          }
+          ctx.restore();
+        }
+        /** 八分音符：音符上的图标，比实心三角更好认 */
+        _musicGlyph(x, y, size, color) {
+          const ctx = this.ctx;
+          const k = size / 10;
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.fillStyle = color;
+          ctx.strokeStyle = color;
+          ctx.lineCap = "round";
+          ctx.beginPath();
+          ctx.ellipse(-k * 2.2, k * 2.6, k * 3, k * 2.2, -0.36, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.moveTo(k * 0.7, k * 2.2);
+          ctx.lineTo(k * 0.7, -k * 5.2);
+          ctx.lineWidth = Math.max(1.4, k * 1.7);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(k * 0.7, -k * 5.2);
+          ctx.quadraticCurveTo(k * 4.6, -k * 4.2, k * 3.4, -k * 0.6);
+          ctx.lineWidth = Math.max(1.4, k * 2.1);
+          ctx.stroke();
+          ctx.restore();
+        }
+        _fmtClock(sec) {
+          const s = Math.max(0, Math.round(sec || 0));
+          const mm = Math.floor(s / 60);
+          const ss = s % 60;
+          return (mm < 10 ? "0" + mm : mm) + ":" + (ss < 10 ? "0" + ss : ss);
+        }
         _drawHud(vm) {
           const ctx = this.ctx;
           const L = this.L;
-          const x = 12;
-          const w = L.W - 24;
-          const y = L.hudY;
-          const h = L.hudH;
-          ctx.save();
-          ctx.shadowColor = C.shadow;
-          ctx.shadowBlur = 16;
-          ctx.shadowOffsetY = 6;
-          rr(ctx, x, y, w, h, 18);
-          ctx.fillStyle = C.card;
-          ctx.fill();
-          ctx.restore();
-          rr(ctx, x, y, w, h, 18);
-          ctx.lineWidth = 1;
-          ctx.strokeStyle = C.line;
-          ctx.stroke();
-          const topLight = ctx.createLinearGradient(x, y, x + w, y);
-          topLight.addColorStop(0, "#FFB7CB");
-          topLight.addColorStop(0.5, "#FFDD9E");
-          topLight.addColorStop(1, "#A8E8D5");
-          ctx.save();
-          rr(ctx, x + 14, y + 2, w - 28, 3, 1.5);
-          ctx.fillStyle = topLight;
-          ctx.fill();
-          ctx.restore();
+          const W = L.W;
           const short = L.short;
-          this._text("\u8282\u594F\u8BAD\u7EC3", x + 14, y + 18, { size: 9, weight: "700", color: C.inkMute });
-          this._text(vm.song.name + " \xB7 " + vm.song.bpm + " BPM", x + 14, y + 33, {
-            size: 11,
-            weight: "700",
-            color: C.ink
-          });
+          const py = L.pillY;
+          const ph = L.pillH;
+          const title = "\u8282\u594F\u8BAD\u7EC3";
           const chip = "\u7B2C " + vm.difficulty + " \u6863";
-          const chipW = this._measure(chip, 9, "700") + 14;
-          rr(ctx, x + w - 14 - chipW, y + 12, chipW, 18, 9);
-          ctx.fillStyle = "rgba(180,155,255,0.22)";
+          const tf = short ? 12 : 12.5;
+          const tw = this._measure(title, tf, "800");
+          const chipW = this._measure(chip, 9, "700") + 16;
+          const leftW = Math.min(W * 0.58, 13 + 18 + 2 + tw + 10 + chipW + 10);
+          this._pill(12, py, leftW, ph);
+          this._musicGlyph(12 + 22, py + ph / 2, 9, "#FFFFFF");
+          this._text(title, 12 + 34, py + ph / 2 + 4.5, { size: tf, weight: "800", color: "#FFFFFF" });
+          rr(ctx, 12 + leftW - chipW - 7, py + (ph - 18) / 2, chipW, 18, 9);
+          ctx.fillStyle = "rgba(255,255,255,0.26)";
           ctx.fill();
-          this._text(chip, x + w - 14 - chipW / 2, y + 24, {
+          this._text(chip, 12 + leftW - chipW / 2 - 7, py + ph / 2 + 3.4, {
             size: 9,
             weight: "700",
-            color: "#7B5FD6",
+            color: "#FFFFFF",
             align: "center"
           });
-          const row2 = y + (short ? 44 : 48);
-          this._text("\u5F97\u5206", x + 14, row2 + 8, { size: 9.5, weight: "600", color: C.inkMute });
-          const scoreTop = row2 + (short ? 4 : 6);
-          const scoreGrad = ctx.createLinearGradient(0, scoreTop, 0, scoreTop + (short ? 26 : 30));
-          scoreGrad.addColorStop(0, "#FF8FB1");
-          scoreGrad.addColorStop(0.6, "#FB9F7E");
-          scoreGrad.addColorStop(1, "#F5A03A");
-          ctx.save();
-          ctx.font = "800 " + (short ? 26 : 30) + "px " + FONT;
-          ctx.textAlign = "left";
-          ctx.textBaseline = "alphabetic";
-          ctx.fillStyle = scoreGrad;
-          ctx.fillText(String(vm.score), x + 14, row2 + (short ? 30 : 33));
-          ctx.restore();
-          const accTxt = vm.rhythmAccuracy === null ? "\u6682\u65E0\u6570\u636E" : Math.round(vm.rhythmAccuracy * 100) + "%";
-          this._text("\u8282\u594F\u51C6\u786E\u7387", x + w * 0.52, row2 + 8, { size: 9.5, weight: "600", color: C.inkMute });
-          this._text(accTxt, x + w * 0.52, row2 + (short ? 24 : 26), {
-            size: short ? 13 : 14,
-            weight: "800",
-            color: vm.rhythmAccuracy === null ? C.inkMute : C.cyanDeep
-          });
-          const comboX = x + w * 0.78;
-          this._text("\u8FDE\u51FB", comboX, row2 + 8, { size: 9.5, weight: "600", color: C.inkMute });
-          this._text("\xD7" + (vm.combo || 0), comboX, row2 + (short ? 24 : 26), {
-            size: short ? 13 : 14,
-            weight: "800",
-            color: vm.combo >= 10 ? "#E8922F" : C.ink
-          });
-          const row3 = y + h - 18;
-          const mm = Math.floor(vm.timeLeftSec / 60);
-          const ss = Math.floor(vm.timeLeftSec % 60);
-          const timeTxt = (mm < 10 ? "0" + mm : mm) + ":" + (ss < 10 ? "0" + ss : ss);
-          this._text("\u5269\u4F59 " + timeTxt, x + 14, row3, {
-            size: 9,
-            weight: "600",
-            color: vm.timeLeftSec <= 10 ? C.danger : C.inkSoft
-          });
-          this._text("\u97F3\u7B26 " + vm.judgedCount + " / " + vm.totalNotes, x + w - 14, row3, {
-            size: 9,
-            weight: "600",
-            color: C.inkMute,
-            align: "right"
-          });
-          const barX = x + 14;
-          const barW = w - 28;
-          const barY = y + h - 8;
-          rr(ctx, barX, barY, barW, 4, 2);
-          ctx.fillStyle = "rgba(120,145,175,0.14)";
-          ctx.fill();
-          if (vm.progress > 4e-3) {
-            const pw = Math.max(4, barW * vm.progress);
-            const pg = ctx.createLinearGradient(barX, 0, barX + barW, 0);
-            pg.addColorStop(0, "#FFB7CB");
-            pg.addColorStop(0.5, "#FFDD9E");
-            pg.addColorStop(1, "#7FDCC4");
-            rr(ctx, barX, barY, pw, 4, 2);
-            ctx.fillStyle = pg;
+          const songName = vm.song.name;
+          const timeStr = this._fmtClock(vm.timeLeftSec) + " / " + this._fmtClock(vm.durationSec);
+          const nameW = this._measure(songName, 10.5, "700");
+          const timeW = this._measure(timeStr, 9, "600");
+          const rightW = Math.min(W * 0.4, 13 + 18 + 3 + Math.max(nameW, timeW) + 12);
+          const rx = W - 12 - rightW;
+          this._pill(rx, py, rightW, ph);
+          this._musicGlyph(rx + 21, py + ph / 2, 8.5, "rgba(255,255,255,0.95)");
+          this._text(songName, rx + 33, py + ph / 2 - 1.5, { size: 10.5, weight: "700", color: "#FFFFFF" });
+          this._text(timeStr, rx + 33, py + ph / 2 + 10, { size: 9, weight: "600", color: "rgba(255,255,255,0.82)" });
+          const gap = 8;
+          const baseX = 12;
+          const cardW = (W - 24 - gap * 3) / 4;
+          const cy = L.statY;
+          const ch = L.statH;
+          const acc = vm.rhythmAccuracy === null ? "\u2014" : Math.round(vm.rhythmAccuracy * 100) + "%";
+          const cards = [
+            { icon: "trophy", tint: "rgba(253,186,116,0.28)", color: "#E8701A", label: "\u5F53\u524D\u5F97\u5206", value: String(vm.score) },
+            { icon: "target", tint: "rgba(147,197,253,0.30)", color: "#2F6BE8", label: "\u8282\u594F\u51C6\u786E\u7387", value: acc },
+            { icon: "flame", tint: "rgba(253,186,116,0.28)", color: "#E8701A", label: "\u8FDE\u51FB\u6570", value: "\xD7" + (vm.combo || 0) },
+            { icon: "clock", tint: "rgba(167,243,208,0.34)", color: "#0E9E76", label: "\u5269\u4F59\u65F6\u95F4", value: this._fmtClock(vm.timeLeftSec), bar: true }
+          ];
+          cards.forEach((c, i) => {
+            const x = baseX + i * (cardW + gap);
+            ctx.save();
+            ctx.shadowColor = "rgba(92,116,148,0.16)";
+            ctx.shadowBlur = 10;
+            ctx.shadowOffsetY = 3;
+            rr(ctx, x, cy, cardW, ch, 14);
+            ctx.fillStyle = "rgba(255,255,255,0.97)";
             ctx.fill();
-          }
-          let stateTxt = "";
-          let stateColor = C.inkMute;
-          if (vm.state === "PAUSED") {
-            stateTxt = "\u5DF2\u6682\u505C";
-            stateColor = "#E8922F";
-          } else if (vm.state === "SENSOR_ERROR") {
-            stateTxt = "\u4FE1\u53F7\u4E2D\u65AD";
-            stateColor = C.danger;
-          } else if (vm.state === "COUNTDOWN") {
-            stateTxt = "\u51C6\u5907";
-            stateColor = C.cyanDeep;
-          } else if (vm.state === "PLAYING") {
-            stateTxt = vm.sim ? "\u6A21\u62DF\u4E2D" : "\u8BAD\u7EC3\u4E2D";
-            stateColor = vm.sim ? "#E8922F" : C.mintDeep;
-          }
-          if (vm.silent && vm.state === "PLAYING") stateTxt = "\u65E0\u97F3\u4E50";
-          if (stateTxt) {
-            this._dot(x + w - 14 - chipW - 12, y + 30, 3, stateColor);
-            this._text(stateTxt, x + w - 14 - chipW - 20, y + 33, {
-              size: 9.5,
-              weight: "600",
-              color: stateColor,
-              align: "right"
-            });
+            ctx.restore();
+            ctx.beginPath();
+            ctx.arc(x + 17, cy + 18, 10, 0, Math.PI * 2);
+            ctx.fillStyle = c.tint;
+            ctx.fill();
+            this._statIcon(c.icon, x + 17, cy + 18, 8, c.color);
+            this._text(c.label, x + 9, cy + 38, { size: 8, weight: "600", color: C.inkMute });
+            this._text(c.value, x + 9, cy + (short ? 54 : 58), { size: short ? 15 : 17, weight: "800", color: c.color });
+            if (c.bar) {
+              const ratio = clamp((vm.timeLeftSec || 0) / Math.max(1, vm.durationSec || 1), 0, 1);
+              rr(ctx, x + 9, cy + ch - 8, cardW - 18, 3.5, 1.75);
+              ctx.fillStyle = "rgba(120,145,175,0.14)";
+              ctx.fill();
+              if (ratio > 0.02) {
+                rr(ctx, x + 9, cy + ch - 8, Math.max(4, (cardW - 18) * ratio), 3.5, 1.75);
+                ctx.fillStyle = "#2BC79B";
+                ctx.fill();
+              }
+            }
+          });
+          const iw = 88;
+          const ih = 72;
+          const ix = W - 12 - iw;
+          const iy = L.stageTop + 6;
+          rr(ctx, ix, iy, iw, ih, 12);
+          ctx.fillStyle = "rgba(62,91,216,0.82)";
+          ctx.fill();
+          rr(ctx, ix, iy, iw, ih, 12);
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = "rgba(255,255,255,0.35)";
+          ctx.stroke();
+          this._text("\u97F3\u7B26 " + (vm.judgedCount || 0) + " / " + (vm.totalNotes || 0), ix + 10, iy + 18, {
+            size: 9,
+            weight: "700",
+            color: "rgba(255,255,255,0.95)"
+          });
+          this._dot(ix + 13, iy + 32, 3.5, "#5BE3A6");
+          this._text("\u6210\u529F " + (vm.hits || 0), ix + 21, iy + 35, { size: 9, weight: "600", color: "rgba(255,255,255,0.92)" });
+          this._dot(ix + 13, iy + 50, 3.5, "#FF8FA8");
+          this._text("\u6F0F\u63A5 " + (vm.miss || 0), ix + 21, iy + 53, { size: 9, weight: "600", color: "rgba(255,255,255,0.92)" });
+          if ((vm.combo || 0) >= 2) {
+            const cxx = 22;
+            const cyy = L.stageTop + 56;
+            const pop = 1 + Math.max(0, 0.18 - (vm.comboFlash || 0) * 0.3);
+            ctx.save();
+            ctx.translate(cxx, cyy);
+            ctx.rotate(-0.12);
+            ctx.scale(pop, pop);
+            const cw = 62;
+            const chh = 40;
+            ctx.shadowColor = "rgba(240,140,40,0.35)";
+            ctx.shadowBlur = 12;
+            ctx.shadowOffsetY = 4;
+            rr(ctx, 0, -chh / 2, cw, chh, 12);
+            const g = ctx.createLinearGradient(0, -chh / 2, 0, chh / 2);
+            g.addColorStop(0, "#FFC24D");
+            g.addColorStop(1, "#F5871F");
+            ctx.fillStyle = g;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.shadowOffsetY = 0;
+            this._text("\xD7" + vm.combo, cw / 2, -1, { size: 17, weight: "800", color: "#FFFFFF", align: "center" });
+            this._text("\u8FDE\u51FB", cw / 2, 13, { size: 8.5, weight: "700", color: "rgba(255,255,255,0.95)", align: "center" });
+            ctx.restore();
           }
         }
-        // ---------------------------------------------------------------- 底栏
         _drawBottomBar(vm) {
           const ctx = this.ctx;
           const L = this.L;
+          const W = L.W;
+          const y = L.posY;
+          const h = L.posH;
+          ctx.save();
+          ctx.shadowColor = "rgba(92,116,148,0.18)";
+          ctx.shadowBlur = 14;
+          ctx.shadowOffsetY = 5;
+          rr(ctx, 12, y, W - 24, h, 16);
+          ctx.fillStyle = "rgba(255,255,255,0.97)";
+          ctx.fill();
+          ctx.restore();
+          this._text("\u8EAB\u4F53\u4F4D\u7F6E", 22, y + h * 0.42, { size: 9, weight: "700", color: C.inkSoft });
+          const tx0 = 84;
+          const tx1 = W - 26;
+          const tw = tx1 - tx0;
+          const ty = y + h * 0.42;
+          const g = ctx.createLinearGradient(tx0, 0, tx1, 0);
+          g.addColorStop(0, "#FFB3CB");
+          g.addColorStop(0.45, "#FFD98A");
+          g.addColorStop(1, "#8FE0CB");
+          rr(ctx, tx0, ty - 4, tw, 8, 4);
+          ctx.fillStyle = g;
+          ctx.fill();
+          for (let i = 0; i < 5; i++) {
+            ctx.beginPath();
+            ctx.arc(tx0 + tw * (i / 4), ty, 1.8, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(255,255,255,0.9)";
+            ctx.fill();
+          }
+          const nx = clamp(vm.nx || 0, -1, 1);
+          const px = tx0 + tw * (nx + 1) / 2;
+          ctx.save();
+          ctx.shadowColor = "rgba(92,116,148,0.28)";
+          ctx.shadowBlur = 8;
+          ctx.shadowOffsetY = 2;
+          ctx.beginPath();
+          ctx.arc(px, ty, 11, 0, Math.PI * 2);
+          ctx.fillStyle = "#FFFFFF";
+          ctx.fill();
+          ctx.restore();
+          ctx.beginPath();
+          ctx.arc(px, ty, 11, 0, Math.PI * 2);
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = "#FF9DBB";
+          ctx.stroke();
+          ctx.fillStyle = "#4A5568";
+          ctx.beginPath();
+          ctx.arc(px - 3.4, ty - 1.4, 1.3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(px + 3.4, ty - 1.4, 1.3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "rgba(255,150,172,0.55)";
+          ctx.beginPath();
+          ctx.ellipse(px - 6, ty + 2.6, 2, 1.2, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.ellipse(px + 6, ty + 2.6, 2, 1.2, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(px, ty + 1.8, 2.4, Math.PI * 0.2, Math.PI * 0.8);
+          ctx.lineWidth = 1.2;
+          ctx.strokeStyle = "#4A5568";
+          ctx.stroke();
+          const ly = y + h - 7;
+          this._text("\u5411\u5DE6", tx0, ly, { size: 7.5, weight: "600", color: C.inkMute });
+          this._text("\u4E2D\u5FC3", tx0 + tw / 2, ly, { size: 7.5, weight: "600", color: C.inkMute, align: "center" });
+          this._text("\u5411\u53F3", tx1, ly, { size: 7.5, weight: "600", color: C.inkMute, align: "right" });
+          const gap = 8;
+          const bw = (W - 24 - gap * 3) / 4;
           const by = L.btnY;
           const bh = L.btnH;
-          const gap = 8;
-          const sideW = Math.min(84, L.W * 0.22);
-          const midW = Math.max(52, (L.W - 24 - sideW * 2 - gap * 3) / 2);
-          this._button("pause", 12, by, sideW, bh, vm.state === "PAUSED" ? "\u7EE7\u7EED" : "\u6682\u505C", {
-            variant: "glass",
-            icon: vm.state === "PAUSED" ? "play" : "pause",
-            size: 11
-          });
+          const beatOn = this.cfg.get("beatPulseOn");
           const vol = Math.round((Number(this.cfg.get("musicVolume")) || 0) * 100);
-          this._button("vol", 12 + sideW + gap, by, midW, bh, vol + "%", {
-            variant: "ghost",
+          this._button("pause", 12, by, bw, bh, vm.state === "PAUSED" ? "\u7EE7\u7EED" : "\u6682\u505C", {
+            variant: "panel",
+            icon: vm.state === "PAUSED" ? "play" : "pause",
+            size: 10.5,
+            radius: 14
+          });
+          this._button("vol", 12 + (bw + gap), by, bw, bh, vol + "%", {
+            variant: "panel",
             icon: "volume",
-            size: 10.5
+            size: 10.5,
+            radius: 14
           });
-          this._button(
-            "beat",
-            12 + sideW + gap + midW + gap,
-            by,
-            midW,
-            bh,
-            this.cfg.get("beatPulseOn") ? "\u8282\u62CD\u5F00" : "\u8282\u62CD\u5173",
-            {
-              variant: this.cfg.get("beatPulseOn") ? "ghostOn" : "ghost",
-              icon: "wave",
-              size: 10.5
-            }
-          );
-          this._button("quit", L.W - 12 - sideW, by, sideW, bh, "\u9000\u51FA", {
-            variant: "glass",
+          this._button("beat", 12 + (bw + gap) * 2, by, bw, bh, "\u8282\u62CD" + (beatOn ? "\u5F00" : "\u5173"), {
+            variant: beatOn ? "panelOn" : "panel",
+            icon: "wave",
+            size: 10.5,
+            radius: 14
+          });
+          this._button("quit", 12 + (bw + gap) * 3, by, bw, bh, "\u9000\u51FA", {
+            variant: "panel",
             icon: "exit",
-            size: 11
+            size: 10.5,
+            radius: 14
           });
-          void ctx;
         }
-        // ---------------------------------------------------------------- 倒计时
         _drawCountdown(vm) {
           const ctx = this.ctx;
           const L = this.L;
@@ -3188,7 +3969,6 @@
           });
           this._button("resume", x + 20, y + 112, w - 40, 46, "\u7EE7\u7EED\u8BAD\u7EC3", { variant: "primary", icon: "play", size: 14 });
           this._button("quit", x + 20, y + 170, w - 40, 40, "\u7ED3\u675F\u672C\u5C40\u5E76\u67E5\u770B\u6210\u7EE9", { variant: "ghost", icon: "check", size: 11 });
-          void ctx;
         }
         _drawSensorOverlay(vm) {
           const L = this.L;
@@ -3394,7 +4174,6 @@
             ctx.fill();
             ctx.restore();
           }
-          void vm;
         }
         // ---------------------------------------------------------------- 准备页
         _drawPrepare(vm) {
@@ -3413,7 +4192,7 @@
             weight: "800",
             color: C.ink
           });
-          this._text("\u4F69\u6234\u4F20\u611F\u5668 \u2192 \u96F6\u70B9\u6807\u5B9A \u2192 \u97F3\u753B\u6821\u51C6 \u2192 \u5F00\u59CB", 23, L.safeTop + 56, {
+          this._text("\u6234\u597D\u80F8\u5E26 \u2192 \u97F3\u753B\u6821\u51C6 \u2192 \u5F00\u59CB", 23, L.safeTop + 56, {
             size: 10.5,
             weight: "500",
             color: C.inkSoft
@@ -3468,7 +4247,7 @@
           }
           const steps = [
             { t: "\u4F20\u611F\u5668\u5361\u5728\u80F8\u5E26\u4E0A", d: "\u80F8\u5E26\u4ECE\u814B\u4E0B\u6700\u9AD8\u70B9\u7ED5\u4E00\u5708\u56FA\u5B9A" },
-            { t: "\u4FDD\u6301\u4E2D\u7ACB\u4F4D 3 \u79D2", d: "\u5750\u7A33\u6216\u7AD9\u7A33\uFF0C\u53CC\u624B\u81EA\u7136\u653E\u4E0B" },
+            { t: "\u5750\u7A33\u6216\u7AD9\u7A33", d: "\u53CC\u624B\u81EA\u7136\u653E\u4E0B\uFF0C\u8EAB\u4F53\u4FDD\u6301\u4E2D\u7ACB\u4F4D" },
             { t: "\u542C " + (Number(this.cfg.get("prepBeats")) || 2) + " \u62CD\u9884\u5907\u97F3", d: "\u97F3\u4E50\u5F00\u59CB\u540E\u8DDF\u7740\u62CD\u5B50\u5DE6\u53F3\u79FB\u52A8" }
           ];
           const stepTop = waveY + 46;
@@ -3488,29 +4267,25 @@
             this._text(s.d, cardX + 44, sy + 16, { size: 9, weight: "500", color: C.inkMute });
           });
           const calY = stepTop + steps.length * 40 + 2;
-          if (vm.state === "CALIBRATING") {
-            const p = clamp((vm.calibration && vm.calibration.elapsed) / 3e3 || 0, 0, 1);
-            this._text("\u6B63\u5728\u6807\u5B9A\uFF1A\u8BF7\u4FDD\u6301\u4E0D\u52A8", cardX + 18, calY + 8, { size: 10.5, weight: "600", color: C.cyan });
-            rr(ctx, cardX + 18, calY + 14, cardW - 36, 7, 3.5);
-            ctx.fillStyle = "rgba(120,145,175,0.14)";
-            ctx.fill();
-            rr(ctx, cardX + 18, calY + 14, Math.max(4, (cardW - 36) * p), 7, 3.5);
-            ctx.fillStyle = C.cyan;
-            ctx.fill();
-          } else if (vm.calibration && vm.calibration.result) {
-            const ok = vm.calibration.result === "ok";
-            this._text(ok ? "\u6807\u5B9A\u5B8C\u6210\uFF1A\u4E2D\u7ACB\u4F4D\u5DF2\u8BB0\u5F55" : vm.calibration.message || "\u6807\u5B9A\u5931\u8D25", cardX + 18, calY + 10, {
+          const z = vm.zero || { roll: 0, pitch: 0, set: false };
+          const fDeg = (v) => (v >= 0 ? "+" : "") + (Math.round(v * 10) / 10).toFixed(1) + "\xB0";
+          if (z.set) {
+            this._text("\u5F53\u524D\u96F6\u70B9 " + fDeg(z.roll) + " / " + fDeg(z.pitch), cardX + 18, calY + 10, {
               size: 10,
               weight: "600",
-              color: ok ? C.mintDeep : C.danger
+              color: C.mintDeep
             });
-          } else if (!vm.calibrated) {
-            this._text("\u8FD8\u6CA1\u6709\u6807\u5B9A\uFF1A\u8FDE\u63A5\u4F20\u611F\u5668\u540E\u5148\u505A\u4E00\u6B21\u96F6\u70B9\u6807\u5B9A", cardX + 18, calY + 10, {
+          } else {
+            this._text("\u8FD8\u6CA1\u8BBE\u7F6E\u96F6\u70B9\uFF0C\u8BFB\u6570\u6309\u4F20\u611F\u5668\u539F\u59CB\u89D2\u5EA6\u7B97", cardX + 18, calY + 10, {
               size: 9.5,
-              weight: "500",
-              color: C.inkMute
+              weight: "600",
+              color: C.danger
             });
           }
+          this._button("zero:set", cardX + cardW - 92, calY, 74, 26, z.set ? "\u91CD\u8BBE" : "\u53BB\u6807\u5B9A", {
+            variant: "ghost",
+            size: 10
+          });
           const btnH = 46;
           const by = cardY + cardH - btnH - 14;
           const ghostTop = by - 44;
@@ -3576,22 +4351,15 @@
           this._button("enter", cardX + 18, by, cardW - 36, btnH, "\u8FDB\u5165\u6E38\u620F", {
             variant: "primary",
             icon: "play",
-            size: 15,
-            disabled: vm.state === "CALIBRATING"
-          });
-          const halfW = (cardW - 46) / 2;
-          this._button("calibrate", cardX + 18, ghostTop, halfW, 38, vm.calibrated ? "\u91CD\u65B0\u6807\u5B9A" : "\u5F00\u59CB\u6807\u5B9A", {
-            variant: "ghost",
-            icon: "refresh",
-            size: 11
+            size: 15
           });
           this._button(
             vm.sim ? "sim:off" : "sim:on",
-            cardX + 28 + halfW,
+            cardX + 18,
             ghostTop,
-            halfW,
+            cardW - 36,
             38,
-            vm.sim ? "\u5173\u95ED\u6A21\u62DF" : "\u4F7F\u7528\u6A21\u62DF",
+            vm.sim ? "\u5173\u95ED\u6A21\u62DF" : "\u4F7F\u7528\u6A21\u62DF\u6570\u636E",
             { variant: "ghost", icon: "check", size: 11 }
           );
         }
@@ -3853,22 +4621,22 @@
           const ctx = this.ctx;
           const L = this.L;
           const x = 12;
-          const y = L.hudBottom + 6;
-          const w = this.simOpen ? L.W - 24 : 74;
+          const y = L.stageTop + 1;
+          const w = this.simOpen ? L.W - 24 : 46;
           const rowH = 26;
-          const h = this.simOpen ? 30 + rowH * 2 : 26;
-          rr(ctx, x, y, w, h, 12);
-          ctx.fillStyle = "rgba(255,226,150,0.45)";
+          const h = this.simOpen ? 26 + rowH * 2 : 18;
+          rr(ctx, x, y, w, h, 9);
+          ctx.fillStyle = "rgba(255,226,150,0.55)";
           ctx.fill();
           ctx.lineWidth = 1;
           ctx.strokeStyle = "rgba(232,148,42,0.45)";
           ctx.stroke();
-          this._text("\u6A21\u62DF " + (this.simOpen ? "\u25B4" : "\u25BE"), x + 12, y + 17, {
-            size: 9.5,
+          this._text("\u6A21\u62DF" + (this.simOpen ? " \u25B4" : " \u25BE"), x + 8, y + (this.simOpen ? 17 : 13), {
+            size: 8.5,
             weight: "700",
             color: "#B57A1E"
           });
-          this.buttons.push({ id: "sim:toggle", x, y, w: this.simOpen ? 74 : w, h: 26 });
+          this.buttons.push({ id: "sim:toggle", x, y, w: this.simOpen ? 74 : w, h: this.simOpen ? 26 : 18 });
           if (!this.simOpen) return;
           const items = [
             { id: "sim:left", t: "\u5DE6\u79FB" },
@@ -3884,7 +4652,6 @@
             const by = y + 30 + Math.floor(i / 3) * rowH;
             this._button(it.id, bx, by, bw, rowH - 4, it.t, { variant: "mini", size: 9.5 });
           });
-          void vm;
         }
         // ---------------------------------------------------------------- 基础控件
         _text(str, x, y, o) {
@@ -3971,6 +4738,14 @@
             bg = "rgba(206,242,232,0.85)";
             fg = C.mintDeep;
             border = "rgba(94,211,184,0.7)";
+          } else if (variant === "panel") {
+            bg = "rgba(255,255,255,0.97)";
+            fg = C.ink;
+            border = "rgba(120,145,175,0.22)";
+          } else if (variant === "panelOn") {
+            bg = "rgba(214,247,236,0.98)";
+            fg = C.mintDeep;
+            border = "rgba(94,211,184,0.55)";
           } else if (variant === "mini") {
             bg = "rgba(255,255,255,0.85)";
             fg = C.inkSoft;
@@ -3986,7 +4761,7 @@
             ctx.shadowBlur = 12;
             ctx.shadowOffsetY = 4;
           }
-          rr(ctx, x, y, w, h, h / 2);
+          rr(ctx, x, y, w, h, opt.radius || h / 2);
           ctx.fillStyle = bg;
           ctx.fill();
           ctx.shadowBlur = 0;

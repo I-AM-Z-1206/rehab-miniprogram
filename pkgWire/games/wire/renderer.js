@@ -22,6 +22,8 @@
 // ============================================================================
 
 const { drawWalker, beltWorld } = require('./character.js')
+// 2.5D 纵深原语（地平线雾 / 远景剪影 / 云海 / 软阴影 / 浮尘 / 暗角）
+const depth = require('../../../utils/scene/depth.js')
 
 const D = 5.2 // 透视深度常数（米）
 
@@ -127,6 +129,9 @@ class WireRenderer {
       horizonY: H * 0.335,
       safeTop: 0
     }
+
+    // 高空浮尘：尺寸变化时重建一次，每帧只读（26 个点，成本可忽略）
+    this.dust = depth.buildDust(W, H, this.L.farY, this.L.charY, 26, 11)
   }
 
   /** 深度 r（米，正 = 远处）→ 屏幕 y 与线宽系数 */
@@ -333,6 +338,13 @@ class WireRenderer {
     // 近层：青绿丘陵
     ridge(hz + 10, H * 0.032, SKY.nearHill, 3.6, 4.4)
 
+    // 山脚大气雾：三层山如果一样清楚，就还是一张平涂插画。
+    // 在山脚压一层暖雾，远山自然「退」进空气里。
+    depth.haze(g, {
+      cx: W * 0.5, y: hz - 4, rx: W * 0.72, ry: 0.055,
+      color: '255,248,228', alpha: 0.42
+    })
+
     // 山的受光面（左侧亮）
     const light = g.createLinearGradient(0, hz - H * 0.14, 0, hz)
     light.addColorStop(0, 'rgba(255,255,255,0.22)')
@@ -345,45 +357,65 @@ class WireRenderer {
     const W = this.W
     const H = this.H
     const hz = this.L.horizonY
+    const valH = H - hz
 
+    // 谷底：越靠近观察者越深越冷 —— 往下看就该是这样。
+    // 全部留成浅色的话，云海再白也顶不起来。
     const v = g.createLinearGradient(0, hz, 0, H)
-    v.addColorStop(0, SKY.valleyTop)
-    v.addColorStop(0.5, '#DCEBE9')
-    v.addColorStop(1, SKY.valleyBottom)
+    v.addColorStop(0, '#EAF3EF')
+    v.addColorStop(0.22, '#DCEBEB')
+    v.addColorStop(0.58, '#C6DDE2')
+    v.addColorStop(1, '#AFC9D2')
     g.fillStyle = v
-    g.fillRect(0, hz, W, H - hz)
+    g.fillRect(0, hz, W, valH)
 
-    // 谷底雾带：几条横向柔光，营造高度感
+    // 谷中雾带：三条越远越亮的横雾，作用是把谷底「垫高」
     for (let i = 0; i < 3; i++) {
-      const y = hz + (H - hz) * (0.18 + i * 0.2)
-      const grad = g.createLinearGradient(0, y - 40, 0, y + 40)
+      const y = hz + valH * (0.085 + i * 0.115)
+      const grad = g.createLinearGradient(0, y - 34, 0, y + 34)
       grad.addColorStop(0, 'rgba(255,255,255,0)')
-      grad.addColorStop(0.5, 'rgba(255,255,255,' + (0.28 - i * 0.06) + ')')
+      grad.addColorStop(0.5, 'rgba(255,255,255,' + (0.30 - i * 0.07).toFixed(2) + ')')
       grad.addColorStop(1, 'rgba(255,255,255,0)')
       g.fillStyle = grad
-      g.fillRect(0, y - 40, W, 80)
+      g.fillRect(0, y - 34, W, 68)
     }
 
-    // 近处树梢剪影（很淡，仅作为空间参照）
-    g.fillStyle = SKY.tree
-    for (let i = 0; i < 9; i++) {
-      const x = (i + 0.5) * (W / 9) + Math.sin(i * 2.1) * 12
-      const y = hz + 10 + Math.cos(i * 1.7) * 4
-      const h = 12 + (i % 3) * 5
-      g.beginPath()
-      g.moveTo(x - 5, y)
-      g.lineTo(x, y - h)
-      g.lineTo(x + 5, y)
-      g.closePath()
-      g.fill()
-    }
+    // —— 谷中树线：连续起伏的剪影 ——
+    // 原来那排小三角读起来像插了一面旗子；真正的远处林子是「宽而缓的起伏」，
+    // 所以频率要低（freq 9~14），颜色必须明显比谷雾更暗，否则等于没画。
+    depth.ridge(g, {
+      w: W,
+      hz: hz + 12,
+      step: 4,
+      bands: [
+        { amp: 0.055, rise: 0, freq: 8.6, alpha: 0.34, color: '112,146,138', seed: 1.7 },
+        { amp: 0.036, rise: 0, freq: 13.4, alpha: 0.44, color: '84,118,112', seed: 3.9 }
+      ]
+    })
+
+    // —— 云海：脚下要有云，「高空」才成立 ——
+    // 位置必须明显低于树线（0.30 / 0.46 倍谷高），压在树线上会糊成一片白。
+    // 远层小而淡、近层大而实。
+    // 云：用「云层」而不是「云团」。
+    // 一串等大白椭圆会读成水洼或泡沫；从高处往下看，云本来就是一片，
+    // 只有顶边有起伏。两层就够，第三层会盖住角色。
+    depth.cloudBank(g, {
+      w: W, y: hz + valH * 0.30, h: valH * 0.16,
+      wave: valH * 0.028, freq: 4.6, seed: 1.9,
+      color: '255,255,255', alpha: 0.40, rimAlpha: 0.16
+    })
+    depth.cloudBank(g, {
+      w: W, y: hz + valH * 0.50, h: valH * 0.20,
+      wave: valH * 0.034, freq: 3.4, seed: 4.7,
+      color: '255,255,255', alpha: 0.34, rimAlpha: 0.12
+    })
 
     // 底部轻微压暗，突出 HUD
-    const bottom = g.createLinearGradient(0, H * 0.72, 0, H)
+    const bottom = g.createLinearGradient(0, H * 0.68, 0, H)
     bottom.addColorStop(0, 'rgba(28,58,74,0)')
-    bottom.addColorStop(1, 'rgba(28,58,74,0.16)')
+    bottom.addColorStop(1, 'rgba(28,58,74,0.26)')
     g.fillStyle = bottom
-    g.fillRect(0, H * 0.72, W, H * 0.28)
+    g.fillRect(0, H * 0.68, W, H * 0.32)
   }
 
   // ================================================================ 世界
@@ -403,6 +435,14 @@ class WireRenderer {
       feetY = L.charY + L.charH * k.y
       charScale = L.charScale * k.s
     }
+    // ---- 高空浮尘 ----
+    // 从远处往眼前缓慢上浮的小光点，读起来就是「这里有一片空气」。
+    if (this.dust) {
+      depth.drawDust(ctx, this.dust, this.clock, {
+        top: L.farY, bottom: L.charY, color: '255,255,255', alpha: 0.7
+      })
+    }
+
     // ---- 安全走廊（两条透视虚线）----
     ctx.save()
     ctx.setLineDash([7, 9])
@@ -448,6 +488,10 @@ class WireRenderer {
       ctx.fill()
     }
 
+    // 落脚接触阴影：脚与钢丝之间没有这层暗，人物就像「贴在画面上」
+    depth.softShadow(ctx, L.cx, feetY + 1.5,
+      L.charH * 0.19, Math.max(2.4, L.charH * 0.032), 0.30, '26,58,82')
+
     drawWalker(ctx, {
       x: L.cx + (idle ? Math.sin(this.clock * 0.7) * 1.2 : 0),
       y: feetY,
@@ -462,6 +506,11 @@ class WireRenderer {
 
     // ---- 边缘警告 / 保险绳介入提示 ----
     if (screen === 'play') this._drawSceneFx(vm)
+
+    // 轻微暗角：高空场景两侧压一点，视线自然收到人物和钢丝上
+    depth.vignette(ctx, {
+      w: L.W, h: L.H, color: '20,54,74', alpha: 0.16, cy: 0.56, inner: 0.42, outer: 0.96
+    })
   }
 
   _drawWire() {
@@ -1254,7 +1303,7 @@ class WireRenderer {
     ctx.fillRect(0, 0, W, H)
 
     this._text('设备准备', 24, top + 34, { size: 26, weight: '800', color: '#FFFFFF', shadow: true })
-    this._text('传感器卡在胸带上，胸带绕到腋下最高点，标定后即可开始', 24, top + 58, {
+    this._text('传感器卡在胸带上，胸带绕到腋下最高点，固定好就能开始', 24, top + 58, {
       size: 12, weight: '500', color: 'rgba(255,255,255,0.82)'
     })
 
@@ -1291,60 +1340,36 @@ class WireRenderer {
     this._text('身体保持自然直立，', cardX + 118, cy + 88, { size: 11.5, weight: '500', color: C.inkSoft })
     this._text('不要刻意挺胸或屏气。', cardX + 118, cy + 106, { size: 11.5, weight: '500', color: C.inkSoft })
 
-    // ---- 卡片 3：零点标定 ----
-    cy += wearH + 12
-    const calH = 96
-    this._glass(cardX, cy, cardW, calH, 18)
-    this._text('零点标定', cardX + 18, cy + 24, { size: 13, weight: '700', color: C.ink })
-
-    const cal = vm.calibration
-    let calText = '保持静止 3 秒，把当前姿势记为中立位'
-    let calColor = C.inkMute
-    if (vm.state === 'CALIBRATING') {
-      calText = '正在采样… 请保持不动'
-      calColor = C.amber
-    } else if (cal && cal.ok) {
-      calText = cal.simulated ? '模拟模式：已跳过真实标定' : '标定成功，可以开始训练'
-      calColor = C.tealDeep
-    } else if (cal && cal.ok === false) {
-      calText = cal.message || '标定失败，请重试'
-      calColor = C.danger
-    }
-    this._text(calText, cardX + 18, cy + 48, { size: 11.5, weight: '500', color: calColor })
-
-    // 进度条 / 按钮
-    if (vm.state === 'CALIBRATING') {
-      const pw = cardW - 36 - 96
-      rr(ctx, cardX + 18, cy + 60, pw, 8, 4)
-      ctx.fillStyle = 'rgba(19,41,58,0.08)'
-      ctx.fill()
-      rr(ctx, cardX + 18, cy + 60, Math.max(4, pw * vm.calibrationProgress), 8, 4)
-      ctx.fillStyle = C.amber
-      ctx.fill()
-      this._text(Math.round(vm.calibrationProgress * 100) + '%', cardX + 18 + pw + 12, cy + 68, {
-        size: 11, weight: '600', color: C.amber
+    // ---- 零点：只报状态，不做独立标定 ----
+    // 零点全 App 只有一份（utils/zero.js），统一在「零点标定」页设置。
+    // 这里若再放一套 3 秒采样标定，等于让用户对同一件事标两遍。
+    cy += wearH + 16
+    const z = vm.zero || { roll: 0, pitch: 0, set: false }
+    const fmtDeg = (v) => (v >= 0 ? '+' : '') + (Math.round(v * 10) / 10).toFixed(1) + '°'
+    if (z.set) {
+      this._text('当前零点 ' + fmtDeg(z.roll) + ' / ' + fmtDeg(z.pitch), cardX + 4, cy + 8, {
+        size: 11.5, weight: '500', color: 'rgba(255,255,255,0.72)'
       })
-      this._button('cal:cancel', cardX + cardW - 84, cy + 44, 68, 30, '取消', { variant: 'ghost', size: 11.5 })
     } else {
-      this._button('calibrate', cardX + cardW - 96, cy + 40, 80, 32,
-        cal && cal.ok ? '重新标定' : '开始标定', { variant: 'ghost', size: 11.5 })
-      this._text('标定结果仅用于本机游戏控制，不代表临床评估', cardX + 18, cy + calH - 14, {
-        size: 10, weight: '500', color: 'rgba(19,41,58,0.4)'
+      this._text('还没设置零点，读数按传感器原始角度算', cardX + 4, cy + 8, {
+        size: 11.5, weight: '500', color: C.amber
       })
     }
+    this._linkButton('zero:set', cardX + cardW - 72, cy - 2, 72, 24, z.set ? '重设' : '去标定')
 
     // ---- 底部按钮 ----
     const btnH = 50
     const by = H - 108
     const bw = (W - 32 - 12) / 2
     this._button('back', 16, by, bw, btnH, '返回', { variant: 'glass', icon: 'back', size: 14 })
-    const ready = (connected || vm.sim) && (vm.calibrated || vm.sim)
+    // 不再拦零点：有没有零点都能进，读数是否合理由标定页负责
+    const ready = connected || vm.sim
     this._button('enter', 16 + bw + 12, by, bw, btnH, '进入游戏', {
       variant: 'primary', icon: 'play', size: 15, disabled: !ready
     })
 
     if (!ready) {
-      this._text(connected || vm.sim ? '请先完成零点标定' : '请先连接传感器，或打开模拟数据', W / 2, by + btnH + 18, {
+      this._text('请先连接传感器，或打开模拟数据', W / 2, by + btnH + 18, {
         size: 11, weight: '500', color: 'rgba(255,255,255,0.8)', align: 'center'
       })
     }
