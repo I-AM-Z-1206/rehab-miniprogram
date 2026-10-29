@@ -6,6 +6,13 @@ const records = require('../../utils/rhythm-record.js')
 
 const AXIS_LABEL = { pitch: 'Pitch 轴', roll: 'Roll 轴' }
 
+// 音符数估算：间隔已经是毫秒，直接用时长除，不再绕 BPM 换算
+function estimateNotes(cfg, durSec) {
+  const gap = Math.max(620, Number(cfg.get('noteGapMs')) || 1100)
+  const prep = Number(cfg.get('prepMs')) || 2400
+  return Math.max(1, Math.round(Math.max(0, durSec * 1000 - prep) / gap))
+}
+
 function fmt(key, value) {
   const meta = SCHEMA[key]
   if (!meta) return String(value)
@@ -94,7 +101,7 @@ Page({
         return {
           lv: lv,
           active: lv === cfg.get('difficulty'),
-          step: p.noteStepBeats + ' 拍',
+          step: p.noteGapMs + 'ms',
           window: '±' + p.goodMs + 'ms',
           fly: (p.approachMs / 1000).toFixed(1) + ' 秒',
           duration: p.durationSec + ' 秒'
@@ -105,8 +112,8 @@ Page({
       uploadUrl: upload.url || '',
       uploadState: upload.url ? (upload.enabled ? '已配置' : '已填写但未启用') : '未配置',
       syncOffsetMs: Number(cfg.get('syncOffsetMs')) || 0,
-      notePreview: '本局约 ' + Math.max(1, Math.round(dur * (60 / songById(cfg.get('songId')).bpm) /
-        Math.max(0.25, Number(cfg.get('noteStepBeats')) || 1))) + ' 个音符'
+      // 音符数按毫秒直接算：间隔不再经过 BPM 换算，换曲子这个数字不变
+      notePreview: '本局约 ' + estimateNotes(cfg, dur) + ' 个音符'
     })
   },
 

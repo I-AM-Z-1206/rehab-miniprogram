@@ -553,9 +553,9 @@ class RhythmRenderer {
     const ctx = this.ctx
     const L = this.L
 
-    // 节奏光柱：随节拍轻微呼吸（幅度很小，避免刺激）
+    // 节奏光柱：随**音符**轻微呼吸（幅度很小，避免刺激）
     if (this.cfg.get('beatPulseOn') && screen === 'play') {
-      const pulse = (1 - vm.beatPhase) * 0.5
+      const pulse = (vm.notePhase || 0) * 0.5
       const g = ctx.createRadialGradient(L.cx, L.judgeY, 10, L.cx, L.judgeY, L.W * 0.55)
       g.addColorStop(0, 'rgba(150,190,255,' + (0.10 * pulse).toFixed(3) + ')')
       g.addColorStop(1, 'rgba(150,190,255,0)')
@@ -610,11 +610,11 @@ class RhythmRenderer {
     ctx.restore()
   }
 
-  /** 判定线：随节拍亮起的一道柔光（不闪屏） */
+  /** 判定线：随下一个音符的临近亮起的一道柔光（不闪屏） */
   _drawJudgeGlow(vm) {
     const ctx = this.ctx
     const L = this.L
-    const pulse = this.cfg.get('beatPulseOn') ? (1 - (vm.beatPhase || 0)) : 0.4
+    const pulse = this.cfg.get('beatPulseOn') ? (vm.notePhase || 0) : 0.4
     const t = (L.judgeY - L.horizonY) / (L.stageBottom + 20 - L.horizonY)
     const half = lerp(L.roadTopHalf, L.roadBottomHalf, t)
     ctx.save()
@@ -834,7 +834,7 @@ class RhythmRenderer {
     const ctx = this.ctx
     const L = this.L
     const beatOn = this.cfg.get('beatPulseOn')
-    const pulse = beatOn ? (1 - (vm.beatPhase || 0)) : 0
+    const pulse = beatOn ? (vm.notePhase || 0) : 0
     const armed = vm.dir
     const r = (L.padH || 26) * 1.05
 
@@ -1428,7 +1428,7 @@ class RhythmRenderer {
     this._button('vol', 12 + (bw + gap), by, bw, bh, vol + '%', {
       variant: 'panel', icon: 'volume', size: 10.5, radius: 14
     })
-    this._button('beat', 12 + (bw + gap) * 2, by, bw, bh, '节拍' + (beatOn ? '开' : '关'), {
+    this._button('beat', 12 + (bw + gap) * 2, by, bw, bh, '提示' + (beatOn ? '开' : '关'), {
       variant: beatOn ? 'panelOn' : 'panel', icon: 'wave', size: 10.5, radius: 14
     })
     this._button('quit', 12 + (bw + gap) * 3, by, bw, bh, '退出', {
@@ -1440,7 +1440,8 @@ class RhythmRenderer {
     const ctx = this.ctx
     const L = this.L
     const n = Math.max(1, vm.countdownBeat)
-    const frac = (vm.countdownSec % (vm.beatMs / 1000)) / (vm.beatMs / 1000)
+    // 按秒呼吸，不再按拍长 —— 音符已经不跟拍点走了
+    const frac = vm.countdownSec - Math.floor(vm.countdownSec)
     const scale = 1 + (1 - frac) * 0.25
 
     ctx.save()
@@ -1632,12 +1633,13 @@ class RhythmRenderer {
 
     // 本局参数（空间不够就不画，信息在准备页还有一份）
     if (showParams) {
-      const beatSec = 60 / Math.max(30, vm.bpm || 90)
-      const stepBeats = Math.max(0.25, Number(this.cfg.get('noteStepBeats')) || 1)
-      const est = Math.max(1, Math.round((Number(this.cfg.get('durationSec')) || 90) / (beatSec * stepBeats)))
+      // 音符数按毫秒直接算：间隔不再经过 BPM 换算，换曲子这个数字不变
+      const gapMs = Math.max(620, Number(this.cfg.get('noteGapMs')) || 1100)
+      const prepMs = Number(this.cfg.get('prepMs')) || 2400
+      const est = Math.max(1, Math.round(Math.max(0, (Number(this.cfg.get('durationSec')) || 90) * 1000 - prepMs) / gapMs))
       const params = [
         { k: '时长', v: (Number(this.cfg.get('durationSec')) || 90) + ' 秒' },
-        { k: '音符间隔', v: stepBeats + ' 拍' },
+        { k: '音符间隔', v: gapMs + 'ms' },
         { k: '判定窗口', v: '±' + (Number(this.cfg.get('goodMs')) || 160) + 'ms' },
         { k: '预估音符', v: '约 ' + est + ' 个' }
       ]
@@ -1775,7 +1777,8 @@ class RhythmRenderer {
     const steps = [
       { t: '传感器卡在胸带上', d: '胸带从腋下最高点绕一圈固定' },
       { t: '坐稳或站稳', d: '双手自然放下，身体保持中立位' },
-      { t: '听 ' + (Number(this.cfg.get('prepBeats')) || 2) + ' 拍预备音', d: '音乐开始后跟着拍子左右移动' }
+      // 不再提「听 N 拍」：音符节奏已经独立于音乐，跟着拍子动反而会错
+      { t: '跟着音符左右移动', d: '音符落到判定线时把重心移到对应一侧' }
     ]
     const stepTop = waveY + 46
     steps.forEach((s, i) => {

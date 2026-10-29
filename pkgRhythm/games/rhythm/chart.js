@@ -21,6 +21,12 @@ const { songById, beatMs } = require('../../../utils/rhythm-songs.js')
 
 const MAX_NOTES = 2400
 const SIDES = ['left', 'center', 'right']
+// 物理下限：低于这个值，多数康复患者一次左右转移都做不完，只能一路漏接
+const HARD_MIN_GAP_MS = 620
+// 呼吸时长倍数：呼吸时把间隔拉长，而不是跳过一个音符（跳过 = 节奏断线）
+const BREATHE_FACTOR = 1.5
+// 吸附模式下允许落在哪些拍值上（保证音符仍在拍点，音乐性不丢）
+const ALLOWED_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4]
 
 function clamp(v, lo, hi) {
   return v < lo ? lo : (v > hi ? hi : v)
@@ -50,14 +56,25 @@ function mulberry32(seed) {
 
 /**
  * 生成谱面
+ *
+ * 时间推进有两种模式（由 snapToBeat 决定）：
+ *   1. **自由间隔（默认）**：音符之间隔多少毫秒就是多少毫秒，与 BPM 无关。
+ *      康复训练要的是「患者来得及做一次完整的重心转移」，音乐是背景不是考官，
+ *      所以默认不让 BPM 反过来决定训练强度。
+ *   2. **吸附拍点（snapToBeat）**：把间隔换算到最近的合法拍值上，音符落在拍点上。
+ *      想让动作跟着音乐走时打开；代价是快曲子会把间隔压小，需靠安全下限兜底。
+ *
  * @param {object} opts
  *   song            曲目对象或 songId
  *   durationSec     训练时长（秒）
- *   noteStepBeats   每几拍一个音符（0.5 = 八分音符）
- *   restRate        休止概率 0~0.5
+ *   noteGapMs       目标音符间隔（毫秒）—— 自由模式下的主参数
+ *   snapToBeat      true = 吸附到音乐拍点（此时 noteStepBeats 生效）
+ *   noteStepBeats   每几拍一个音符（仅吸附模式用）
+ *   restRate        呼吸频率 0~0.5
  *   sameSideRate    同向连续概率 0~0.5
  *   sameSideGapMs   同向连续所需最小间隔
- *   prepBeats       开头空多少拍
+ *   prepMs          开头留白毫秒（自由模式用，建议 = 音符飞行时间）
+ *   prepBeats       开头空多少拍（吸附模式用）
  *   difficulty      仅用于种子与备注
  *   seed            谱面种子
  *   chartSeedVersion 换算法时改它，旧谱面不会悄悄变化
@@ -72,28 +89,26 @@ function buildChart(opts) {
   const durationSec = clamp(Number(o.durationSec) || 90, 10, 600)
   const durationMs = durationSec * 1000
 
-  const stepRaw = clamp(Number(o.noteStepBeats) || 1, 0.25, 4)
-  // ── 康复安全下限：音符间隔必须按**毫秒**定，不能只看拍数 ──
+  // ── 音符间隔：默认按毫秒直给，不跟音乐拍点 ──
   //
-  // 拍数是相对量：同一个「标准」档在 66 BPM 下是 909ms，在 110 BPM 下只有
-  // 545ms，差 1.7 倍 —— 治疗师选同一档难度，换个曲子难度就完全变了。
-  // 而康复患者完成一次左右转移再稳定下来大约要 700ms 以上，
-  // 545ms 的间隔在数学上就不可能命中，患者只能一路漏接。
+  // 拍数是相对量。同一个「标准」档在 66 BPM 下是 909ms、110 BPM 下只有 545ms，
+  // 差 1.7 倍 —— 治疗师选同一档难度，换个曲子难度就完全变了；而康复患者
+  // 完成一次左右转移再稳定下来要 700ms 以上，545ms 在数学上就不可能命中。
   //
-  // 做法：以毫秒为目标，从合法拍值里挑**换算后最接近目标**的那个。
-  // 这样三首曲子在同一难度档下间隔几乎一致，音符也仍然落在拍点上。
-  // （早先试过「不够就整倍数放大」，粒度太粗：66 BPM 的 909ms 会被
-  //   直接翻到 1818ms，明明只差 9% 却慢了一倍。）
-  const targetGapMs = clamp(Number(o.minGapMs) || 0, 0, 4000)
-  const ALLOWED_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4]
-  let step = stepRaw
-  if (targetGapMs > 0) {
+  // 所以默认用毫秒：目标间隔 = noteGapMs，与 BPM 无关，换曲子训练强度不变。
+  // 想保留音乐性就打开 snapToBeat，音符会吸附到最近的合法拍值。
+  const snapToBeat = !!o.snapToBeat
+  const gapWanted = clamp(Number(o.noteGapMs) || Number(o.minGapMs) || 0, 0, 4000)
+  // 物理下限：低于这个值，多数患者一次转移都做不完，只能一路漏接
+  const gapMs = Math.max(HARD_MIN_GAP_MS, gapWanted || 1000)
+
+  let step = clamp(Number(o.noteStepBeats) || 1, 0.25, 4)
+  if (snapToBeat && gapWanted > 0) {
     step = ALLOWED_STEPS.reduce((best, b) => {
-      return Math.abs(b * beat - targetGapMs) < Math.abs(best * beat - targetGapMs) ? b : best
+      return Math.abs(b * beat - gapWanted) < Math.abs(best * beat - gapWanted) ? b : best
     }, ALLOWED_STEPS[0])
-    // 硬下限兜底：低于这个数，多数康复患者在物理上无法完成一次转移
     let guard = 0
-    while (step * beat < 620 && guard < 32) {
+    while (step * beat < HARD_MIN_GAP_MS && guard < 32) {
       step += 0.25
       guard += 1
     }
@@ -104,20 +119,58 @@ function buildChart(opts) {
   const centerRate = clamp(Number(o.centerRate) || 0, 0, 0.6)
   const sameSideGapMs = clamp(Number(o.sameSideGapMs) || 320, 80, 2000)
   const prepBeats = clamp(Number(o.prepBeats) || 4, 0, 16)
+  const prepMs = clamp(Number(o.prepMs) || 2400, 600, 10000)
   const difficulty = clamp(Number(o.difficulty) || 3, 1, 5)
   const seed = Number(o.seed) || 7
   const version = o.chartSeedVersion || 'v1'
 
   const rng = mulberry32(hashSeed(song.songId + '|' + difficulty + '|' + seed + '|' + version))
 
-  // 呼吸拍：只在**小节末尾**留空，而且按小节计数。
-  //
-  // 原来是「每 N 个音符空一拍」，空的位置落在小节中间，实际效果是间隔突然
-  // 从 666ms 跳到 1333ms —— 患者刚建立起来的节奏预期被整段打断，主观感受
-  // 就是「一下子好多、一下子又没有」。乐句末尾的呼吸才是呼吸，
-  // 小节中间的空白是断层。
-  const restEveryBars = restRate > 0 ? Math.max(2, Math.round(1 / restRate / 2)) : 0
+  // 呼吸：原来是「跳过一个音符」，间隔直接翻倍（666→1333ms），患者刚建立
+  // 起来的节奏预期被整段打断，主观感受就是「一下子好多、一下子又没有」。
+  // 改成把间隔拉长到 1.5 倍 —— 音符一个不少，只是慢半拍，节奏不断线。
+  const restEvery = restRate > 0 ? Math.max(2, Math.round(1 / restRate / 2)) : 0
+  // 重音周期：自由模式下没有小节，按固定间隔给一个「强拍感」
+  const accentEvery = clamp(Number(o.accentEvery) || 4, 2, 8)
 
+  // ── 第一步：只算「音符出现在哪些时刻」──
+  // 两种模式的差别全在这段里，后面的方向分配完全共用。
+  const slots = []
+  let restBeats = 0
+
+  if (snapToBeat) {
+    let slot = 0
+    for (let b = prepBeats; b * beat + offsetMs <= durationMs; b += step) {
+      const timeMs = Math.round(b * beat) + offsetMs
+      if (timeMs > durationMs) break
+      // 开头不设休止，保证一上来就能听到第一组音符；之后每隔 restEvery 个
+      // 小节，在**小节末尾**空一拍。用 floor 判断跨小节，不用浮点取模 ——
+      // step 是 0.75 这类值时 (b+step) % beatsPerBar 永远不落在 0 上。
+      const early = b < prepBeats + 2 * step
+      if (!early && restEvery) {
+        const barNow = Math.floor(b / beatsPerBar)
+        const barNext = Math.floor((b + step) / beatsPerBar)
+        if (barNext > barNow) {
+          slot += 1
+          if (slot % restEvery === 0) {
+            restBeats += 1
+            continue
+          }
+        }
+      }
+      slots.push({ t: timeMs, b: b })
+    }
+  } else {
+    let t = offsetMs + prepMs
+    while (t <= durationMs && slots.length < MAX_NOTES) {
+      slots.push({ t: Math.round(t), b: t / beat })
+      const breathe = restEvery > 0 && slots.length % restEvery === 0
+      if (breathe) restBeats += 1
+      t += Math.round(breathe ? gapMs * BREATHE_FACTOR : gapMs)
+    }
+  }
+
+  // ── 第二步：给每个时刻分配方向（两种模式共用同一套规则）──
   const notes = []
   let lastSide = 'right'
   // 「上一个非中间音符」：交替必须基于它，不能基于 lastSide。
@@ -126,30 +179,9 @@ function buildChart(opts) {
   let lastNonCenter = 'right'
   let lastTime = -99999
   let seq = 0
-  let restBeats = 0
-  let slot = 0
 
-  for (let b = prepBeats; b * beat + offsetMs <= durationMs; b += step) {
-    if (notes.length >= MAX_NOTES) break
-    const timeMs = Math.round(b * beat) + offsetMs
-    if (timeMs > durationMs) break
-
-    // 开头两拍不设休止，保证一上来能听到第一组音符；
-    // 之后每隔 restEveryBars 个小节，在**小节末尾**空一拍。
-    const early = b < prepBeats + 2 * step
-    if (!early && restEveryBars) {
-      // 用 floor 判断跨小节，不用浮点取模 —— step 是 0.75 这类值时，
-      // (b+step) % beatsPerBar 永远不会正好落在 0 上，休止就再也不触发了。
-      const barNow = Math.floor(b / beatsPerBar)
-      const barNext = Math.floor((b + step) / beatsPerBar)
-      if (barNext > barNow) {
-        slot += 1
-        if (slot % restEveryBars === 0) {
-          restBeats += 1
-          continue
-        }
-      }
-    }
+  for (let i = 0; i < slots.length; i++) {
+    const timeMs = slots[i].t
 
     let side = lastNonCenter === 'left' ? 'right' : 'left'
     // 三车道：按 centerRate 概率要求「回到中立位」（中间音符）
@@ -162,15 +194,18 @@ function buildChart(opts) {
       side = SIDES.find((s) => s !== lastSide) || 'left'
     }
 
-    const onBar = Math.abs((b % beatsPerBar)) < 1e-6
+    const accent = snapToBeat
+      ? Math.abs(slots[i].b % beatsPerBar) < 1e-6
+      : i % accentEvery === 0
+
     seq += 1
     notes.push({
       noteId: 'n' + String(seq).padStart(4, '0'),
       targetSide: side,
-      beatIndex: Math.round(b * 1000) / 1000,
+      beatIndex: Math.round(slots[i].b * 1000) / 1000,
       targetTimeMs: timeMs,
-      noteType: onBar ? 'accent' : 'normal',
-      scoreValue: onBar ? 120 : 100,
+      noteType: accent ? 'accent' : 'normal',
+      scoreValue: accent ? 120 : 100,
       judgeStatus: 'pending'
     })
 
@@ -191,6 +226,10 @@ function buildChart(opts) {
       version,
       durationSec,
       durationMs,
+      snapToBeat,
+      gapMs,
+      gapWantedMs: gapWanted,
+      prepMs,
       noteCount: notes.length,
       restBeats,
       leftCount: notes.filter((n) => n.targetSide === 'left').length,

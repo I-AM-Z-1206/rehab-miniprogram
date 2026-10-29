@@ -221,7 +221,7 @@ console.log('\n[1] 配置与校验')
 
   cfg.reset()
   cfg.applyDifficulty(1)
-  eq(cfg.get('noteStepBeats'), PRESETS[1].noteStepBeats, '第 1 档套用「音符间隔」预设')
+  eq(cfg.get('noteGapMs'), PRESETS[1].noteGapMs, '第 1 档套用「音符间隔」预设')
   cfg.applyDifficulty(5)
   eq(cfg.get('approachMs'), PRESETS[5].approachMs, '第 5 档套用「飞行时间」预设')
 
@@ -240,12 +240,13 @@ console.log('\n[2] 谱面（确定性 + 结构）')
   const base = {
     song: song,
     durationSec: 30,
-    noteStepBeats: 1,
+    noteGapMs: 1000,
+    snapToBeat: false,
     restRate: 0.15,
     sameSideRate: 0.2,
     centerRate: 0.3,
     sameSideGapMs: 320,
-    prepBeats: 4,
+    prepMs: 2400,
     difficulty: 3,
     seed: 7
   }
@@ -256,7 +257,7 @@ console.log('\n[2] 谱面（确定性 + 结构）')
   const c = buildChart(Object.assign({}, base, { seed: 8 }))
   ok(JSON.stringify(a.notes) !== JSON.stringify(c.notes), '换种子 → 谱面不同')
 
-  const d = buildChart(Object.assign({}, base, { difficulty: 5, noteStepBeats: 0.5, sameSideRate: 0.2 }))
+  const d = buildChart(Object.assign({}, base, { difficulty: 5, noteGapMs: 700, sameSideRate: 0.2 }))
   ok(d.notes.length > a.notes.length, '高难度音符更多')
 
   // 所有音符都在时长内、左右都有、时间递增
@@ -286,13 +287,54 @@ console.log('\n[2] 谱面（确定性 + 结构）')
   // 曾经是随机留空，会连着空两三拍，手感就是"一堆音符之后半天没一个"
   const gaps = []
   for (let i = 1; i < a.notes.length; i++) gaps.push(a.notes[i].targetTimeMs - a.notes[i - 1].targetTimeMs)
-  const stepMs = Math.round(beat * base.noteStepBeats)
-  const odd = gaps.filter((g) => Math.abs(g - stepMs) > 60 && Math.abs(g - stepMs * 2) > 60)
-  ok(odd.length === 0, '音符间隔只有「一个步长」或「两个步长」（呼吸拍）', odd.slice(0, 3).join(','))
+  // 呼吸不再是「跳过一个音符」（间隔翻倍 = 节奏断线），而是把间隔拉长 1.5 倍。
+  // 所以合法间隔只有两种：常态 gapMs，和呼吸的 gapMs × 1.5。
+  const stepMs = a.meta.gapMs
+  const odd = gaps.filter((g) => Math.abs(g - stepMs) > 60 && Math.abs(g - stepMs * 1.5) > 60)
+  ok(odd.length === 0, '音符间隔只有「常态」或「呼吸拉长的 1.5 倍」', odd.slice(0, 3).join(','))
   let doubleRest = 0
-  for (let i = 1; i < gaps.length; i++) if (gaps[i] > stepMs * 1.5 && gaps[i - 1] > stepMs * 1.5) doubleRest += 1
-  ok(doubleRest === 0, '呼吸拍不会连着空（不会出现 2 倍以上的长空白）', String(doubleRest))
-  near(a.notes[0].targetTimeMs, Math.round(4 * beat), 2, '第一个音符落在第 4 拍（预备拍之后）')
+  for (let i = 1; i < gaps.length; i++) if (gaps[i] > stepMs * 1.2 && gaps[i - 1] > stepMs * 1.2) doubleRest += 1
+  ok(doubleRest === 0, '呼吸不会连着出现（节奏不断线）', String(doubleRest))
+  near(a.notes[0].targetTimeMs, base.prepMs + (song.offsetMs || 0), 2, '第一个音符落在预备时间之后')
+
+  // ── 本次改动的核心：训练强度与 BPM 彻底无关 ──
+  // 之前同一难度档在 66/90/110 BPM 下间隔是 909/666/545ms（差 1.67 倍），
+  // 换首曲子难度就变了。现在必须三首曲子给出完全一样的时间表。
+  const across = ['slow_wave', 'dawn_walk', 'heart_pulse'].map((id) => {
+    return buildChart(Object.assign({}, base, { song: id }))
+  })
+  const sameCount = across.every((c) => c.notes.length === across[0].notes.length)
+  ok(sameCount, '换曲子不改变音符数量（难度不再随 BPM 漂移）',
+    across.map((c) => c.notes.length).join('/'))
+  // 只比时间：方向序列仍按 songId 播种（同曲同种子才可复现），
+  // 换曲子本来就该换一套左右顺序，但「什么时候来音符」必须一模一样。
+  const timesOf = (c) => JSON.stringify(c.notes.map((n) => n.targetTimeMs))
+  ok(timesOf(across[0]) === timesOf(across[1]) && timesOf(across[1]) === timesOf(across[2]),
+  '换曲子音符时间表完全一致',
+  across.map((c) => c.notes.length + '个').join('/'))
+  ok(across[0].meta.bpm !== across[2].meta.bpm, '测试用的三首曲子 BPM 确实不同（上面的断言才有意义）')
+
+  // 物理下限：再怎么调都不能低于一次重心转移所需的时间
+  const tooFast = buildChart(Object.assign({}, base, { noteGapMs: 300 }))
+  const tfGaps = []
+  for (let i = 1; i < tooFast.notes.length; i++) {
+    tfGaps.push(tooFast.notes[i].targetTimeMs - tooFast.notes[i - 1].targetTimeMs)
+  }
+  ok(Math.min.apply(null, tfGaps) >= 620, '间隔有 620ms 物理下限（低于此患者做不完一次转移）',
+    String(Math.min.apply(null, tfGaps)))
+
+  // 吸附模式下音符仍落在音乐网格上（半拍网格：步长可能是 1.5 拍这类附点值，
+  // 落在八分位同样是合法的音乐位置，只要求不出现"哪儿都不在"的时间点）
+  const snapped = buildChart(Object.assign({}, base, { snapToBeat: true, noteStepBeats: 1 }))
+  const offBeat = snapped.notes.filter((n) => {
+    const half = (n.targetTimeMs / beatMs(song)) * 2
+    return Math.abs(half - Math.round(half)) > 0.02
+  })
+  ok(offBeat.length === 0, '吸附模式下音符仍落在音乐网格上', String(offBeat.length))
+  // 且换曲子时吸附模式会给出不同间隔（这正是它存在的代价）
+  const snapSlow = buildChart(Object.assign({}, base, { snapToBeat: true, song: 'slow_wave' }))
+  ok(snapSlow.meta.gapMs !== snapped.meta.gapMs || snapSlow.notes.length !== snapped.notes.length,
+    '吸附模式下换曲子会改变节奏（所以默认关闭它）')
 
   // 同向连续必须留够间隔（否则引擎的"一次动作一个音符"规则下打不出来）
   let badGap = 0

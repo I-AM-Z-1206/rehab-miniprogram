@@ -563,7 +563,7 @@ Page({
         break
       case 'beat':
         this.cfg.set('beatPulseOn', !this.cfg.get('beatPulseOn'), 'page')
-        this.hint(this.cfg.get('beatPulseOn') ? '节拍脉冲已开启' : '节拍脉冲已关闭', '#B9F4FF', 0)
+        this.hint(this.cfg.get('beatPulseOn') ? '临近提示已开启' : '临近提示已关闭', '#B9F4FF', 0)
         break
       case 'reconnect':
         wx.navigateTo({ url: '/pages/wit/wit' })

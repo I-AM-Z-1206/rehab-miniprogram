@@ -46,8 +46,14 @@ const SCHEMA = {
     min: -200, max: 200, step: 5, def: 0,
     tip: '真机上"听到"比"看到"晚时调大；请配合「试听 8 拍」校准'
   },
-  beatPulseOn: { group: '音乐', label: '节拍脉冲提示', type: 'bool', def: true, tip: '判定区随节拍柔和呼吸，帮助感知时机' },
-  beatClickOn: { group: '音乐', label: '节拍点击音', type: 'bool', def: true, tip: '训练中播放轻微节拍点击，可关闭' },
+  beatPulseOn: {
+    group: '音乐', label: '临近提示（判定区呼吸）', type: 'bool', def: true,
+    tip: '判定区与踏板随**下一个音符**的临近柔和呼吸（不是跟着音乐拍点），帮助患者预判什么时候该动'
+  },
+  beatClickOn: {
+    group: '音乐', label: '拍点点击音', type: 'bool', def: false,
+    tip: '按音乐拍点响的轻微点击音。音符节奏已独立于音乐，这个声音与「该动了」的时刻无关，康复训练建议关闭'
+  },
 
   // ---------------- 训练目标 ----------------
   durationSec: {
@@ -121,15 +127,24 @@ const SCHEMA = {
     min: 900, max: 4000, step: 50, def: 2400,
     tip: '音符从出现到抵达判定线的时间，越长越容易预判'
   },
-  noteStepBeats: {
-    group: '节奏判定', label: '音符间隔', type: 'num', unit: '拍',
-    min: 0.5, max: 4, step: 0.25, def: 1,
-    tip: '每几拍来一个音符；1 拍 = 跟着音乐每拍一个，越大约慢。实际间隔不会低于下方的安全下限'
+  noteGapMs: {
+    group: '节奏判定', label: '音符间隔', type: 'num', unit: 'ms',
+    min: 400, max: 3000, step: 50, def: 1100,
+    tip: '两个音符之间隔多少毫秒。这是训练强度的主参数，与音乐 BPM 无关，换曲子不会再变难度。低于约 700ms 多数患者来不及完成一次重心转移'
   },
-  minGapMs: {
-    group: '节奏判定', label: '音符最小间隔', type: 'num', unit: 'ms',
-    min: 400, max: 2000, step: 50, def: 1000,
-    tip: '康复安全下限：换快曲子时音符会自动落到整拍上并放大间隔，保证患者来得及完成一次左右转移。低于 700ms 时多数患者只能一路漏接'
+  snapToBeat: {
+    group: '节奏判定', label: '吸附到音乐拍点', type: 'bool', def: false,
+    tip: '打开后音符会落回音乐拍点上（动作跟音乐走）；关闭时严格按上面的毫秒间隔走。康复训练默认关闭 —— 音乐是背景，不该由它决定患者有多累'
+  },
+  noteStepBeats: {
+    group: '节奏判定', label: '音符间隔（拍）', type: 'num', unit: '拍',
+    min: 0.5, max: 4, step: 0.25, def: 1,
+    tip: '仅「吸附到音乐拍点」开启时生效：每几拍一个音符。关闭时以上方的毫秒间隔为准'
+  },
+  prepMs: {
+    group: '节奏判定', label: '开头预备时间', type: 'num', unit: 'ms',
+    min: 600, max: 8000, step: 100, def: 2400,
+    tip: '开始后多久出第一个音符。建议不小于音符飞行时间，否则第一个音符会「半路冒出来」'
   },
   centerRate: {
     group: '节奏判定', label: '中间音符比例', type: 'num', unit: '',
@@ -137,9 +152,9 @@ const SCHEMA = {
     tip: '0 = 只出左右音符；调高后要求「回到中立位」的中间音符越多'
   },
   restRate: {
-    group: '节奏判定', label: '呼吸拍间隔', type: 'num', unit: '',
+    group: '节奏判定', label: '呼吸间隔频率', type: 'num', unit: '',
     min: 0, max: 0.5, step: 0.01, def: 0.08,
-    tip: '每 N 个音符空一拍（固定位置，不会连着空）；0 = 不留空。0.13≈每 8 个空一拍'
+    tip: '每 N 个音符把间隔拉长 1.5 倍作为喘息（音符一个不少，节奏不断线）。0 = 不留喘息'
   },
   sameSideRate: {
     group: '节奏判定', label: '同向连击比例', type: 'num', unit: '',
@@ -172,34 +187,35 @@ const GROUPS = ['难度', '音乐', '训练目标', '体感输入', '左右判�
 
 // 五档预设：只覆盖"游戏手感"参数，体感输入与音乐的选择保持治疗师设置
 //
-// minGapMs 是这里最关键的一项。noteStepBeats 是**拍数**（相对量），
-// 同一个难度档在 66 BPM 下是 909ms、在 110 BPM 下只有 545ms，差 1.7 倍。
-// 康复患者完成一次左右转移 + 稳定判定约需 700ms 以上，545ms 在数学上
-// 就不可能命中。所以每档都给一个毫秒下限兜底，换曲子不会让难度失控。
+// noteGapMs 是训练强度的主参数，按「一次重心转移要多久」定，不按拍数定：
+// 患者完成一次左右转移 + 稳定判定约需 700~900ms，所以入门档留两倍余量，
+// 挑战档才压到 780ms（贴着 620ms 的物理下限再留一点安全余量）。
+// 因为不再吸附拍点，换任何曲子这些数字都不变 —— 难度终于只由治疗师决定。
+// prepMs 取不小于 approachMs，否则第一个音符会「半路冒出来」。
 const PRESETS = {
   1: {
-    label: '入门', noteStepBeats: 2, restRate: 0.2, sameSideRate: 0.05,
-    perfectMs: 110, greatMs: 180, goodMs: 260, approachMs: 3000, minGapMs: 1600,
+    label: '入门', noteGapMs: 1800, restRate: 0.2, sameSideRate: 0.05,
+    perfectMs: 110, greatMs: 180, goodMs: 260, approachMs: 3000, prepMs: 3000,
     stableMs: 80, sameSideGapMs: 260, durationSec: 60, prepBeats: 2
   },
   2: {
-    label: '轻量', noteStepBeats: 1.5, restRate: 0.14, sameSideRate: 0.08,
-    perfectMs: 95, greatMs: 160, goodMs: 235, approachMs: 2800, minGapMs: 1250,
+    label: '轻量', noteGapMs: 1450, restRate: 0.14, sameSideRate: 0.08,
+    perfectMs: 95, greatMs: 160, goodMs: 235, approachMs: 2800, prepMs: 2800,
     stableMs: 100, sameSideGapMs: 280, durationSec: 75, prepBeats: 2
   },
   3: {
-    label: '标准', noteStepBeats: 1, restRate: 0.08, sameSideRate: 0.12,
-    perfectMs: 85, greatMs: 145, goodMs: 210, approachMs: 2600, minGapMs: 1000,
+    label: '标准', noteGapMs: 1150, restRate: 0.08, sameSideRate: 0.12,
+    perfectMs: 85, greatMs: 145, goodMs: 210, approachMs: 2600, prepMs: 2600,
     stableMs: 120, sameSideGapMs: 320, durationSec: 90, prepBeats: 2
   },
   4: {
-    label: '进阶', noteStepBeats: 0.75, restRate: 0.06, sameSideRate: 0.16,
-    perfectMs: 75, greatMs: 128, goodMs: 190, approachMs: 2400, minGapMs: 820,
+    label: '进阶', noteGapMs: 950, restRate: 0.06, sameSideRate: 0.16,
+    perfectMs: 75, greatMs: 128, goodMs: 190, approachMs: 2400, prepMs: 2400,
     stableMs: 140, sameSideGapMs: 340, durationSec: 105, prepBeats: 2
   },
   5: {
-    label: '挑战', noteStepBeats: 0.5, restRate: 0.04, sameSideRate: 0.2,
-    perfectMs: 65, greatMs: 112, goodMs: 170, approachMs: 2200, minGapMs: 680,
+    label: '挑战', noteGapMs: 780, restRate: 0.04, sameSideRate: 0.2,
+    perfectMs: 65, greatMs: 112, goodMs: 170, approachMs: 2200, prepMs: 2200,
     stableMs: 160, sameSideGapMs: 360, durationSec: 120, prepBeats: 2
   }
 }

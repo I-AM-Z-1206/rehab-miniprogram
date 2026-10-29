@@ -251,16 +251,18 @@ class RhythmEngine {
       : buildChart({
         song: this.song,
         durationSec: durationSec,
+        noteGapMs: this.cfg.get('noteGapMs'),
+        snapToBeat: this.cfg.get('snapToBeat'),
         noteStepBeats: this.cfg.get('noteStepBeats'),
-        minGapMs: this.cfg.get('minGapMs'),
         restRate: this.cfg.get('restRate'),
         sameSideRate: this.cfg.get('sameSideRate'),
         centerRate: this.cfg.get('centerRate'),
         sameSideGapMs: this.cfg.get('sameSideGapMs'),
+        prepMs: this.cfg.get('prepMs'),
         prepBeats: this.cfg.get('prepBeats'),
         difficulty: this.cfg.get('difficulty'),
         seed: this.cfg.get('chartSeed'),
-        chartSeedVersion: 'v3'
+        chartSeedVersion: 'v4'
       })
 
     if (!chart.notes.length) {
@@ -275,6 +277,10 @@ class RhythmEngine {
       judgedAt: 0,
       fade: 0
     }))
+    // 音符脉冲周期：判定区/踏板/光柱的呼吸要跟着**音符**走，不是跟着音乐拍点走。
+    // 音符已经不吸附拍点了，还用拍相位呼吸就会出现「灯在拍点上闪、音符在别的
+    // 时候到」，患者跟着灯动反而全错。
+    this.noteGapMs = (chart.meta && chart.meta.gapMs) || Number(this.cfg.get('noteGapMs')) || 1000
     this.active = []
     this.cursor = 0
     this.musicMs = 0
@@ -298,10 +304,13 @@ class RhythmEngine {
     this.motion.resetTrajectory()
     this.action = { seq: 0, side: 'center', since: 0, consumedSeq: 0, lastHitAt: { left: -1e9, center: -1e9, right: -1e9 } }
 
-    const prep = clamp(Number(this.cfg.get('prepBeats')) || 4, 2, 8)
-    this.countdownMs = prep * this.beatMs
+    // 倒计时也改成毫秒：它跟拍点没关系，只负责让患者「准备好」。
+    // 取 prepMs 的六成 —— 剩下的时间交给第一个音符自己飞进来（prepMs），
+    // 两段加起来跟原来「2 拍倒计时 + 2 拍预备」的总时长差不多。
+    const prepMs = clamp(Number(this.cfg.get('prepMs')) || 2400, 600, 10000)
+    this.countdownMs = clamp(Math.round(prepMs * 0.6), 1200, 2400)
     this.setState(STATE.COUNTDOWN)
-    this._emit('countdown', { beats: prep })
+    this._emit('countdown', { beats: Math.ceil(this.countdownMs / 1000) })
 
     return { ok: true, warnings: v.warnings, noteCount: this.notes.length }
   }
@@ -702,6 +711,25 @@ class RhythmEngine {
     return out
   }
 
+  /**
+   * 音符相位：距离下一个未判定音符还有多近（0 = 还很远，1 = 马上到）。
+   * 判定线 / 踏板 / 光柱的呼吸一律用它，不能用 clock.beatPhase ——
+   * 音符已经不吸附拍点了，跟着音乐拍点呼吸就是「灯在拍点上闪、音符在别的
+   * 时候到」，患者照着灯动反而全错。
+   */
+  _notePhase(now) {
+    const gap = Math.max(1, this.noteGapMs || 1000)
+    for (let i = 0; i < this.active.length; i++) {
+      const n = this.active[i]
+      if (n.judged) continue
+      const remain = n.targetTimeMs - now
+      if (remain < 0) continue
+      if (remain > gap) break // active 按时间有序，后面的更远
+      return clamp(1 - remain / gap, 0, 1)
+    }
+    return 0
+  }
+
   getViewModel(nowArg) {
     const now = typeof nowArg === 'number' ? nowArg : (this.clock ? this.clock.nowMs() : this.musicMs)
     const snap = this.score.snapshot()
@@ -726,7 +754,8 @@ class RhythmEngine {
       timeLeftSec: Math.max(0, round((this.durationMs - now) / 1000, 1)),
       progress: this.durationMs > 0 ? clamp(now / this.durationMs, 0, 1) : 0,
       countdownSec: this.countdownMs / 1000,
-      countdownBeat: Math.ceil(this.countdownMs / this.beatMs),
+      // 倒计时按秒读，不按拍 —— 音符已经不跟拍点走了，读拍会数出不存在的东西
+      countdownBeat: Math.ceil(this.countdownMs / 1000),
       score: snap.score,
       perfect: snap.perfect,
       great: snap.great,
@@ -749,6 +778,9 @@ class RhythmEngine {
       feedback: recent,
       feedbacks: this.feedbacks,
       beatPhase: this.clock && this.clock.beatPhase ? this.clock.beatPhase() : 0,
+      // 音符相位：0 = 下一个音符还很远，1 = 马上就到。视觉呼吸一律用它，
+      // 不能用 beatPhase —— 那会让提示和音符错开（见 start() 里的说明）。
+      notePhase: this._notePhase(now),
       beatFlash: this.beatFlash,
       hitFlash: this.hitFlash,
       missFlash: this.missFlash,
