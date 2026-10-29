@@ -48,13 +48,22 @@ class HitJudge {
     const p = clamp(Number(this.cfg.get('perfectMs')) || 60, 10, 300)
     const g = Math.max(p + 5, Number(this.cfg.get('greatMs')) || 105)
     const d = Math.max(g + 5, Number(this.cfg.get('goodMs')) || 160)
-    return { perfect: p, great: g, good: d }
+    // 提前容差：躯干不是按键。
+    //
+    // 按键可以在拍点上精确按下，躯干不行 —— 它必须**提前启动**才能准时到位，
+    // 移动本身就要几百毫秒。所以「进入该侧的时刻早于拍点」是正常的、
+    // 甚至是唯一可行的策略，不是失误。原来 early 和 late 用同一个窗口，
+    // 结果就是：患者做对了（提前启动、准时到位）却被判 MISS，一路漏接。
+    //
+    // 只放宽 early 一侧；late 保持严格，那才是真的跟丢了节奏。
+    const ef = clamp(Number(this.cfg.get('earlyFactor')) || 1, 1, 3)
+    return { perfect: p, great: g, good: d, earlyFactor: ef }
   }
 
-  /** 只按时间误差分级，不管方向 */
+  /** 只按时间误差分级，不管方向。deltaMs < 0 = 提前进入 */
   classify(deltaMs) {
     const w = this.windows
-    const a = Math.abs(deltaMs)
+    const a = Math.abs(deltaMs) / (deltaMs < 0 ? w.earlyFactor : 1)
     if (a <= w.perfect) return VERDICT.PERFECT
     if (a <= w.great) return VERDICT.GREAT
     if (a <= w.good) return VERDICT.GOOD
@@ -138,7 +147,8 @@ class HitJudge {
       return { verdict: VERDICT.MISS, deltaMs: sinceLine, reason: 'too-late' }
     }
     const raw = entered - note.targetTimeMs
-    const deltaMs = clamp(raw, -w.good, w.good)
+    // 提前侧的截断也要跟着放宽，否则 earlyFactor 白设
+    const deltaMs = clamp(raw, -w.good * w.earlyFactor, w.good)
     const verdict = this.classify(deltaMs)
     if (!verdict) return { verdict: 'pending', deltaMs: sinceLine, reason: 'out' }
     return { verdict, deltaMs, reason: raw < 0 ? 'early' : 'hit' }

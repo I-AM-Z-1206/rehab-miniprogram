@@ -72,7 +72,33 @@ function buildChart(opts) {
   const durationSec = clamp(Number(o.durationSec) || 90, 10, 600)
   const durationMs = durationSec * 1000
 
-  const step = clamp(Number(o.noteStepBeats) || 1, 0.25, 4)
+  const stepRaw = clamp(Number(o.noteStepBeats) || 1, 0.25, 4)
+  // ── 康复安全下限：音符间隔必须按**毫秒**定，不能只看拍数 ──
+  //
+  // 拍数是相对量：同一个「标准」档在 66 BPM 下是 909ms，在 110 BPM 下只有
+  // 545ms，差 1.7 倍 —— 治疗师选同一档难度，换个曲子难度就完全变了。
+  // 而康复患者完成一次左右转移再稳定下来大约要 700ms 以上，
+  // 545ms 的间隔在数学上就不可能命中，患者只能一路漏接。
+  //
+  // 做法：以毫秒为目标，从合法拍值里挑**换算后最接近目标**的那个。
+  // 这样三首曲子在同一难度档下间隔几乎一致，音符也仍然落在拍点上。
+  // （早先试过「不够就整倍数放大」，粒度太粗：66 BPM 的 909ms 会被
+  //   直接翻到 1818ms，明明只差 9% 却慢了一倍。）
+  const targetGapMs = clamp(Number(o.minGapMs) || 0, 0, 4000)
+  const ALLOWED_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4]
+  let step = stepRaw
+  if (targetGapMs > 0) {
+    step = ALLOWED_STEPS.reduce((best, b) => {
+      return Math.abs(b * beat - targetGapMs) < Math.abs(best * beat - targetGapMs) ? b : best
+    }, ALLOWED_STEPS[0])
+    // 硬下限兜底：低于这个数，多数康复患者在物理上无法完成一次转移
+    let guard = 0
+    while (step * beat < 620 && guard < 32) {
+      step += 0.25
+      guard += 1
+    }
+  }
+  step = clamp(step, 0.25, 8)
   const restRate = clamp(Number(o.restRate) || 0, 0, 0.6)
   const sameSideRate = clamp(Number(o.sameSideRate) || 0, 0, 0.6)
   const centerRate = clamp(Number(o.centerRate) || 0, 0, 0.6)
@@ -84,13 +110,20 @@ function buildChart(opts) {
 
   const rng = mulberry32(hashSeed(song.songId + '|' + difficulty + '|' + seed + '|' + version))
 
-  // 呼吸拍：按固定间隔留空，而不是随机留空。
-  // 随机留空会连着空两三拍（患者感受就是"一堆音符之后半天没一个"），
-  // 固定间隔则变成"每 N 个音符空一拍"，节奏可预期。
-  const restEvery = restRate > 0 ? Math.max(4, Math.round(1 / restRate)) : 0
+  // 呼吸拍：只在**小节末尾**留空，而且按小节计数。
+  //
+  // 原来是「每 N 个音符空一拍」，空的位置落在小节中间，实际效果是间隔突然
+  // 从 666ms 跳到 1333ms —— 患者刚建立起来的节奏预期被整段打断，主观感受
+  // 就是「一下子好多、一下子又没有」。乐句末尾的呼吸才是呼吸，
+  // 小节中间的空白是断层。
+  const restEveryBars = restRate > 0 ? Math.max(2, Math.round(1 / restRate / 2)) : 0
 
   const notes = []
   let lastSide = 'right'
+  // 「上一个非中间音符」：交替必须基于它，不能基于 lastSide。
+  // 因为 center !== 'left'，若拿 lastSide 判断，每个中间音符之后都会恒取
+  // left —— 实测左侧音符比右侧多 14~32%。康复训练最忌讳左右训练量不对称。
+  let lastNonCenter = 'right'
   let lastTime = -99999
   let seq = 0
   let restBeats = 0
@@ -102,17 +135,23 @@ function buildChart(opts) {
     if (timeMs > durationMs) break
 
     // 开头两拍不设休止，保证一上来能听到第一组音符；
-    // 之后每隔 restEvery 个音符空一拍（固定位置，绝不会连着空）
+    // 之后每隔 restEveryBars 个小节，在**小节末尾**空一拍。
     const early = b < prepBeats + 2 * step
-    if (!early) {
-      slot += 1
-      if (restEvery && slot % restEvery === 0) {
-        restBeats += 1
-        continue
+    if (!early && restEveryBars) {
+      // 用 floor 判断跨小节，不用浮点取模 —— step 是 0.75 这类值时，
+      // (b+step) % beatsPerBar 永远不会正好落在 0 上，休止就再也不触发了。
+      const barNow = Math.floor(b / beatsPerBar)
+      const barNext = Math.floor((b + step) / beatsPerBar)
+      if (barNext > barNow) {
+        slot += 1
+        if (slot % restEveryBars === 0) {
+          restBeats += 1
+          continue
+        }
       }
     }
 
-    let side = lastSide === 'left' ? 'right' : 'left'
+    let side = lastNonCenter === 'left' ? 'right' : 'left'
     // 三车道：按 centerRate 概率要求「回到中立位」（中间音符）
     if (centerRate > 0 && rng() < centerRate) side = 'center'
     const same = rng() < sameSideRate
@@ -136,6 +175,7 @@ function buildChart(opts) {
     })
 
     lastSide = side
+    if (side !== 'center') lastNonCenter = side
     lastTime = timeMs
   }
 

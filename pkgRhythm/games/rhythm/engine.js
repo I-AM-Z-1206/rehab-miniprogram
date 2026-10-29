@@ -36,7 +36,10 @@ const STATE = {
 }
 
 const SENSOR_RESUME_MS = 600 // 断线后恢复数据多久算"真的回来了"
-const NOTE_TAIL_MS = 700 // 判定结束后音符留多久用于淡出
+// 判定结束后音符留多久用于淡出。
+// 原来是 700ms，比标准档的音符间隔（666ms）还长 —— 下一个音符都到了，
+// 上一个还堆在判定线上，患者看不出该看哪一个。必须明显短于最短间隔。
+const NOTE_TAIL_MS = 380
 const END_TAIL_MS = 1400 // 音乐时间到点后再等多久收尾（让最后一个音符结算完）
 const FEEDBACK_KEEP_MS = 900 // 判定文字保留时长
 const GUIDE_GAP_MS = 9000
@@ -249,6 +252,7 @@ class RhythmEngine {
         song: this.song,
         durationSec: durationSec,
         noteStepBeats: this.cfg.get('noteStepBeats'),
+        minGapMs: this.cfg.get('minGapMs'),
         restRate: this.cfg.get('restRate'),
         sameSideRate: this.cfg.get('sameSideRate'),
         centerRate: this.cfg.get('centerRate'),
@@ -256,7 +260,7 @@ class RhythmEngine {
         prepBeats: this.cfg.get('prepBeats'),
         difficulty: this.cfg.get('difficulty'),
         seed: this.cfg.get('chartSeed'),
-        chartSeedVersion: 'v2'
+        chartSeedVersion: 'v3'
       })
 
     if (!chart.notes.length) {

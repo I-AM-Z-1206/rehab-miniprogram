@@ -108,9 +108,14 @@ const SCHEMA = {
   },
 
   // ---------------- 节奏判定 ----------------
-  perfectMs: { group: '节奏判定', label: 'PERFECT 窗口', type: 'num', unit: '±ms', min: 25, max: 120, step: 5, def: 60 },
-  greatMs: { group: '节奏判定', label: 'GREAT 窗口', type: 'num', unit: '±ms', min: 45, max: 180, step: 5, def: 105 },
-  goodMs: { group: '节奏判定', label: 'GOOD 窗口', type: 'num', unit: '±ms', min: 70, max: 260, step: 5, def: 160 },
+  perfectMs: { group: '节奏判定', label: 'PERFECT 窗口', type: 'num', unit: '±ms', min: 25, max: 120, step: 5, def: 85 },
+  greatMs: { group: '节奏判定', label: 'GREAT 窗口', type: 'num', unit: '±ms', min: 45, max: 180, step: 5, def: 145 },
+  goodMs: { group: '节奏判定', label: 'GOOD 窗口', type: 'num', unit: '±ms', min: 70, max: 260, step: 5, def: 210 },
+  earlyFactor: {
+    group: '节奏判定', label: '提前容差倍数', type: 'num', unit: '×',
+    min: 1, max: 3, step: 0.1, def: 1.8,
+    tip: '提前进入该侧时的窗口放大倍数。躯干移动必须提前启动才能准时到位，提前是正常策略不是失误；迟到你窗口不变（那才是真的慢了）'
+  },
   approachMs: {
     group: '节奏判定', label: '音符飞行时间', type: 'num', unit: 'ms',
     min: 900, max: 4000, step: 50, def: 2400,
@@ -119,7 +124,12 @@ const SCHEMA = {
   noteStepBeats: {
     group: '节奏判定', label: '音符间隔', type: 'num', unit: '拍',
     min: 0.5, max: 4, step: 0.25, def: 1,
-    tip: '每几拍来一个音符；1 拍 = 跟着音乐每拍一个，越大约慢'
+    tip: '每几拍来一个音符；1 拍 = 跟着音乐每拍一个，越大约慢。实际间隔不会低于下方的安全下限'
+  },
+  minGapMs: {
+    group: '节奏判定', label: '音符最小间隔', type: 'num', unit: 'ms',
+    min: 400, max: 2000, step: 50, def: 1000,
+    tip: '康复安全下限：换快曲子时音符会自动落到整拍上并放大间隔，保证患者来得及完成一次左右转移。低于 700ms 时多数患者只能一路漏接'
   },
   centerRate: {
     group: '节奏判定', label: '中间音符比例', type: 'num', unit: '',
@@ -128,7 +138,7 @@ const SCHEMA = {
   },
   restRate: {
     group: '节奏判定', label: '呼吸拍间隔', type: 'num', unit: '',
-    min: 0, max: 0.5, step: 0.01, def: 0.13,
+    min: 0, max: 0.5, step: 0.01, def: 0.08,
     tip: '每 N 个音符空一拍（固定位置，不会连着空）；0 = 不留空。0.13≈每 8 个空一拍'
   },
   sameSideRate: {
@@ -161,30 +171,35 @@ const SCHEMA = {
 const GROUPS = ['难度', '音乐', '训练目标', '体感输入', '左右判定', '节奏判定', '计分', '反馈']
 
 // 五档预设：只覆盖"游戏手感"参数，体感输入与音乐的选择保持治疗师设置
+//
+// minGapMs 是这里最关键的一项。noteStepBeats 是**拍数**（相对量），
+// 同一个难度档在 66 BPM 下是 909ms、在 110 BPM 下只有 545ms，差 1.7 倍。
+// 康复患者完成一次左右转移 + 稳定判定约需 700ms 以上，545ms 在数学上
+// 就不可能命中。所以每档都给一个毫秒下限兜底，换曲子不会让难度失控。
 const PRESETS = {
   1: {
-    label: '入门', noteStepBeats: 2, restRate: 0.28, sameSideRate: 0.05,
-    perfectMs: 90, greatMs: 150, goodMs: 220, approachMs: 3000,
+    label: '入门', noteStepBeats: 2, restRate: 0.2, sameSideRate: 0.05,
+    perfectMs: 110, greatMs: 180, goodMs: 260, approachMs: 3000, minGapMs: 1600,
     stableMs: 80, sameSideGapMs: 260, durationSec: 60, prepBeats: 2
   },
   2: {
-    label: '轻量', noteStepBeats: 1.5, restRate: 0.2, sameSideRate: 0.08,
-    perfectMs: 80, greatMs: 130, goodMs: 195, approachMs: 2800,
+    label: '轻量', noteStepBeats: 1.5, restRate: 0.14, sameSideRate: 0.08,
+    perfectMs: 95, greatMs: 160, goodMs: 235, approachMs: 2800, minGapMs: 1250,
     stableMs: 100, sameSideGapMs: 280, durationSec: 75, prepBeats: 2
   },
   3: {
-    label: '标准', noteStepBeats: 1, restRate: 0.12, sameSideRate: 0.12,
-    perfectMs: 70, greatMs: 115, goodMs: 170, approachMs: 2600,
+    label: '标准', noteStepBeats: 1, restRate: 0.08, sameSideRate: 0.12,
+    perfectMs: 85, greatMs: 145, goodMs: 210, approachMs: 2600, minGapMs: 1000,
     stableMs: 120, sameSideGapMs: 320, durationSec: 90, prepBeats: 2
   },
   4: {
-    label: '进阶', noteStepBeats: 0.75, restRate: 0.08, sameSideRate: 0.16,
-    perfectMs: 60, greatMs: 105, goodMs: 155, approachMs: 2400,
+    label: '进阶', noteStepBeats: 0.75, restRate: 0.06, sameSideRate: 0.16,
+    perfectMs: 75, greatMs: 128, goodMs: 190, approachMs: 2400, minGapMs: 820,
     stableMs: 140, sameSideGapMs: 340, durationSec: 105, prepBeats: 2
   },
   5: {
-    label: '挑战', noteStepBeats: 0.5, restRate: 0.06, sameSideRate: 0.2,
-    perfectMs: 52, greatMs: 92, goodMs: 140, approachMs: 2200,
+    label: '挑战', noteStepBeats: 0.5, restRate: 0.04, sameSideRate: 0.2,
+    perfectMs: 65, greatMs: 112, goodMs: 170, approachMs: 2200, minGapMs: 680,
     stableMs: 160, sameSideGapMs: 360, durationSec: 120, prepBeats: 2
   }
 }

@@ -540,8 +540,13 @@ class RhythmRenderer {
     const L = this.L
     // 接近缓动从 1.7 降到 1.15：之前音符大部分时间挤在远端（地平线附近），
     // 到判定线前突然加速，患者感觉"才看到就撞线"；调平后全程匀速、更可预判。
-    const t = Math.pow(clamp(p, 0, 1), 1.15)
-    return lerp(L.horizonY, L.judgeY, t)
+    const t = Math.pow(Math.min(p, 1), 1.15)
+    let y = lerp(L.horizonY, L.judgeY, t)
+    // 过了判定线继续往前走一小段，而不是**停在**判定线上。
+    // 停住的话，判定过的音符会和下一个音符叠在同一个位置 ——
+    // 停留时间哪怕已经压到 380ms，密集谱面上判定线附近还是一团糊。
+    if (p > 1) y += (p - 1) * (L.judgeY - L.horizonY) * 0.30
+    return y
   }
 
   _drawWorld(vm, screen) {
