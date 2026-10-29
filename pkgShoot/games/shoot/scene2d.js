@@ -22,6 +22,51 @@ const TAU = Math.PI * 2
 /** 地平线在屏幕高度的位置（靶子中心 0.40 稍上方，让它像悬在地面之上） */
 const HORIZON_RATIO = 0.52
 
+/**
+ * 地平线弧的垂度（相对屏宽，390 宽上约 17px）。
+ *
+ * 取景从「一个人眼平视的高度」抬到「高空俯视地球边缘」：地平线不再是一条直线，
+ * 而是一段极浅的弧 —— 中间高、两端往下垂。
+ *
+ * 就这一件事，把「我站在地上」变成「我在很高的地方」，而且**不新增任何直线**。
+ * 这是最省的一次取景改动：整棵树一行没动，只换了地平线的形状。
+ *
+ * 0.045（约 17px）在 390 宽上是对的，但放到 720 高的整屏里读不出来 ——
+ * 两轮视觉评审都被说成「地平线是一条直线」，等于白做。
+ * 0.062（约 24px）是新的取舍点：肉眼能看出两端下垂，仍不到鱼眼。
+ */
+const HORIZON_CURVE = 0.062
+
+/** 地平线在屏幕横坐标 x 处的高度（u = -1..1 是横向归一化位置） */
+function horizonYAt(x, sc) {
+  const w = sc.w
+  if (!(w > 0)) return sc.horizonY
+  const u = (x / w) * 2 - 1
+  return sc.horizonY + w * HORIZON_CURVE * u * u
+}
+
+/**
+ * 沿地平线弧铺一条带：offTop 是相对弧线的上沿偏移，thick 是厚度。
+ *
+ * 地面、天际线的基座、地面雾带全部走这一个函数。谁不跟着弧走，谁就会在弧上
+ * 切出一条直边 —— 那是这类改动最容易被一眼看出来的穿帮。
+ */
+function fillHorizonBand(ctx, sc, offTop, thick, style) {
+  const w = sc.w
+  if (!(w > 0) || !(thick > 0)) return
+  const step = Math.max(6, Math.round(w / 40))
+  ctx.beginPath()
+  ctx.moveTo(0, horizonYAt(0, sc) + offTop)
+  for (let x = step; x < w; x += step) ctx.lineTo(x, horizonYAt(x, sc) + offTop)
+  ctx.lineTo(w, horizonYAt(w, sc) + offTop)
+  ctx.lineTo(w, horizonYAt(w, sc) + offTop + thick)
+  for (let x = w - step; x > 0; x -= step) ctx.lineTo(x, horizonYAt(x, sc) + offTop + thick)
+  ctx.lineTo(0, horizonYAt(0, sc) + offTop + thick)
+  ctx.closePath()
+  ctx.fillStyle = style
+  ctx.fill()
+}
+
 function clamp(v, lo, hi) {
   return v < lo ? lo : (v > hi ? hi : v)
 }
@@ -211,11 +256,19 @@ function buildScene(w, h, quality) {
     // 光核中心在 0.40h、半径 22，地平线在 0.52h —— 中间只有约 62px 的余量。
     // 所以普通塔放 1.16 倍，而 tall 塔的基数同时从 0.10+0.042 压到 0.092+0.036，
     // 净放大只有 1.07 倍，刚好不撞。
+    // 空气透视：城市剪影原本所有塔共用一个颜色，整排读成一条死黑的条形码 ——
+    // 「平」的根因就是这个。远处的塔更淡、更偏蓝、更矮，近处的更暗更高，
+    // 三层一叠就有了纵深。相邻两根塔同档（i>>1），街区才成片，不会随机深浅。
+    // 缩放直接乘进 h / w，drawCityLights 的窗灯就自动跟着走，不会和塔身错位。
+    const dv = hash01(i >> 1, 89)
+    const band = dv < 0.34 ? 0 : (dv < 0.67 ? 1 : 2)
+    const hs = band === 0 ? 0.70 : (band === 1 ? 0.86 : 1.0)
     spires.push({
       x: (i + r1 * 0.85) / spireN,
-      h: (tall ? 0.092 + r3 * 0.036 : 0.012 + r2 * r2 * 0.060) * CITY_SCALE,
-      w: ((tall ? 0.0062 : 0.0032) + r3 * 0.0072) * CITY_SCALE,
+      h: (tall ? 0.092 + r3 * 0.036 : 0.012 + r2 * r2 * 0.060) * CITY_SCALE * hs,
+      w: ((tall ? 0.0062 : 0.0032) + r3 * 0.0072) * CITY_SCALE * (0.80 + hs * 0.20),
       tip: r3 > 0.72,
+      band: band,
       // 少量塔带倾角：异星建筑最省力的「不地球」信号
       lean: r4 > 0.86 ? (r1 - 0.5) * 0.30 : 0
     })
@@ -313,6 +366,10 @@ function drawSky(ctx, sc, o) {
   // 夜空必须「单调下沉」：地平线最亮，往上越来越黑。
   // 原来是 0 → 最亮 → 又暗回去（中间一段最亮的线性渐变）。
   // 这在大气散射上不成立，读起来就是「贴在图后面的一块渐变板」。
+  //
+  // 2026-10-30：试过蓝调时刻（天空有亮度方向、天和灯同时存在），
+  // 用户看过之后仍然选深夜 —— **留黑夜**。蓝调的整套色值在
+  // `docs/FR-GAME-01.md` 第 18 节，想换回去照那一节抄就行。
   const g = ctx.createLinearGradient(0, 0, 0, hz)
   g.addColorStop(0, '#02040a')
   g.addColorStop(0.42, '#040b16')
@@ -415,47 +472,100 @@ function drawPlanet(ctx, sc, t) {
   const x = p.x
   const y = p.y
 
-  // 外发光
-  const glow = ctx.createRadialGradient(x, y, r * 0.6, x, y, r * 2.6)
-  glow.addColorStop(0, 'rgba(120,170,255,0.16)')
-  glow.addColorStop(1, 'rgba(120,170,255,0)')
+  // 光源在左上（与原来的高光方向一致）。月面只有朝光那半亮，另一侧留夜面 ——
+  // 整颗球均匀受光会读成一只灯泡，明暗界线才是「球」的全部依据。
+  const lx = -0.36
+  const ly = -0.44
+  const gx = x + lx * r * 1.55
+  const gy = y + ly * r * 1.55
+
+  // 外辉光：贴着盘面向外散。半径 2.6r 会散成一团雾，收在 2.0r。
+  const glow = ctx.createRadialGradient(x, y, r * 0.9, x, y, r * 2.0)
+  glow.addColorStop(0, 'rgba(188,208,248,0.20)')
+  glow.addColorStop(0.30, 'rgba(188,208,248,0.07)')
+  glow.addColorStop(1, 'rgba(188,208,248,0)')
   ctx.fillStyle = glow
   ctx.beginPath()
-  ctx.arc(x, y, r * 2.6, 0, TAU)
+  ctx.arc(x, y, r * 2.0, 0, TAU)
   ctx.fill()
 
   // 环（后半：先画，会被球体压住）
-  drawRing(ctx, x, y, r, p.tilt, false, 0.55)
+  drawRing(ctx, x, y, r, p.tilt, false, 0)
 
-  // 球体：偏左上的高光 + 右下暗面，形成体积
-  const g = ctx.createRadialGradient(x - r * 0.36, y - r * 0.4, r * 0.1, x, y, r * 1.15)
-  g.addColorStop(0, 'rgba(186,208,255,0.95)')
-  g.addColorStop(0.45, 'rgba(108,124,196,0.92)')
-  g.addColorStop(1, 'rgba(38,42,84,0.95)')
-  ctx.fillStyle = g
-  ctx.beginPath()
-  ctx.arc(x, y, r, 0, TAU)
-  ctx.fill()
-
-  // 表面条纹（缓慢旋转的斜带）
   ctx.save()
   ctx.beginPath()
   ctx.arc(x, y, r, 0, TAU)
   ctx.clip()
-  ctx.globalAlpha = 0.16
-  ctx.fillStyle = '#dfe8ff'
-  for (let i = -2; i <= 2; i++) {
-    const off = ((t * 3 + i * r * 0.42) % (r * 2.6)) - r * 1.3
-    ctx.save()
-    ctx.translate(x, y + off)
-    ctx.rotate(0.18)
-    ctx.fillRect(-r * 1.4, 0, r * 2.8, r * 0.16)
-    ctx.restore()
+
+  // 夜面打底
+  ctx.fillStyle = 'rgba(44,54,84,0.96)'
+  ctx.fillRect(x - r, y - r, r * 2, r * 2)
+
+  // 受光面：从光源点发散。0.50 → 0.66 之间是陡降，这道明暗界线（terminator）
+  // 是「球」的全部依据 —— 摊平了就退化回一只灯泡。
+  const g = ctx.createRadialGradient(gx, gy, r * 0.15, gx, gy, r * 2.45)
+  g.addColorStop(0, 'rgba(246,249,255,1)')
+  g.addColorStop(0.38, 'rgba(232,241,255,0.98)')
+  g.addColorStop(0.52, 'rgba(198,216,248,0.88)')
+  g.addColorStop(0.585, 'rgba(112,130,180,0.40)')
+  g.addColorStop(0.635, 'rgba(58,70,110,0.07)')
+  g.addColorStop(1, 'rgba(44,54,84,0)')
+  ctx.fillStyle = g
+  ctx.fillRect(x - r, y - r, r * 2, r * 2)
+
+  // 月海：两片大的暗区。真实月面最显眼的不是环形山，是这几块大暗斑 ——
+  // 只有小坑没有月海，读起来是一颗高尔夫球。
+  for (let i = 0; i < 2; i++) {
+    const a = hash01(i, 101) * TAU
+    const d = (0.22 + hash01(i, 103) * 0.30) * r
+    const cxx = x + Math.cos(a) * d
+    const cyy = y + Math.sin(a) * d
+    const cr = r * (0.26 + hash01(i, 107) * 0.16)
+    const lum = 1 - Math.min(1, Math.hypot(cxx - gx, cyy - gy) / (r * 2.1))
+    if (lum <= 0.15) continue
+    ctx.globalAlpha = 0.22 * lum
+    const mg = ctx.createRadialGradient(cxx, cyy, 0, cxx, cyy, cr)
+    mg.addColorStop(0, 'rgba(62,74,112,1)')
+    mg.addColorStop(1, 'rgba(62,74,112,0)')
+    ctx.fillStyle = mg
+    ctx.beginPath()
+    ctx.arc(cxx, cyy, cr, 0, TAU)
+    ctx.fill()
   }
+
+  // 环形山：只在受光面看得见，暗面里消失。四颗够了，多了是麻子。
+  for (let i = 0; i < 4; i++) {
+    const a = hash01(i, 37) * TAU
+    const d = (0.18 + hash01(i, 53) * 0.52) * r
+    const cxx = x + Math.cos(a) * d
+    const cyy = y + Math.sin(a) * d
+    const cr = r * (0.10 + hash01(i, 71) * 0.13)
+    const lum = 1 - Math.min(1, Math.hypot(cxx - gx, cyy - gy) / (r * 2.1))
+    if (lum <= 0.12) continue
+    ctx.globalAlpha = 0.26 * lum
+    ctx.fillStyle = 'rgba(58,70,108,1)'
+    ctx.beginPath()
+    ctx.arc(cxx, cyy, cr, 0, TAU)
+    ctx.fill()
+    ctx.globalAlpha = 0.20 * lum
+    ctx.strokeStyle = 'rgba(236,242,255,1)'
+    ctx.lineWidth = Math.max(0.6, r * 0.035)
+    ctx.beginPath()
+    ctx.arc(cxx, cyy, cr * 0.92, 0, TAU)
+    ctx.stroke()
+  }
+  ctx.globalAlpha = 1
+
+  // 边缘限暗：盘沿比盘心暗，球才有体积、不像贴纸
+  const limb = ctx.createRadialGradient(x, y, r * 0.55, x, y, r)
+  limb.addColorStop(0, 'rgba(28,36,60,0)')
+  limb.addColorStop(1, 'rgba(28,36,60,0.30)')
+  ctx.fillStyle = limb
+  ctx.fillRect(x - r, y - r, r * 2, r * 2)
   ctx.restore()
 
   // 环（前半）
-  drawRing(ctx, x, y, r, p.tilt, true, 0.85)
+  drawRing(ctx, x, y, r, p.tilt, true, 0)
 }
 
 function drawRing(ctx, x, y, r, tilt, front, alpha) {
@@ -485,94 +595,59 @@ function drawGround(ctx, sc, o) {
   if (floorH <= 0) return
   const q = o.quality === undefined ? 2 : o.quality
 
-  // 地面底色：远处亮（大气散射），近处暗（视角向下、光线弱）
+  // 地面底色：远处亮（大气散射），近处暗（视角向下、光线弱）。
+  // 第一档必须**等于天空最底下那个颜色**（#0a1c2b = 10,28,43），
+  // 否则地平线是一条硬边 —— 上下两块图拼在一起的味道全从这一个数来。
   const g = ctx.createLinearGradient(0, hz, 0, h)
-  g.addColorStop(0, 'rgba(18,60,72,0.62)')
-  g.addColorStop(0.16, 'rgba(9,34,47,0.86)')
-  g.addColorStop(0.55, 'rgba(4,13,21,0.96)')
-  g.addColorStop(1, 'rgba(1,4,8,1)')
-  ctx.fillStyle = g
-  ctx.fillRect(0, hz, w, floorH)
+  g.addColorStop(0, 'rgba(10,28,43,0.88)')
+  g.addColorStop(0.10, 'rgba(7,22,34,0.95)')
+  g.addColorStop(0.30, 'rgba(4,13,21,0.97)')
+  g.addColorStop(0.62, 'rgba(2,7,12,0.99)')
+  g.addColorStop(1, 'rgba(1,3,6,1)')
+  // 沿地平线弧铺，不是 fillRect —— 否则弧线两端会露出直角。
+  fillHorizonBand(ctx, sc, -2, floorH + 8, g)
 
-  // —— 纵向放射线：从消失点出发，越靠近观察者越分散 ——
-  const cols = q >= 2 ? 8 : (q === 1 ? 5 : 3)
-  ctx.beginPath()
-  for (let i = -cols; i <= cols; i++) {
-    const bx = cx + i * (w * 0.17)
-    const tx = cx + i * (w * 0.012)
-    if (bx < -w || bx > w * 2) continue
-    ctx.moveTo(tx, hz)
-    ctx.lineTo(bx, h)
-  }
-  ctx.strokeStyle = 'rgba(58,214,198,0.085)'
-  ctx.lineWidth = 1
-  ctx.stroke()
-
-  // 中线略亮（跑道中轴）
-  ctx.beginPath()
-  ctx.moveTo(cx, hz)
-  ctx.lineTo(cx, h)
-  ctx.strokeStyle = 'rgba(120,255,235,0.07)'
-  ctx.stroke()
-
-  // —— 横向线：y = hz + floorH / u，u 递减即向前滚动 ——
-  // 逐条绘制而不是一次 stroke 全部：每条线的明暗不同，每三条里还有一条断开。
+  // —— 地面雾带 ——
   //
-  // 一次性 stroke（原来的写法）会让整片网格亮度完全一致、间距完全相等 ——
-  // 那就是「用数学画出来的网格」，是程序生成物最直白的自白。
-  // 真实的发光地面永远有几条不亮、有几条断在中间。
-  const rows = q >= 2 ? 11 : (q === 1 ? 8 : 5)
+  // 网格删掉之后，速度感只剩这一层：几条顺着地平线弧度向前滚的雾带。
+  //
+  // 为什么是「带」不是「线」：带没有描边、不等宽、边缘靠两层 alpha 台阶散开，
+  // 所以它读起来是地面上的雾/波光，不是一把尺子。这是这次改动里唯一
+  // 兼顾「删掉线」和「不能没有速度参照物」的办法 —— 光删网格，画面会变成
+  // 一块静止的黑板，反而更不像在飞。
+  //
+  // 间距沿用旧的透视关系 y = horizonAt(x) + floorH / u（u 递减即向前滚）。
+  const bandN = q >= 2 ? 7 : (q === 1 ? 4 : 2)
   const phase = (o.t * 0.5) % 1
-  const bands = [
-    { lo: 6.0, hi: 999, a: 0.062 },
-    { lo: 2.8, hi: 6.0, a: 0.095 },
-    { lo: 0.0, hi: 2.8, a: 0.145 }
-  ]
-  ctx.lineWidth = 1
-  for (let b = 0; b < bands.length; b++) {
-    const band = bands[b]
-    for (let i = 1; i <= rows + 1; i++) {
-      const u = i - phase
-      if (u < 0.06) continue
-      if (u < band.lo || u >= band.hi) continue
-      const y = hz + floorH / u
-      if (y > h + 4 || y < hz + 1) continue
-      // 明暗抖动：同一条线在不同帧里保持不变（hash 由 i / b 决定），
-      // 否则网格会闪，比均匀更难受。
-      const jitter = 0.55 + hash01(i, b * 7 + 3) * 0.95
-      ctx.strokeStyle = 'rgba(64,214,200,' + (band.a * jitter).toFixed(3) + ')'
-      ctx.beginPath()
-      if (hash01(i, b * 13 + 9) < 0.32) {
-        // 断开成两段：缺口位置也是确定的，resize 后不会乱跳
-        const cut = 0.26 + hash01(i, b + 41) * 0.42
-        ctx.moveTo(0, y)
-        ctx.lineTo(w * cut, y)
-        ctx.moveTo(w * (cut + 0.15), y)
-        ctx.lineTo(w, y)
-      } else {
-        ctx.moveTo(0, y)
-        ctx.lineTo(w, y)
-      }
-      ctx.stroke()
-    }
+  for (let i = 1; i <= bandN; i++) {
+    const u = i - phase
+    if (u < 0.55) continue
+    const off = floorH / u
+    if (off > floorH + 6) continue
+    // 近处的带子厚、亮；远处薄、暗 —— 透视本来就是这样
+    const th = Math.max(1.6, Math.min(floorH * 0.30, (floorH / (u * u)) * 0.62))
+    const a = Math.min(0.075, 0.022 + 0.075 / u)
+    // 外晕要**居中**在芯上（上下各让出一截）。两者用同一个 off 时，
+    // 外晕的上沿会形成一道比芯更亮的台阶，放大后是一圈明显的横纹。
+    fillHorizonBand(ctx, sc, off - th * 0.9, th * 2.8, 'rgba(120,226,208,' + (a * 0.30).toFixed(3) + ')')
+    fillHorizonBand(ctx, sc, off, th, 'rgba(176,246,232,' + a.toFixed(3) + ')')
   }
 
   // 两侧压暗：网格只在中间（通道下方）可见，不要铺满整屏
   const side = ctx.createLinearGradient(0, 0, w, 0)
-  side.addColorStop(0, 'rgba(3,9,15,0.96)')
-  side.addColorStop(0.20, 'rgba(3,9,15,0.58)')
+  side.addColorStop(0, 'rgba(3,9,15,0.94)')
+  side.addColorStop(0.20, 'rgba(3,9,15,0.56)')
   side.addColorStop(0.42, 'rgba(3,9,15,0.10)')
   side.addColorStop(0.5, 'rgba(3,9,15,0)')
   side.addColorStop(0.58, 'rgba(3,9,15,0.10)')
-  side.addColorStop(0.80, 'rgba(3,9,15,0.58)')
-  side.addColorStop(1, 'rgba(3,9,15,0.96)')
-  ctx.fillStyle = side
-  ctx.fillRect(0, hz, w, floorH)
+  side.addColorStop(0.80, 'rgba(3,9,15,0.56)')
+  side.addColorStop(1, 'rgba(3,9,15,0.94)')
+  fillHorizonBand(ctx, sc, -2, floorH + 8, side)
 
   // 近处（屏幕底部）再压一层，避免脚下网格过亮
   const bottom = ctx.createLinearGradient(0, h - floorH * 0.34, 0, h)
   bottom.addColorStop(0, 'rgba(2,6,10,0)')
-  bottom.addColorStop(1, 'rgba(2,6,10,0.72)')
+  bottom.addColorStop(1, 'rgba(2,6,10,0.70)')
   ctx.fillStyle = bottom
   ctx.fillRect(0, h - floorH * 0.34, w, floorH * 0.34)
 
@@ -588,7 +663,7 @@ function drawGround(ctx, sc, o) {
   const fogR = Math.max(w * 0.66, 180)
   const fog = ctx.createRadialGradient(0, 0, 0, 0, 0, fogR)
   fog.addColorStop(0, 'rgba(80,222,206,0.115)')
-  fog.addColorStop(0.5, 'rgba(66,200,190,0.042)')
+  fog.addColorStop(0.5, 'rgba(66,200,190,0.040)')
   fog.addColorStop(1, 'rgba(66,200,190,0)')
   ctx.fillStyle = fog
   ctx.beginPath()
@@ -642,17 +717,20 @@ function drawRidge(ctx, sc) {
   const span = x1 - x0
 
   // 远层：一条极淡的雾带，压住天际线，避免尖塔「浮」在天空上
+  // 上沿是波浪，下沿也必须沿弧走回去 —— 直接 lineTo(x1, hz+2) 会在弧上切一刀。
   ctx.beginPath()
-  ctx.moveTo(x0, hz + 2)
+  ctx.moveTo(x0, horizonYAt(x0, sc) + 2)
   for (let x = x0; x <= x1; x += 6) {
     const u = x / w
     const wave =
       Math.sin(u * 6.1 + 1.3) * 0.5 +
       Math.sin(u * 13.7 + 2.6) * 0.3 +
       Math.sin(u * 29.3 + 3.9) * 0.14
-    ctx.lineTo(x, hz - (wave + 0.9) * w * 0.032)
+    ctx.lineTo(x, horizonYAt(x, sc) - (wave + 0.9) * w * 0.032)
   }
-  ctx.lineTo(x1, hz + 2)
+  for (let x = x1; x >= x0; x -= 6) {
+    ctx.lineTo(x, horizonYAt(x, sc) + 2)
+  }
   ctx.closePath()
   ctx.fillStyle = 'rgba(7,24,34,0.62)'
   ctx.fill()
@@ -662,40 +740,52 @@ function drawRidge(ctx, sc) {
   if (sp.length) {
     // 底部实体带：没有它，塔楼会像「插在地上的杆子」，彼此不连成城市
     ctx.beginPath()
-    ctx.moveTo(x0, hz + 2)
-    ctx.lineTo(x0, hz - w * 0.012)
-    ctx.lineTo(x1, hz - w * 0.012)
-    ctx.lineTo(x1, hz + 2)
+    ctx.moveTo(x0, horizonYAt(x0, sc) + 2)
+    for (let x = x0; x <= x1; x += 6) ctx.lineTo(x, horizonYAt(x, sc) - w * 0.012)
+    for (let x = x1; x >= x0; x -= 6) ctx.lineTo(x, horizonYAt(x, sc) + 2)
     ctx.closePath()
     ctx.fillStyle = 'rgba(3,11,18,0.94)'
     ctx.fill()
 
-    ctx.beginPath()
-    ctx.moveTo(x0, hz + 2)
-    for (let i = 0; i < sp.length; i++) {
-      const s = sp[i]
-      const bx = x0 + s.x * span
-      const bw = Math.max(1.4, s.w * w)
-      const top = hz - s.h * w
-      // 倾角只挪塔顶，塔基仍钉在地平线上 —— 歪的是建筑，不是地。
-      const lx = bx + (s.lean || 0) * s.h * w
-      if (s.tip) {
-        ctx.lineTo(bx - bw, hz + 1)
-        ctx.lineTo(lx, top)
-        ctx.lineTo(bx + bw, hz + 1)
-      } else {
-        ctx.lineTo(bx - bw, hz + 1)
-        ctx.lineTo(lx - bw, top)
-        ctx.lineTo(lx + bw, top)
-        ctx.lineTo(bx + bw, hz + 1)
+    // 由远及近三趟：近档的塔压住远档的，遮挡关系才对。
+    // band 0 最远（淡、偏蓝、矮），band 2 最近（暗、高）。
+    const BANDS = [
+      'rgba(12,32,48,0.70)',
+      'rgba(6,19,29,0.88)',
+      'rgba(2,7,12,0.96)'
+    ]
+    for (let bi = 0; bi < 3; bi++) {
+      ctx.beginPath()
+      ctx.moveTo(x0, horizonYAt(x0, sc) + 2)
+      for (let i = 0; i < sp.length; i++) {
+        const s = sp[i]
+        if ((s.band || 0) !== bi) continue
+        const bx = x0 + s.x * span
+        const bw = Math.max(1.4, s.w * w)
+        // 每根塔的脚都踩在**它脚下那一点**的弧线上，不是一个统一的 hz ——
+        // 否则弧线一弯，塔就会一半悬空一半埋进地里。
+        const baseY = horizonYAt(bx, sc)
+        const top = baseY - s.h * w
+        // 倾角只挪塔顶，塔基钉死在弧上 —— 歪的是建筑，不是地。
+        const lx = bx + (s.lean || 0) * s.h * w
+        if (s.tip) {
+          ctx.lineTo(bx - bw, baseY + 1)
+          ctx.lineTo(lx, top)
+          ctx.lineTo(bx + bw, baseY + 1)
+        } else {
+          ctx.lineTo(bx - bw, baseY + 1)
+          ctx.lineTo(lx - bw, top)
+          ctx.lineTo(lx + bw, top)
+          ctx.lineTo(bx + bw, baseY + 1)
+        }
       }
+      for (let x = x1; x >= x0; x -= 6) ctx.lineTo(x, horizonYAt(x, sc) + 2)
+      ctx.closePath()
+      ctx.fillStyle = BANDS[bi]
+      ctx.fill()
     }
-    ctx.lineTo(x1, hz + 2)
-    ctx.closePath()
-    ctx.fillStyle = 'rgba(3,11,18,0.94)'
-    ctx.fill()
 
-    // 塔尖信号灯。
+    // 塔尖信号灯。远处的塔灯要跟着变淡，否则远处一排亮点会把纵深压平。
     // 窗灯不在这里画 —— 它们由 drawCityLights 按「点亮进度」驱动，
     // 这里是城市的剪影，那里才是城市的灯火。
     ctx.save()
@@ -704,10 +794,11 @@ function drawRidge(ctx, sc) {
       const s = sp[i]
       const bx = x0 + s.x * span
       if (bx < -4 || bx > w + 4) continue
-      const top = hz - s.h * w
+      const top = horizonYAt(bx, sc) - s.h * w
       const lx = bx + (s.lean || 0) * s.h * w
       if (i % 6 === 0) {
-        ctx.fillStyle = 'rgba(140,240,255,0.50)'
+        const la = (s.band || 0) === 0 ? 0.24 : ((s.band || 0) === 1 ? 0.38 : 0.50)
+        ctx.fillStyle = 'rgba(140,240,255,' + la.toFixed(2) + ')'
         ctx.beginPath()
         ctx.arc(lx, top + 1, 1.1, 0, TAU)
         ctx.fill()
@@ -745,22 +836,50 @@ function drawFloorPath(ctx, sc, o) {
   ctx.save()
   ctx.globalCompositeOperation = 'lighter'
 
-  // 主体：脚下最亮，向消失点渐隐
-  const g = ctx.createLinearGradient(0, bottom, 0, farY)
-  g.addColorStop(0, 'rgba(' + core + ',0.16)')
-  g.addColorStop(0.35, 'rgba(' + core + ',0.075)')
-  g.addColorStop(1, 'rgba(' + core + ',0)')
-  ctx.fillStyle = g
+  // 主体：脚下最亮，向消失点渐隐。
+  //
+  // 只有纵向渐变时，梯形的两条斜边是硬边 —— 通道读成「贴在地上的一块三角形
+  // 色纸」，这是整屏最出戏的一处。真实的地面光斑是中间亮、向两侧散尽的，
+  // 所以剪进梯形后分段填，每段用**横向**渐变（与光柱主体同一套做法）。
+  ctx.save()
   ctx.beginPath()
   ctx.moveTo(cx - half, bottom)
   ctx.lineTo(cx - farHalf, farY)
   ctx.lineTo(cx + farHalf, farY)
   ctx.lineTo(cx + half, bottom)
   ctx.closePath()
-  ctx.fill()
+  ctx.clip()
+
+  const FSEG = 10
+  for (let i = 0; i < FSEG; i++) {
+    // p：0 = 脚下，1 = 消失点
+    const p = (i + 0.5) / FSEG
+    const env = 0.05 + Math.pow(1 - p, 1.6) * 0.95
+    const y0 = bottom - (bottom - farY) * (i / FSEG)
+    const y1 = bottom - (bottom - farY) * ((i + 1) / FSEG)
+    // 该段的半宽：从脚下的 half 线性收到消失点的 farHalf
+    const hw = half + (farHalf - half) * p
+    const hg = ctx.createLinearGradient(cx - hw, 0, cx + hw, 0)
+    hg.addColorStop(0, 'rgba(' + core + ',0)')
+    hg.addColorStop(0.28, 'rgba(' + core + ',0.50)')
+    hg.addColorStop(0.5, 'rgba(' + core + ',0.76)')
+    hg.addColorStop(0.72, 'rgba(' + core + ',0.50)')
+    hg.addColorStop(1, 'rgba(' + core + ',0)')
+    ctx.fillStyle = hg
+    ctx.globalAlpha = env * 0.22
+    ctx.fillRect(cx - hw, y1, hw * 2, (y0 - y1) + 1)
+  }
+  ctx.restore()
 
   // 两条边线：从「脚下 = 判定边界」直连消失点，把判定范围钉在地上
-  ctx.strokeStyle = 'rgba(' + core + ',0.18)'
+  // 两条边线用**纵向渐变**描：脚下最亮，往消失点一半就散光了。
+  // 一条从底拉到顶、亮度不变的斜线，读起来是「画的线」；
+  // 会消失的线读起来才是「光铺在地上」。
+  const eg = ctx.createLinearGradient(0, bottom, 0, farY)
+  eg.addColorStop(0, 'rgba(' + core + ',0.30)')
+  eg.addColorStop(0.45, 'rgba(' + core + ',0.12)')
+  eg.addColorStop(1, 'rgba(' + core + ',0)')
+  ctx.strokeStyle = eg
   ctx.lineWidth = 1.2
   ctx.beginPath()
   ctx.moveTo(cx - half, bottom)
@@ -850,43 +969,64 @@ function drawKeepPillar(ctx, o) {
   }
   ctx.globalAlpha = 1
 
-  // —— 边界：光刃 ——
-  // 不是线，是「边缘亮度略高的一片散射」。
+  // —— 边界：一条光的边缘，不是一个框 ——
   //
-  // v2 试过 0.95 峰值的亮线，结果直接变成「选中框的边」—— 越清晰越像 UI。
-  // 但压到 0.42 又走向另一个极端：患者看不清保持区在哪，这是功能问题，
-  // 比「像不像 UI」重要得多。现在的取舍是：
-  //   · 峰值 0.62、宽度 7px —— 在患者所在的高度（底部）足够明确；
-  //   · 纵向用 p^1.8 快速衰减 —— 到靶子高度只剩三成，再往上散尽，
-  //     所以整条边不会读成「一条拉到顶的竖线」；
-  //   · 抖动只作用于外缘，内缘永远钉在 cx ± half 上。
-  const BL = 7
-  for (let side = 0; side < 2; side++) {
-    const x = side ? right : left
-    const gx0 = side ? x : x - BL
-    const gx1 = side ? x + BL : x
-    const bg = ctx.createLinearGradient(gx0, 0, gx1, 0)
-    if (side) {
-      bg.addColorStop(0, 'rgba(' + edge + ',0.62)')
-      bg.addColorStop(0.20, 'rgba(' + edge + ',0.20)')
-      bg.addColorStop(1, 'rgba(' + edge + ',0)')
-    } else {
-      bg.addColorStop(0, 'rgba(' + edge + ',0)')
-      bg.addColorStop(0.80, 'rgba(' + edge + ',0.20)')
-      bg.addColorStop(1, 'rgba(' + edge + ',0.62)')
+  // 历史：v2 是一条 0.95 峰值的亮线（成了「选中框」）；v3 收到 7px / 0.62
+  // 的等宽亮带（看得清了，但等宽 + 硬边两件事加在一起，还是像一个框）。
+  //
+  // 真实的光没有恒定的宽度，也没有「到这里光就结束」的那条线。所以拆成四层：
+  //     芯    1.3px  —— 判定边界本身，必须锐、必须亮（医疗红线）
+  //     近晕  8px
+  //     中晕  22px
+  //     远晕  46px
+  // 每层再加一条「越靠下越宽」：光源在地面上，底下的光自然铺得开。
+  // 于是这条边读起来是「一堵光墙的边缘」，而不是「一个框的左边」。
+  //
+  // 四层全在边界**外侧**。光可以向外散，不能向通道里散 ——
+  // 患者看到的范围必须就是判定范围，往里渗一像素都是在骗他。
+  // 外两层原来只有 0.12 / 0.05 —— 等于看不见，边界就退化成一根孤立的亮线，
+  // 读起来是「画上去的两条线」而不是「一堵光墙」。提亮到真正能看见为止。
+  // 芯的位置与判定边界完全不动，光仍然只往外侧散。
+  const LAYERS = [
+    { w: 1.3, a: 1.00, n: 26 },
+    { w: 8, a: 0.36, n: 12 },
+    { w: 28, a: 0.26, n: 8 },
+    { w: 64, a: 0.14, n: 6 }
+  ]
+  // 四层 × 两侧 = 104 次填充，低端机上不便宜。降档时先砍最外面的两层，
+  // 再减分段 —— 芯（判定边界）在任何画质下都必须是满分段。
+  const pkQ = o.quality === undefined ? 2 : o.quality
+  for (let li = 0; li < LAYERS.length; li++) {
+    const lay = LAYERS[li]
+    if (pkQ <= 0 && li >= 2) continue
+    const n = pkQ >= 2 ? lay.n : Math.max(4, Math.round(lay.n * 0.6))
+    for (let side = 0; side < 2; side++) {
+      const x = side ? right : left
+      const gx0 = side ? x : x - lay.w
+      const gx1 = side ? x + lay.w : x
+      const bg = ctx.createLinearGradient(gx0, 0, gx1, 0)
+      const midA = (lay.a * 0.34).toFixed(3)
+      if (side) {
+        bg.addColorStop(0, 'rgba(' + edge + ',' + lay.a.toFixed(3) + ')')
+        bg.addColorStop(0.16, 'rgba(' + edge + ',' + midA + ')')
+        bg.addColorStop(1, 'rgba(' + edge + ',0)')
+      } else {
+        bg.addColorStop(0, 'rgba(' + edge + ',0)')
+        bg.addColorStop(0.84, 'rgba(' + edge + ',' + midA + ')')
+        bg.addColorStop(1, 'rgba(' + edge + ',' + lay.a.toFixed(3) + ')')
+      }
+      ctx.fillStyle = bg
+      for (let i = 0; i < n; i++) {
+        const p = (i + 0.5) / n
+        // 抖动只作用于**外缘**（宽度）：内缘永远钉在 cx ± half 上。
+        const wob = (hash01(i + side * 57 + li * 91, 163) - 0.5) * (lay.w * 0.18)
+        const bw = Math.max(0.7, lay.w * (0.66 + p * 0.5) + wob)
+        ctx.globalAlpha = (0.05 + Math.pow(p, 1.7) * 0.95) * (0.86 + hash01(i + li * 13, 173) * 0.24)
+        if (side) ctx.fillRect(x, top + span * (i / n), bw, span / n + 1)
+        else ctx.fillRect(x - bw, top + span * (i / n), bw, span / n + 1)
+      }
+      ctx.globalAlpha = 1
     }
-    ctx.fillStyle = bg
-    // 抖动只作用于**外缘**（宽度），内缘钉死在 cx ± half —— 见下面的画法。
-    for (let i = 0; i < SEG; i++) {
-      const p = (i + 0.5) / SEG
-      const wob = (hash01(i + side * 57, 163) - 0.5) * 1.8
-      const bw = Math.max(1, BL + wob)
-      ctx.globalAlpha = (0.05 + Math.pow(p, 1.8) * 0.95) * (0.86 + hash01(i, 173) * 0.24)
-      // 内缘固定：右刃从 right 向外长，左刃从 left 向外长
-      if (side) ctx.fillRect(x, top + span * (i / SEG), bw, span / SEG + 1)
-      else ctx.fillRect(x - bw, top + span * (i / SEG), bw, span / SEG + 1)
-    }
-    ctx.globalAlpha = 1
   }
 
   // 落地光斑：光柱照到地面的椭圆，缺了它就不像 3D
@@ -987,7 +1127,7 @@ function drawCityLights(ctx, sc, light, t) {
     const a = clamp(f * flick, 0, 1)
     const x = x0 + lamp.nx * span
     if (x < -4 || x > w + 4) continue
-    const y = hz - lamp.ny * w
+    const y = horizonYAt(x, sc) - lamp.ny * w
     if (lamp.warm) {
       ctx.fillStyle = 'rgba(255,198,122,' + (a * 0.62).toFixed(3) + ')'
     } else {
@@ -1008,7 +1148,7 @@ function drawCityLights(ctx, sc, light, t) {
       const flick = 0.82 + 0.18 * Math.sin(t * 2.3 + sl.ph)
       const x = x0 + sl.nx * span
       if (x < -4 || x > w + 4) continue
-      const y = hz - sl.ny * w
+      const y = horizonYAt(x, sc) - sl.ny * w
       if (sl.warm) {
         // 0.66 → 0.56：城市放大 1.5 倍后街道灯多了 1.3 倍、还挤在更矮的区域里，
         // 原来那个亮度会把塔的剪影糊成一片橙，天际线就没了。
@@ -1019,6 +1159,138 @@ function drawCityLights(ctx, sc, light, t) {
       ctx.fillRect(x, y, 1.6, 2.0)
     }
   }
+  ctx.restore()
+}
+
+/**
+ * 水面反光。
+ *
+ * 地平线以下原本是一片纯暗的渐变，两侧两个大三角什么都不发生 —— 那是「地面」，
+ * 但看不出是地面，只看出是黑。改成水面之后，这座城的灯火在脚下有下半截，
+ * 画面第一次「上下对称」，也第一次读得出「我在水上方飞」。
+ *
+ * 三条规矩，缺一条就不像水：
+ *   1. 倒影必须挂在光源**正下方**（x 完全一致）。偏一两像素就变成「光斑」。
+ *   2. 每道倒影都要被波纹**打断**（分段 + 水平抖动）。连续的一条是「光柱」，
+ *      不是倒影 —— 水面的第一特征就是倒影在动、在断、在晃。
+ *   3. 只有**已经点亮**的灯才有倒影。倒影是灯火的下半截，不是另一套装饰，
+ *      所以它必须跟着 light 长，不能一开局就满天光。
+ *
+ * @param {object} o {cx, half, bottom, light, t, inZone, quality}
+ */
+function drawWater(ctx, sc, o) {
+  const lamps = sc.lamps
+  const w = sc.w
+  const h = sc.h
+  const cx = o.cx
+  const half = o.half
+  const floorH = h - sc.horizonY
+  if (!lamps || !lamps.length || !(w > 0) || !(floorH > 0)) return
+  const t = o.t || 0
+  const L = clamp(o.light || 0, 0, 1)
+  if (L <= 0.008) return
+  const q = o.quality === undefined ? 2 : o.quality
+  const lit = L * lamps.length
+
+  ctx.save()
+  ctx.globalCompositeOperation = 'lighter'
+
+  // —— 水面的天光 ——
+  // 贴着弧线的一道横向亮带，往下迅速散尽。没有它，倒影会浮在一块黑布上，
+  // 看起来像「地上有几个亮点」，而不是「水面反射」。
+  fillHorizonBand(ctx, sc, 0, floorH * 0.07, 'rgba(96,158,196,0.030)')
+  fillHorizonBand(ctx, sc, floorH * 0.07, floorH * 0.17, 'rgba(70,124,164,0.012)')
+
+  // —— 城市在水平线上的整体倒影：一条连续的暖带 ——
+  // 这一层是「水」成立的关键。只画一道道竖条，读起来是一排栅栏；
+  // 先铺一条连续的暖带，竖条才变成暖带上的碎光。
+  // 真实照片里也是这样：贴着水天线的永远是一片糊在一起的橙，不是一根根柱子。
+  const warmA = 0.15 * Math.pow(L, 1.1)
+  fillHorizonBand(ctx, sc, 0, floorH * 0.085, 'rgba(255,178,110,' + (warmA * 0.60).toFixed(3) + ')')
+  fillHorizonBand(ctx, sc, floorH * 0.085, floorH * 0.15, 'rgba(240,150,90,' + (warmA * 0.24).toFixed(3) + ')')
+
+  // —— 城市灯火的下半截 ——
+  // 每 3 盏灯取 1 盏：160 盏灯全画是 480 次填充，没必要 ——
+  // 水面本来就该是「一片模糊的光」，不是「一根根精确的柱子」。
+  // stride 2 会到 270+ 次填充，和光柱的四层光晕叠起来低端机顶不住；
+  // 3 已经够密 —— 连续暖带那层已经负责「整片」，竖条只负责「碎」。
+  const stride = q >= 2 ? 3 : (q === 1 ? 5 : 9)
+  const PAD = 32
+  const span = w + PAD * 2
+  const x0 = -PAD
+  const SEGN = 4
+  for (let i = 0; i < lamps.length; i += stride) {
+    const k = lit - i
+    if (k <= 0) break
+    const lamp = lamps[i]
+    const x = x0 + lamp.nx * span
+    if (x < -6 || x > w + 6) continue
+    const f = k > 1 ? 1 : k
+    // **长度必须逐灯不同**。所有已点亮的灯都拿同一个 base 时，
+    // 每道倒影一样长、一样亮，整片就变成一排栅栏 —— 水面的倒影是碎的。
+    const vary = 0.30 + hash01(i, 71) * 0.70
+    const base = f * vary * (lamp.warm ? 0.085 : 0.050)
+    if (base < 0.006) continue
+    const top = horizonYAt(x, sc) + 1
+    // 越亮的灯，倒影越长。上限压到 0.26：再长就成了「竖着的灯柱」，
+    // 水面的倒影是贴着光源的那一小截。
+    const len = Math.min(floorH * 0.22, floorH * 0.030 + base * floorH * 1.30)
+    const warm = lamp.warm ? '255,196,120' : '168,232,255'
+    for (let s2 = 0; s2 < SEGN; s2++) {
+      const fr = s2 / SEGN
+      // 水平抖动 = 波纹。相位跟 x 走，相邻两盏灯的晃不同步，不然整片一起摆
+      const sway = Math.sin(t * 1.9 + x * 0.075 + s2 * 2.1) * (0.8 + fr * 1.4)
+      const yTop = top + len * fr + Math.sin(t * 2.3 + x * 0.05 + s2) * 0.7
+      // 1 - fr 的二次衰减：倒影是「贴着光源最亮，往下迅速散掉」，
+      // 线性衰减会让它读成一根均匀的柱子。
+      const a = base * (1 - fr) * (1 - fr * 0.35)
+      if (a < 0.005) continue
+      const ww = 1.4 + fr * 3.8
+      ctx.fillStyle = 'rgba(' + warm + ',' + a.toFixed(3) + ')'
+      // 段与段之间留一点缝（0.86），缝就是波纹
+      ctx.fillRect(x - ww * 0.5 + sway, yTop, ww, (len / SEGN) * 0.86)
+    }
+  }
+
+  // —— 保持区光柱的下半截 ——
+  // 全屏最亮的一条倒影，也是「你在水里立着一根光柱」的唯一证据。
+  // 宽度随距离波动（波纹），越远越宽 —— 水面把影子摊开，不是镜子。
+  const core = o.inZone ? '88,232,210' : '255,110,100'
+  if (half > 4) {
+    const reach = Math.min(floorH * 0.66, (o.bottom - sc.horizonY) * 0.95)
+    if (reach > 6) {
+      const segN = q >= 2 ? 7 : 4
+      for (let s2 = 0; s2 < segN; s2++) {
+        const fr = (s2 + 0.5) / segN
+        const a = (0.085 - fr * 0.068) * (0.72 + 0.28 * Math.sin(t * 2.6 + s2 * 1.9))
+        if (a < 0.004) continue
+        const sway = Math.sin(t * 1.6 + s2 * 2.3) * 2.6
+        const hw = half * (0.70 + fr * 0.46) + sway
+        if (!(hw > 0.5)) continue
+        ctx.fillStyle = 'rgba(' + core + ',' + a.toFixed(3) + ')'
+        ctx.fillRect(cx - hw, sc.horizonY + reach * (s2 / segN), hw * 2, (reach / segN) * 0.78)
+      }
+    }
+  }
+
+  // —— 光核自身的倒影 ——
+  // 最窄最亮的一条，钉在正中。少了它，光柱的倒影会读成「一根柱子插在水里」，
+  // 而光核才是水源。
+  if (L > 0.01) {
+    const y0 = horizonYAt(cx, sc) + 1
+    const len = Math.min(floorH * 0.34, (o.bottom - sc.horizonY) * 0.55)
+    if (len > 6) {
+      for (let s2 = 0; s2 < 4; s2++) {
+        const fr = (s2 + 0.5) / 4
+        const a = (0.16 - fr * 0.13) * L
+        if (a < 0.005) continue
+        const ww = 2.2 + fr * 4
+        ctx.fillStyle = 'rgba(160,255,236,' + a.toFixed(3) + ')'
+        ctx.fillRect(cx - ww * 0.5 + Math.sin(t * 2.2 + s2) * 1.6, y0 + len * (s2 / 4), ww, (len / 4) * 0.8)
+      }
+    }
+  }
+
   ctx.restore()
 }
 
@@ -1077,6 +1349,7 @@ module.exports = {
   drawStars,
   drawPlanet,
   drawGround,
+  drawWater,
   drawRidge,
   drawFloorPath,
   drawFloorGlow,

@@ -839,6 +839,19 @@ class GameEngine {
     ctx.translate(sc.parallax, 0)
     scene.drawCityLights(ctx, sc, this.light, t)
     ctx.restore()
+
+    // —— 水面反光 ——
+    // 必须画在灯火之后：倒影是灯火的下半截，盖在城上就变成了一层雾。
+    // 不做视差：它贴在地上，和地面一样不许平移。
+    scene.drawWater(ctx, sc, {
+      cx: this.cx,
+      half: this.keepHalfPx(),
+      bottom: this.groundY - 30,
+      light: this.light,
+      t: t,
+      inZone: this.pose.inZone,
+      quality: q
+    })
   }
 
   _drawKeepZone() {
@@ -872,7 +885,8 @@ class GameEngine {
       top: top,
       bottom: bottom,
       inZone: inZone,
-      t: this.t
+      t: this.t,
+      quality: this.quality
     })
     // 光柱在地面上的反光，让它「立」在地上而不是贴在屏幕上
     scene.drawFloorGlow(ctx, this.scene, {
@@ -882,12 +896,19 @@ class GameEngine {
       inZone: inZone
     })
 
-    const fs = Math.round(11 * this.scale)
+    const fs = Math.round(12 * this.scale)
     ctx.font = fs + 'px sans-serif'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'bottom'
-    ctx.fillStyle = inZone ? 'rgba(126,255,232,0.95)' : 'rgba(255,150,140,0.98)'
-    ctx.fillText('保 持 区  ±' + this.cfg.get('keepRangeDeg') + '°', this.cx, top - 6)
+    const zoneText = '保 持 区  ±' + this.cfg.get('keepRangeDeg') + '°'
+    // 描边：这行字压在天空 / 城市剪影 / 光柱上，背景亮度跨度很大，
+    // 不描边会在亮处发虚（11px 细字尤其明显）。
+    ctx.lineJoin = 'round'
+    ctx.lineWidth = 3 * this.scale
+    ctx.strokeStyle = 'rgba(3,9,15,0.72)'
+    ctx.strokeText(zoneText, this.cx, top - 6)
+    ctx.fillStyle = inZone ? 'rgba(150,255,238,0.98)' : 'rgba(255,158,148,0.98)'
+    ctx.fillText(zoneText, this.cx, top - 6)
     ctx.restore()
   }
 
@@ -959,8 +980,8 @@ class GameEngine {
     // —— 外辉光：光核是这座城唯一的光源 ——
     ctx.save()
     ctx.globalCompositeOperation = 'lighter'
-    const haloR = r * (1.9 + light * 1.15) * (warn ? 1.22 : 1)
-    const ha = (0.15 + light * 0.17) * (warn ? 1.22 : 1)
+    const haloR = r * (1.75 + light * 1.05) * (warn ? 1.22 : 1)
+    const ha = (0.13 + light * 0.15) * (warn ? 1.22 : 1)
     const hg = ctx.createRadialGradient(x, y, r * 0.15, x, y, haloR)
     hg.addColorStop(0, 'rgba(' + RGB + ',' + ha.toFixed(3) + ')')
     hg.addColorStop(0.44, 'rgba(' + RGB + ',' + (ha * 0.28).toFixed(3) + ')')
@@ -971,23 +992,24 @@ class GameEngine {
     ctx.fill()
     ctx.restore()
 
-    // —— 三道轨道环：反向旋转，半径随亮度收拢（充能） ——
-    // 每道是 210° 的弧、缺口朝向不同。完整圆环会被读成「气泡 / 力场」。
+    // —— 两道细环：只是「有东西在绕着转」，不是包着核心的壳 ——
+    //
+    // 三道 210° 的环叠在一起会读成**一个盘子的边**：三个近同心圆在缩略图上
+    // 就是一圈厚白边，配上白心就是一枚按钮。这是它「不像能量体」的根因。
+    // 改成两道、每道 120°、1px —— 它们是运动，不是轮廓。
     ctx.save()
     ctx.globalCompositeOperation = 'lighter'
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 2; i++) {
       const dir = i % 2 ? -1 : 1
-      const spin = t * (0.55 + i * 0.22) * dir
-      const rr = r * (0.96 + i * 0.22) * (1 - light * 0.10)
-      const alpha = (0.30 + light * 0.46) * (1 - i * 0.20) * (warn ? 0.8 : 1)
-      // 环用近白色而不是 core 的青绿：在同样青绿的辉光上，
-      // 同色叠加只会更亮一点，读不出「有一道环」；换成近白才有轮廓。
+      const spin = t * (0.42 + i * 0.18) * dir
+      const rr = r * (1.06 + i * 0.32) * (1 - light * 0.08)
+      const alpha = (0.17 + light * 0.30) * (1 - i * 0.26) * (warn ? 0.8 : 1)
       ctx.strokeStyle = warn
         ? 'rgba(255,224,214,' + alpha.toFixed(3) + ')'
-        : 'rgba(226,255,250,' + alpha.toFixed(3) + ')'
-      ctx.lineWidth = Math.max(1, r * 0.05)
+        : 'rgba(214,252,246,' + alpha.toFixed(3) + ')'
+      ctx.lineWidth = 1
       ctx.beginPath()
-      ctx.arc(x, y, rr, spin + i * 2.1, spin + i * 2.1 + 3.66)
+      ctx.arc(x, y, rr, spin + i * 2.1, spin + i * 2.1 + 2.1)
       ctx.stroke()
     }
     ctx.restore()
@@ -1001,23 +1023,29 @@ class GameEngine {
     // 之前 0.35 处就给到 1.0 的 alpha，叠上 lighter 直接烧成一片纯白 ——
     // 结构全没了，只剩一个光球，跟「能量核心」这四个字没有关系。
     // 现在：白心很窄 → 青绿主体 → 长尾巴渐隐，层次读得出来。
-    const cg = ctx.createRadialGradient(x, y, 0, x, y, cr * 1.5)
-    cg.addColorStop(0, 'rgba(255,255,255,' + (0.42 + light * 0.26).toFixed(3) + ')')
-    cg.addColorStop(0.22, 'rgba(' + RGB + ',' + (0.52 + light * 0.30).toFixed(3) + ')')
-    cg.addColorStop(0.62, 'rgba(' + RGB + ',' + (0.16 + light * 0.20).toFixed(3) + ')')
+    // 把「实心盘」拆成两件事：**很小的亮点** + 一层大得多的柔光。
+    // 之前白心 0.68、再叠受击的整团白，核心永远是一块过曝的圆盘。
+    // 现在最亮的一圈只在半径 10% 以内，其余全是渐隐的光 —— 有体积感，
+    // 也不会再在缩略图上糊成一个白球。
+    const cg = ctx.createRadialGradient(x, y, 0, x, y, cr * 2.2)
+    cg.addColorStop(0, 'rgba(255,255,255,' + (0.30 + light * 0.18).toFixed(3) + ')')
+    cg.addColorStop(0.10, 'rgba(240,255,252,' + (0.32 + light * 0.24).toFixed(3) + ')')
+    cg.addColorStop(0.26, 'rgba(' + RGB + ',' + (0.26 + light * 0.26).toFixed(3) + ')')
+    cg.addColorStop(0.62, 'rgba(' + RGB + ',' + (0.07 + light * 0.12).toFixed(3) + ')')
     cg.addColorStop(1, 'rgba(' + RGB + ',0)')
     ctx.fillStyle = cg
     ctx.beginPath()
-    ctx.arc(x, y, cr * 1.5, 0, Math.PI * 2)
+    ctx.arc(x, y, cr * 2.2, 0, Math.PI * 2)
     ctx.fill()
 
     // 受击：核心过曝 + 六条外溅射线。**不做整体抖动** ——
     // 抖动会瞬移视觉中心，而患者的瞄准依据就是那个中心。
     if (hurt) {
-      ctx.globalAlpha = Math.min(0.55, m.sad * 0.8)
+      // 受击闪白减半：每秒 3 次命中，0.55 的整团白等于让核心长期过曝。
+      ctx.globalAlpha = Math.min(0.28, m.sad * 0.40)
       ctx.fillStyle = 'rgba(255,255,255,1)'
       ctx.beginPath()
-      ctx.arc(x, y, cr * (1.6 + m.sad * 1.4), 0, Math.PI * 2)
+      ctx.arc(x, y, cr * (1.3 + m.sad * 0.9), 0, Math.PI * 2)
       ctx.fill()
       ctx.globalAlpha = 1
       const k = m.sad
@@ -1453,43 +1481,6 @@ class GameEngine {
     ctx.globalAlpha = 1
   }
 
-  /** 玻璃质感卡片：上浅下深的底 + 顶部高光 + 细描边（HUD 统一用它） */
-  _glassCard(x, y, w, h) {
-    const ctx = this.ctx
-    const s = this.scale
-    const r = 12 * s
-
-    const g = ctx.createLinearGradient(0, y, 0, y + h)
-    g.addColorStop(0, 'rgba(26,48,72,0.74)')
-    g.addColorStop(1, 'rgba(6,14,26,0.62)')
-    ctx.fillStyle = g
-    roundRect(ctx, x, y, w, h, r)
-    ctx.fill()
-
-    // 顶部高光（裁剪在圆角内，避免溢出边角）
-    ctx.save()
-    roundRect(ctx, x, y, w, h, r)
-    ctx.clip()
-    const hl = ctx.createLinearGradient(0, y, 0, y + h * 0.55)
-    hl.addColorStop(0, 'rgba(150,225,255,0.13)')
-    hl.addColorStop(1, 'rgba(150,225,255,0)')
-    ctx.fillStyle = hl
-    ctx.fillRect(x, y, w, h * 0.55)
-    ctx.restore()
-
-    ctx.strokeStyle = 'rgba(120,190,225,0.22)'
-    ctx.lineWidth = 1
-    roundRect(ctx, x, y, w, h, r)
-    ctx.stroke()
-
-    // 顶边一道冷色反光，卡片才「立」得起来
-    ctx.beginPath()
-    ctx.moveTo(x + r, y + 0.5)
-    ctx.lineTo(x + w - r, y + 0.5)
-    ctx.strokeStyle = 'rgba(190,255,245,0.26)'
-    ctx.stroke()
-  }
-
   /** 命中冲击环：从命中点扩散的同心圆，配合 zoom 形成打击感 */
   _drawShockwaves() {
     if (!this.shocks || !this.shocks.length) return
@@ -1508,21 +1499,32 @@ class GameEngine {
     const pad = 14 * s
     const top0 = pad + (this.insetTop || 0)
 
-    // ---- 面板底板（玻璃质感卡片）----
+    // ---- 顶部压暗（不画容器）----
+    // 这里原来是两块「玻璃卡片」：渐变底 + 顶部高光 + 描边 + 顶边反光。
+    // 那是手游 HUD 的模板 —— 整个画面里最「有厚度」的两块东西，
+    // 恰好是最不该有厚度的两块：它们是读数，不是场景里的物体。
+    // 现在只压一条从屏幕顶端散掉的淡遮罩，保证文字可读，不画任何框。
+    const scrimH = 104 * s
+    const scrim = ctx.createLinearGradient(0, 0, 0, top0 + scrimH)
+    scrim.addColorStop(0, 'rgba(2,6,12,0.58)')
+    scrim.addColorStop(0.45, 'rgba(2,6,12,0.22)')
+    scrim.addColorStop(1, 'rgba(2,6,12,0)')
+    ctx.fillStyle = scrim
+    ctx.fillRect(0, 0, this.width, top0 + scrimH)
+
     const cardW1 = 112 * s
     const cardW2 = 118 * s
-    const cardH = 86 * s
-    this._glassCard(pad - 8 * s, top0 - 8 * s, cardW1, cardH)
-    this._glassCard(this.width - pad - cardW2 + 8 * s, top0 - 8 * s, cardW2, cardH)
 
     // ---- 左上：得分 ----
     ctx.textAlign = 'left'
     ctx.textBaseline = 'top'
-    ctx.fillStyle = 'rgba(160,196,224,0.85)'
-    ctx.font = Math.round(11 * s) + 'px sans-serif'
+    ctx.fillStyle = 'rgba(150,182,208,0.72)'
+    ctx.font = Math.round(10 * s) + 'px sans-serif'
     ctx.fillText('得分', pad, top0 + 2)
-    ctx.fillStyle = '#ffffff'
-    ctx.font = 'bold ' + Math.round(34 * s) + 'px sans-serif'
+    // 数字用细字重 + 略降的白：粗白大字是「贴上去的标签」，
+    // 细一点才像「仪表读数」。
+    ctx.fillStyle = 'rgba(228,242,252,0.95)'
+    ctx.font = '300 ' + Math.round(30 * s) + 'px sans-serif'
     ctx.fillText(String(st.score), pad, top0 + 16 * s)
 
     // —— 点亮盏数 + 进度条 ——
@@ -1530,18 +1532,18 @@ class GameEngine {
     // 患者很难从「1247」里读出自己的表现；盏数是确定的「我点亮了几盏」。
     const lampTotal = (this.scene && this.scene.lamps) ? this.scene.lamps.length : 0
     const lampLit = Math.round(this.light * lampTotal)
-    ctx.fillStyle = 'rgba(255,196,130,0.92)'
-    ctx.font = Math.round(11 * s) + 'px sans-serif'
+    ctx.fillStyle = 'rgba(255,196,130,0.80)'
+    ctx.font = Math.round(10 * s) + 'px sans-serif'
     ctx.fillText('点亮 ' + lampLit + ' 盏', pad, top0 + 56 * s)
 
     const lw = cardW1 - 16 * s
-    const ly = top0 + 70 * s
-    ctx.fillStyle = 'rgba(255,255,255,0.14)'
-    roundRect(ctx, pad, ly, lw, 4 * s, 2 * s)
+    const ly = top0 + 72 * s
+    ctx.fillStyle = 'rgba(255,255,255,0.10)'
+    roundRect(ctx, pad, ly, lw, 2.5 * s, 1.2 * s)
     ctx.fill()
     if (this.light > 0.004) {
-      ctx.fillStyle = '#ffb268'
-      roundRect(ctx, pad, ly, Math.max(2, lw * this.light), 4 * s, 2 * s)
+      ctx.fillStyle = 'rgba(255,178,104,0.85)'
+      roundRect(ctx, pad, ly, Math.max(2, lw * this.light), 2.5 * s, 1.2 * s)
       ctx.fill()
     }
 
@@ -1549,24 +1551,24 @@ class GameEngine {
     ctx.textAlign = 'right'
     const dur = st.duration
     const label = dur > 0 ? '倒计时' : '已用时'
-    const numText = dur > 0 ? Math.ceil(st.timeLeft) + 's' : Math.floor(st.elapsed) + 's'
-    ctx.fillStyle = 'rgba(160,196,224,0.85)'
-    ctx.font = Math.round(11 * s) + 'px sans-serif'
+    const numText = dur > 0 ? Math.ceil(st.timeLeft) + ' s' : Math.floor(st.elapsed) + ' s'
+    ctx.fillStyle = 'rgba(150,182,208,0.72)'
+    ctx.font = Math.round(10 * s) + 'px sans-serif'
     ctx.fillText(label, this.width - pad, top0 + 2)
-    ctx.fillStyle = '#ffffff'
-    ctx.font = 'bold ' + Math.round(36 * s) + 'px sans-serif'
-    ctx.fillText(numText, this.width - pad, top0 + 15 * s)
+    ctx.fillStyle = 'rgba(228,242,252,0.95)'
+    ctx.font = '300 ' + Math.round(30 * s) + 'px sans-serif'
+    ctx.fillText(numText, this.width - pad, top0 + 16 * s)
 
     // 时间进度条
-    const barW = 92 * s
+    const barW = cardW2 - 16 * s
     const barX = this.width - pad - barW
-    const barY = top0 + 62 * s
+    const barY = top0 + 72 * s
     const ratio = dur > 0 ? clamp(st.timeLeft / dur, 0, 1) : 0
-    ctx.fillStyle = 'rgba(255,255,255,0.16)'
-    roundRect(ctx, barX, barY, barW, 6 * s, 3 * s)
+    ctx.fillStyle = 'rgba(255,255,255,0.10)'
+    roundRect(ctx, barX, barY, barW, 2.5 * s, 1.2 * s)
     ctx.fill()
-    ctx.fillStyle = ratio > 0.25 ? '#4fd1c5' : '#ff8a65'
-    roundRect(ctx, barX, barY, Math.max(4, barW * ratio), 6 * s, 3 * s)
+    ctx.fillStyle = ratio > 0.25 ? 'rgba(79,209,197,0.85)' : 'rgba(255,138,101,0.90)'
+    roundRect(ctx, barX, barY, Math.max(4, barW * ratio), 2.5 * s, 1.2 * s)
     ctx.fill()
 
     // ---- 中部：连击 ----
@@ -1602,7 +1604,8 @@ class GameEngine {
     ctx.fillText(line2, pad, infoY - 18 * s)
     ctx.font = 'bold ' + Math.round(13 * s) + 'px sans-serif'
     ctx.strokeText(line1, pad, infoY)
-    ctx.fillStyle = zoneOk ? 'rgba(125,255,207,0.98)' : 'rgba(255,138,128,0.98)'
+    // 区内用淡蓝白：青绿是保持区的专属色，UI 占用了患者会分不清哪个是判定范围
+    ctx.fillStyle = zoneOk ? 'rgba(214,232,250,0.95)' : 'rgba(255,138,128,0.98)'
     ctx.fillText(line1, pad, infoY)
 
     // 出界提示：红色边框 + 明确的回中方向（箭头指向要移动的方向）

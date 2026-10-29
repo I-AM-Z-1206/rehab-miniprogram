@@ -201,6 +201,10 @@ console.log('\n[2] 各层绘制不崩、不产生 NaN')
           scene.drawPlanet(ctx, sc, t)
           scene.drawRidge(ctx, sc)
           scene.drawGround(ctx, sc, { cx: o.cx, t: t, quality: q })
+          scene.drawWater(ctx, sc, {
+            cx: o.cx, half: o.half, bottom: o.bottom,
+            light: (ti % 5) / 4, t: t, inZone: ti % 2 === 0, quality: q
+          })
           scene.drawFloorPath(ctx, sc, o)
           scene.drawKeepPillar(ctx, o)
           scene.drawFloorGlow(ctx, sc, o)
@@ -439,6 +443,132 @@ console.log('\n[3e] 城市灯火')
 }
 
 // ---------------------------------------------------------------------------
+// 3f. 地平线必须是一条弧（「在高空」的全部依据）
+// ---------------------------------------------------------------------------
+// 取景从「站在地上」变成「飞在高处」，靠的就是这一条：地平线不再是直线，
+// 而是中间高、两端下垂的一段弧。它没有任何测试之外的保护 ——
+// 有人把它改回 `fillRect(0, hz, w, floorH)` 也不会崩、也不会有 NaN，
+// 画面只是悄悄变回平视。所以这里量出来钉住。
+//
+// 三条：
+//   ① 天际线的基座必须落在弧上（两端比中间低）；
+//   ② 地面的上沿也必须落在同一条弧上（两层不能各算各的）；
+//   ③ 左右必须对称，垂度要在合理区间里（太小等于没画，太大成鱼眼）。
+console.log('\n[3f] 地平线是弧，不是直线')
+{
+  const W = 390
+  const H = 700
+  const sc = scene.buildScene(W, H, 2)
+  const cx = W / 2
+
+  const collect = (ctx) => ctx.calls.filter((c) => c.type === 'moveTo' || c.type === 'lineTo')
+  const maxYAt = (pts, x0, tol) => {
+    let m = -Infinity
+    for (let i = 0; i < pts.length; i++) {
+      if (Math.abs(pts[i].args[0] - x0) <= tol && pts[i].args[1] > m) m = pts[i].args[1]
+    }
+    return m
+  }
+
+  const cr = makeCtx()
+  scene.drawRidge(cr, sc)
+  const rp = collect(cr)
+  const ridgeLeft = maxYAt(rp, 0, 3)
+  const ridgeRight = maxYAt(rp, W, 3)
+  const ridgeMid = maxYAt(rp, cx, 3)
+  ok(isFinite(ridgeLeft) && isFinite(ridgeMid), '山脊有路径点可量')
+  const drop = ridgeLeft - ridgeMid
+  ok(drop >= 10, '天际线两端比中间低 ' + drop.toFixed(1) + 'px（弧成立）')
+  near(ridgeLeft, ridgeRight, 1.5, '左右对称')
+
+  // 垂度：0.045 × 390 ≈ 17.6px
+  ok(drop > 8 && drop < 40, '垂度在合理区间（' + drop.toFixed(1) + 'px，别做成鱼眼）')
+
+  const cg = makeCtx()
+  scene.drawGround(cg, sc, { cx: cx, t: 1.0, quality: 2 })
+  const gp = collect(cg)
+  // 采样步长是 w/40（390 宽上 10px），中点的容差必须大于半个步长
+  const half = Math.max(4, Math.round(W / 40))
+  const groundLeft = Math.min.apply(null, gp.filter((c) => Math.abs(c.args[0]) <= half).map((c) => c.args[1]))
+  const groundMid = Math.min.apply(null, gp.filter((c) => Math.abs(c.args[0] - cx) <= half).map((c) => c.args[1]))
+  ok(isFinite(groundLeft) && isFinite(groundMid), '地面有上沿可量')
+  near(groundLeft - groundMid, drop, 2.5, '地面和天际线用的是同一条弧（差 ' + (groundLeft - groundMid).toFixed(1) + 'px）')
+
+  // 网格必须已经删掉：原来纵横两组网格共约 20 条 stroke，现在一次都不该有
+  let gridStrokes = 0
+  for (let i = 0; i < cg.calls.length; i++) {
+    if (cg.calls[i].type === 'stroke') gridStrokes += 1
+  }
+  ok(gridStrokes <= 2, '地面不再画网格（stroke 次数 ' + gridStrokes + '）')
+}
+
+// ---------------------------------------------------------------------------
+// 3g. 水面倒影：挂在光源正下方
+// ---------------------------------------------------------------------------
+// 倒影唯一的可信条件是「正下方」。偏一两像素，它就从「倒影」变成「光斑」，
+// 而且没人会立刻发现 —— 只是觉得水面有点脏。所以量一下：
+//   ① 关灯时不画（倒影是灯火的下半截，不是另一套装饰）；
+//   ② 开灯后必须够多，且跟着 light 单调长；
+//   ③ 每一条倒影都在地平线以下（飘到天上就成了另一个 U I 层）；
+//   ④ 保持区那条倒影必须以 cx 为中心。
+console.log('\n[3g] 水面倒影')
+{
+  const W = 390
+  const H = 700
+  const sc = scene.buildScene(W, H, 2)
+  const cx = W / 2
+  const base = { cx: cx, half: 55.5, bottom: H * 0.87 - 30, t: 1.4, inZone: true, quality: 2 }
+
+  const c0 = makeCtx()
+  scene.drawWater(c0, sc, Object.assign({}, base, { light: 0 }))
+  eq(c0.calls.length, 0, 'light=0 时一条都不画')
+
+  const c1 = makeCtx()
+  scene.drawWater(c1, sc, Object.assign({}, base, { light: 1 }))
+  const r1 = c1.calls.filter((c) => c.type === 'fillRect')
+  ok(r1.length > 60, 'light=1 时倒影够密（' + r1.length + ' 段）')
+  ok(c1.bad.length === 0, '没有 NaN / Infinity 坐标')
+
+  const c2 = makeCtx()
+  scene.drawWater(c2, sc, Object.assign({}, base, { light: 0.5 }))
+  const r2 = c2.calls.filter((c) => c.type === 'fillRect')
+  ok(r2.length > 0 && r2.length < r1.length, '跟着 light 长（0.5 时 ' + r2.length + ' 段）')
+
+  let below = true
+  for (let i = 0; i < r1.length; i++) {
+    if (r1[i].args[1] < sc.horizonY - 0.5) below = false
+  }
+  ok(below, '所有倒影都在地平线以下')
+
+  // 保持区那条：以 cx 为中线
+  let centered = 0
+  for (let i = 0; i < r1.length; i++) {
+    const x = r1[i].args[0]
+    const ww = r1[i].args[2]
+    if (Math.abs(x + ww / 2 - cx) < 1.5) centered += 1
+  }
+  ok(centered >= 4, '保持区的倒影以 cx 为中线（' + centered + ' 段）')
+
+  // 光源正下方：每一段竖条的中心都必须落在某盏灯的水平位置上
+  const PAD = 32
+  const span = W + PAD * 2
+  let aligned = 0
+  let checked = 0
+  for (let i = 0; i < r1.length; i++) {
+    const x = r1[i].args[0] + r1[i].args[2] / 2
+    if (Math.abs(x - cx) < 3) continue          // 保持区那条单独算
+    checked += 1
+    let hit = false
+    for (let j = 0; j < sc.lamps.length; j++) {
+      if (Math.abs(-PAD + sc.lamps[j].nx * span - x) < 6) { hit = true; break }
+    }
+    if (hit) aligned += 1
+  }
+  ok(checked > 10 && aligned / checked > 0.95,
+    '倒影挂在灯火正下方（' + aligned + '/' + checked + '）')
+}
+
+// ---------------------------------------------------------------------------
 // 4. 不依赖 WebGL / three（2.5D 的存在意义）
 // ---------------------------------------------------------------------------
 console.log('\n[4] 不依赖 WebGL / three')
@@ -464,7 +594,7 @@ console.log('\n[4] 不依赖 WebGL / three')
     'HORIZON_RATIO', 'buildScene', 'drawCityLights', 'drawFloorGlow', 'drawFloorPath',
     'drawGrain', 'drawGround',
     'drawKeepPillar', 'drawNebula', 'drawPlanet', 'drawRidge', 'drawShock', 'drawSky',
-    'drawStars', 'drawVignette', 'fillEllipse', 'ringEllipse', 'softShadow'
+    'drawStars', 'drawVignette', 'drawWater', 'fillEllipse', 'ringEllipse', 'softShadow'
   ]
   eq(keys.join(','), allowed.join(','), '导出接口与约定一致')
 }

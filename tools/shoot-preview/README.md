@@ -33,13 +33,25 @@ chrome --headless=new --window-size=390,844 --force-device-scale-factor=2 \
 ## 二、纯画布预览（只看引擎，不含页面层 UI）
 
 ```bash
-node_modules/.bin/esbuild tools/shoot-preview/canvas-main.js --bundle --format=iife \
-  --target=es2018 --define:global=window --outfile=tools/shoot-preview/canvas-bundle.js
-chrome --headless=new --window-size=390,600 --force-device-scale-factor=2 \
-  --screenshot=out.png "file:///.../canvas.html?w=390&h=600&dpr=2&state=paused"
+# esbuild 直接 --outfile 往 tools/ 下写会被拦（Access denied），走 build.js
+node tools/shoot-preview/build.js
+
+"C:/Program Files/Google/Chrome/Application/chrome.exe" --headless=new \
+  --window-size=390,600 --force-device-scale-factor=2 --virtual-time-budget=6000 \
+  --screenshot="E:/demo - 副本/tools/shoot-preview/shots/out.png" \
+  "file:///E:/demo%20-%20%E5%89%AF%E6%9C%AC/tools/shoot-preview/canvas.html?w=390&h=600&dpr=2&state=running"
 ```
 
-参数：`?w= &h= &dpr= &state=ready|running|paused|ended&angle=`。
+参数：`?w= &h= &dpr= &state=ready|running|paused|ended&angle=&zoom=&zx=&zy=`。
+
+三个必踩的坑：
+
+1. **`--screenshot` 必须给绝对 Windows 路径**（`E:\...`）。给 `shots/out.png` 会报
+   「系统找不到指定的路径」，且不产生任何文件 —— 很容易误判成截图失败而不是路径问题。
+2. **`state=paused` 截不到画面**，暂停遮罩会盖住整个场景。想评审背景 / 光柱 / 地面
+   通道必须用 `state=running`。
+3. **整屏截图看不清细节**。月亮只有 21px 半径、光晕 alpha 0.14 这种量级，在整屏图上
+   一律读成「没生效」。评审前先 `?zoom=4&zx=&zy=` 放大到目标区域再截。
 
 > 脚本最后会等 400ms 再冻结画面：引擎贴图是异步加载的，冻结太早会停在矢量兜底，
 > 容易误判成「素材没生效」。浏览器里 `sprites.js` 走原生 `new Image()`（小程序才是
@@ -61,8 +73,13 @@ node tools/shoot-ui-test.js     # 53 项
 
 ## 四、2.5D 场景
 
-引擎画面（星空 / 星云 / 行星 / 山脊 / 透视地面 / 保持区光柱 / 冲击波）由
+引擎画面（星空 / 星云 / 月亮 / 城市剪影 / 透视地面 / 保持区光柱 / 冲击波）由
 `pkgShoot/games/shoot/scene2d.js` 负责，纯 Canvas 2D，不用 WebGL、不用 three.js。
+
+**时间是蓝调时刻（blue hour），不是深夜**：天空冷在上、暖在下，地平线压一层落日余晖。
+配色全在 `drawSky` / `drawGround` / `drawRidge` 三个函数里，改之前先读
+`docs/FR-GAME-01.md` 第 18 节 —— 尤其是「地面渐变第一档必须等于天空底部颜色」那一条，
+差一点地平线就会变成一条硬边。青绿只留给保持区光柱，别往背景里加。
 
 改动这块以后跑 `npm test`，其中「射击场景」一套会用假 ctx 把每层都真跑一遍，
 钉住三件事：不崩、不出现 NaN 坐标、保持区边界严格等于 `keepHalfPx()`
