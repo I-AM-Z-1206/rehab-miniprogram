@@ -33,6 +33,10 @@ Page({
     baseScoreText: ''
   },
 
+  goRecords() {
+    wx.navigateTo({ url: '/pkgShoot/pages/shoot-records/shoot-records' })
+  },
+
   onLoad() {
     this.cfg = getStore()
     this.syncAll()

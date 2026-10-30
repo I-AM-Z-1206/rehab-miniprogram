@@ -15,6 +15,7 @@
 const WitBle = require('../../../utils/witble.js')
 const speaker = require('../../../utils/speaker.js')
 const game = require('../../utils/game.js')
+const records = require('../../utils/shoot-record.js')
 const { getStore } = require('../../games/shoot/config.js')
 const { AudioKit } = require('../../../utils/game/audio.js')
 const { ShootUI } = require('../../games/shoot/ui.js')
@@ -82,6 +83,8 @@ Page({
   },
 
   onUnload() {
+    // 兜底：直接返回/被系统回收时按钮可能没走到 back，这里再存一次
+    this.saveRecord('aborted')
     this._clearTimers()
     speaker.stop()
     if (this.ble) WitBle.detach(this.ble)
@@ -253,6 +256,8 @@ Page({
   onEngineEvent(ev) {
     if (!ev) return
     if (ev.type === 'end') {
+      // 结算数据先落库再念语音 —— 语音失败/被打断不影响记录
+      this.saveRecord('timeout')
       // 结算页已经写得很清楚，这里只给一句语音，不再念分数（避免和音效打架）
       speaker.speak('训练结束')
       return
@@ -265,6 +270,40 @@ Page({
         try { wx.vibrateShort({ type: 'light' }) } catch (e) { /* 忽略 */ }
       }
     }
+  },
+
+  /**
+   * 落库本局记录。
+   *
+   * 射击是五个游戏里唯一**没有记录**的：其它四个（接水果 / 走钢丝 / 节奏 / 赛车）
+   * 都能进库、能上报、有记录页，只有射击玩完就没了 —— 患者练 20 分钟，
+   * 治疗师那边是空白。这里补上。
+   *
+   * 中途退出也记（reason=aborted）：康复患者练到一半停下是常态，
+   * 丢掉这些数据等于丢掉「他最多能坚持多久」这个最有用的信息。
+   */
+  saveRecord(reason) {
+    if (this.recordSaved) return null
+    const engine = this.game
+    if (!engine || !engine.score) return null
+    const pose = engine.pose || {}
+    const rec = records.buildFromState(engine.getState(), engine.score.stats(), {
+      gameDuration: this.cfg.get('gameDuration'),
+      fireRate: this.cfg.get('fireRate'),
+      hitRange: this.cfg.get('hitRange'),
+      keepRangeDeg: this.cfg.get('keepRangeDeg'),
+      comboWindowMs: this.cfg.get('comboWindowMs')
+    }, {
+      reason: reason || 'aborted',
+      hasSignal: !!pose.hasSignal,
+      stale: !!pose.stale
+    })
+    // 不到 5 秒的局不记，但也要置位，避免 onUnload 里反复尝试
+    this.recordSaved = true
+    if (!rec) return null
+    records.save(rec)
+    this.savedRecord = rec
+    return rec
   },
 
   // ---------------------------------------------------------------- 触摸
@@ -315,6 +354,9 @@ Page({
         engine.pause()
         break
       case 'restart':
+        // 重开前先给上一局存档（中途重开 = aborted），然后允许新记录
+        this.saveRecord('aborted')
+        this.recordSaved = false
         engine.restart()
         break
       case 'settings':
@@ -324,9 +366,12 @@ Page({
         wx.navigateTo({ url: '/pages/wit/wit' })
         break
       case 'home':
+        // 中途离开也要落库：练到一半停下是常态，这部分数据最有用
+        this.saveRecord('aborted')
         wx.switchTab({ url: '/pages/games/games' })
         break
       case 'back': {
+        this.saveRecord('aborted')
         const pages = typeof getCurrentPages === 'function' ? getCurrentPages() : []
         if (pages && pages.length > 1 && wx.navigateBack) wx.navigateBack()
         else wx.switchTab({ url: '/pages/games/games' })

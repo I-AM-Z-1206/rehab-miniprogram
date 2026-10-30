@@ -1233,3 +1233,66 @@ b.a = 1 - 0.22 * t
 同类教训在本文档里已经出现过两次：城市「平」（所有塔共用一个颜色 → 改空气透视三档）、
 光柱「像画的线」（外晕 alpha 0.05 等于没画 → 提到 0.26）。
 **都是「参数调了很多次但模型错了」，正确做法是先量分布，再改形状。**
+
+---
+
+## 24. 补上训练记录（2026-10-30 23:50）
+
+### 24.1 这是一个纯遗漏
+
+五个游戏里，接水果 / 走钢丝 / 节奏 / 赛车都有 `xxx-record.js` + 记录页 + 上报，
+**只有射击没有**：`engine.js` 里搜不到任何 record 相关代码，`pages/shoot/shoot.js`
+也没有保存逻辑。结算页把分数画在屏幕上，然后就没有然后了。
+
+后果不是「少一个功能」，而是**这个游戏对治疗师不存在**：患者练 20 分钟，
+后端一条数据都没有，复盘时无从查看，参数也就没法据此调整。
+
+### 24.2 记录口径
+
+射击没有「漏接」概念（子弹自动连发），所以核心质量指标是 **`zoneRate`**
+（身体在保持区内的时长占比）——它才是这个游戏真正训练的东西。
+
+| 字段 | 来源 | 说明 |
+| --- | --- | --- |
+| `zoneRate` | `stats.zoneRate / 100` | 保持区占比，0~1（与其它四个游戏口径一致） |
+| `accuracy` | `stats.accuracy / 100` | 命中率，0~1 |
+| `hits` / `shots` | `stats` | 命中 / 开火 |
+| `maxCombo` | `stats` | 最高连击 |
+| `inZoneSec` | `stats` | 累计在区内秒数 |
+| `durationSec` / `plannedSec` | `state.elapsed` / `state.duration` | 实际 / 计划时长 |
+| `completed` / `reason` | 见下 | 完成状态 |
+| `dataSource` | `pose.hasSignal` | 全程没有真实传感器帧 = `simulation`（默认不上报） |
+| `configSnapshot` | cfg | 开火频率 / 命中范围 / 保持区角度 / 连击窗口 |
+
+**注意量纲**：`score.js` 的 `stats()` 返回 0~100 整数，记录里统一存 0~1 小数，
+和其它四个游戏对齐。这个转换写错了不会报错，只会让统计图表全平 —— 所以
+`tools/shoot-record-test.js` 专门钉住 `78 → 0.78`、`67 → 0.67`。
+
+### 24.3 中途退出也要记
+
+只在「时间到」时存记录是不够的：康复患者练到一半停下是常态，
+而这恰恰是**最有用的信息**（他最多能坚持多久）。
+
+所以在三个地方都存：
+- `end` 事件（时长到点）→ `completed: true`
+- 点击「退出 / 返回」→ `reason: 'aborted'`
+- `onUnload` 兜底（被系统回收时按钮可能没走到）
+
+不到 5 秒的局不记（多半是误点「开始」又立刻退出）。`recordSaved` 置位在
+`if (!rec) return null` **之前**，否则 onUnload 会反复尝试。
+
+### 24.4 字段换算抽成纯函数
+
+`records.buildFromState(state, stats, snapshot, opts)` 不碰 wx、不碰 engine 实例，
+页面只负责把状态递进来。这样测试可以直接喂状态验口径 ——
+**「字段算错」比「存不下来」更难发现**：记录能存、列表能看，
+但 `zoneRate` 少乘 100 或者 `completed` 判反，可能几个月后才有人发现。
+
+### 24.5 新增
+
+- `pkgShoot/utils/shoot-record.js`（storage 键 `shoot_records_v1`，独立于其它四个库）
+- `pkgShoot/pages/shoot-records/`（记录页，样式复用 fruit-records）
+- `app.json` 注册分包页（20 页 / 87 js）
+- 设置页加「训练记录」入口
+- `tools/shoot-record-test.js`（30 项）：保存/读取、防重复、不串库、账号隔离、
+  模拟数据不上报、`buildFromState` 口径

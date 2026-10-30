@@ -79,7 +79,8 @@
       "name": "shoot",
       "pages": [
         "pages/shoot/shoot",
-        "pages/shoot-settings/shoot-settings"
+        "pages/shoot-settings/shoot-settings",
+        "pages/shoot-records/shoot-records"
       ]
     },
     {

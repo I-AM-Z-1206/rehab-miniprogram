@@ -12,6 +12,15 @@
     <view class="hero-badge">得分系数 x{{scoreMul}}</view>
   </view>
 
+  <!-- 训练记录入口：射击以前玩完就没了，记录页是后补的 -->
+  <view class="card" bindtap="goRecords">
+    <view class="card-head">
+      <text class="card-title">训练记录</text>
+      <text class="card-sub">查看 ›</text>
+    </view>
+    <text class="card-tip">本机保存的历史成绩，可逐条或批量上报给治疗师</text>
+  </view>
+
   <!-- 一眼看到的三个数 -->
   <view class="card">
     <view class="card-head">
