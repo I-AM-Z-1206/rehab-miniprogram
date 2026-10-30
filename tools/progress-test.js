@@ -157,6 +157,21 @@ const dOne = progress.describe(one)
 ok(one.hasTrend === false, '只有 1 次 → 不出趋势')
 ok(dOne.detail.indexOf('再练') >= 0, '提示还差几次才看得到变化', dOne.detail)
 
+// ---------------------------------------------------------------- 6.5
+console.log('\n[6.5] 上周样本不足时不做对比')
+// 真实场景：上周只练了 1 次、碰巧很稳（100%），本周正常发挥 47%。
+// 如果照直算，首页会写「比上周低 53 个百分点」—— 那不是退步，是基线不可靠。
+loginAs('p_E')
+shoot.save(rec('shoot', { zoneRate: 1.0, startedAt: new Date(ws - 3 * DAY).toISOString() }))
+for (let i = 0; i < 4; i++) {
+  shoot.save(rec('shoot', { zoneRate: 0.47, startedAt: new Date(ws + i * HOUR).toISOString() }))
+}
+const s5 = progress.summary({ pid: 'p_E', now: now })
+ok(s5.hasTrend === false, '上周只有 1 次 → 不出趋势', 'lastWeek=' + s5.lastWeek.count)
+const d5 = progress.describe(s5)
+ok(d5.detail.indexOf('太少') >= 0, '文案说明「上周只练了 N 次，太少」', d5.detail)
+ok(d5.detail.indexOf('低 53') < 0, '不会写出「低 53 个百分点」这种吓人的结论', d5.detail)
+
 // ---------------------------------------------------------------- 7
 console.log('\n[7] 账号隔离')
 const other = progress.summary({ pid: 'p_A_other', now: now })

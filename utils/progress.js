@@ -187,8 +187,12 @@ function summarize(items, now) {
     lastWeek: lastWeek,
     delta: deltaOf(thisWeek.stability, lastWeek.stability),
     totalCount: items.length,
-    // 只有本周攒够样本、且上周也有数据，才谈得上「变化」
-    hasTrend: thisWeek.count >= MIN_SAMPLES && lastWeek.count > 0 && thisWeek.stability != null && lastWeek.stability != null,
+    // 两侧都要攒够样本才谈得上「变化」。
+    // 只要求上周 count > 0 是不够的：上周只练了一两次、碰巧都很稳（100%），
+    // 本周正常发挥 47%，就会写成「比上周低 53 个百分点」—— 那不是退步，
+    // 是基线本身不可靠。这种数字比不给对比更伤人。
+    hasTrend: thisWeek.count >= MIN_SAMPLES && lastWeek.count >= MIN_SAMPLES &&
+      thisWeek.stability != null && lastWeek.stability != null,
     byGame: byGame,
     lastAt: items.length ? items[items.length - 1].at : 0
   }
@@ -296,10 +300,15 @@ function describe(s) {
     }
   }
   if (!sum.hasTrend) {
+    const lw = sum.lastWeek.count
+    let why = '上周没有可比数据'
+    if (lw > 0 && lw < MIN_SAMPLES) {
+      why = '上周只练了 ' + lw + ' 次，太少，先不比较'
+    }
     return {
       tone: 'none',
       headline: pct(week.stability),
-      detail: '本周控制稳定率 · 上周没有可比数据'
+      detail: '本周控制稳定率 · ' + why
     }
   }
 

@@ -107,9 +107,11 @@ Page({
   },
 
   // 第 3 步：开始训练
+  // 注意：selectTab 只同步底部高亮，**不跳页** —— 之前这里错用了它，
+  // 结果点「开始训练」只有 tab 变绿，人还停在首页。跳 tab 页要用 openPage。
   goTrain() {
     speaker.speak('选择今天的训练项目')
-    selectTab(this, 1)
+    openPage('/pages/games/games')
   },
 
   hintConnect() {

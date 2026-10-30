@@ -4,6 +4,7 @@
 // 数据全部来自 utils/progress.js，页面只管排版和画一条线。
 const progress = require('../../utils/progress.js')
 const { LineChart } = require('../../utils/lightchart.js')
+const { openPage } = require('../../utils/tab.js')
 
 // 少于 3 次不画线：一周三四次训练，一两次的波动会被当成趋势
 const CHART_MIN = 3
@@ -111,6 +112,6 @@ Page({
   },
 
   goGames() {
-    wx.switchTab({ url: '/pages/games/games' })
+    openPage('/pages/games/games')
   }
 })
