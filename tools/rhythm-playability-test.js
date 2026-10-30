@@ -40,7 +40,7 @@ class FakeClock {
 
 const TARGET = { left: -1, center: 0, right: 1 }
 
-/** 跑完整一局：患者在每个音符前 leadMs 启动 */
+/** 跑完整一局：患者在每个音符前 leadMs 启动（leadMs = 0 表示完全不动） */
 function play(difficulty, leadMs, songId) {
   const cfg = getStore({ fresh: true })
   cfg.reset()
@@ -63,7 +63,9 @@ function play(difficulty, leadMs, songId) {
     const now = clock.nowMs()
     while (idx < engine.notes.length && engine.notes[idx].targetTimeMs < now - 200) idx += 1
     const n = engine.notes[idx]
-    if (n && now >= n.targetTimeMs - leadMs) engine.motion.setSimTarget(TARGET[n.targetSide], 0)
+    if (leadMs > 0 && n && now >= n.targetTimeMs - leadMs) {
+      engine.motion.setSimTarget(TARGET[n.targetSide], 0)
+    }
     clock.advance(DT * 1000)
     engine.update(DT)
     engine.drainEvents()
@@ -73,6 +75,7 @@ function play(difficulty, leadMs, songId) {
   return {
     total: total, hits: s.hits, miss: s.miss,
     perfect: s.perfect, great: s.great, good: s.good,
+    leftHits: s.leftHits, centerHits: s.centerHits, rightHits: s.rightHits,
     rate: s.overallHitRate
   }
 }
@@ -131,6 +134,25 @@ const loose = play(5, 400, 'dawn_walk')
 ok(loose.perfect === 0 || loose.perfect < loose.good,
   '提前过多会掉档（判定不是无条件满分）',
   'P' + loose.perfect + '/G' + loose.great + '/g' + loose.good)
+
+console.log('\n[4] 站着不动不能得分（训练有效性）')
+// 曾经的漏洞：_actionOk 有一条无条件时间后门 ——
+// 没有新动作时，只要距上次同侧命中 ≥ sameSideGapMs 就放行。
+// 而交替谱面下同侧音符间隔是 2 个音符（2.3 秒），远大于 320ms，
+// 后门永远开着：患者站着完全不动也能拿到全部中间音符 + 约四成左右音符。
+// 现在只有谱面标记了 repeat（同向连续）的音符才允许走后门。
+for (const d of [1, 3, 5]) {
+  const idle = play(d, 0, 'dawn_walk')
+  console.log('    难度' + d + ' 站桩：命中 ' + idle.hits + '/' + idle.total +
+    '（左 ' + idle.leftHits + ' / 中 ' + idle.centerHits + ' / 右 ' + idle.rightHits + '）' +
+    ' 命中率 ' + (idle.rate * 100).toFixed(1) + '%')
+  ok(idle.leftHits === 0 && idle.rightHits === 0,
+    '难度' + d + ' 站桩时左右音符一个都中不了',
+    '左 ' + idle.leftHits + ' / 右 ' + idle.rightHits)
+  ok(idle.rate < 0.45,
+    '难度' + d + ' 站桩命中率低于 45%（只剩中间音符）',
+    (idle.rate * 100).toFixed(1) + '%')
+}
 
 // ---------------------------------------------------------------- 结果
 console.log('\n----------------------------------------')

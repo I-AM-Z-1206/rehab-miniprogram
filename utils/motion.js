@@ -362,9 +362,15 @@ class MotionTracker {
     this.ny = clamp(this.ny, -1, 1)
     this.load = Math.max(Math.abs(this.nx), Math.abs(this.ny) * 0.75)
 
-    // 方向（滞回 0.06，避免边界抖动刷屏）
-    if (this.nx < -0.1) this.dir = 'left'
-    else if (this.nx > 0.1) this.dir = 'right'
+    // 方向（阈值来自配置，缺省 0.1 与旧硬编码值一致，其它游戏不受影响）
+    //
+    // 这里原来写死 ±0.1，而 rhythm-config 里 `sideThreshold` 的默认值是 0.35 ——
+    // 治疗师拖滑块**毫无效果**，而且失效的 0.35 还会被写进训练记录的
+    // controlConfig，事后分析会以为阈值是 0.35，实际判定用的是 0.1。
+    // 实际阈值比设定小 3.5 倍，患者轻轻一动就算「进入该侧」。
+    const sideTh = clamp(Number(cfg.get('sideThreshold')) || 0.1, 0.02, 1)
+    if (this.nx < -sideTh) this.dir = 'left'
+    else if (this.nx > sideTh) this.dir = 'right'
     else this.dir = 'center'
 
     return this

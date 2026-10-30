@@ -206,6 +206,10 @@ function buildChart(opts) {
       targetTimeMs: timeMs,
       noteType: accent ? 'accent' : 'normal',
       scoreValue: accent ? 120 : 100,
+      // 同向连续：这条跟上一条同侧，患者**不需要重新移动**，已经在正确位置。
+      // 引擎拿它区分「真的移动了」和「本来就站在这边」——
+      // 没有这个标记，交替谱面下「站着不动」也能靠时间后门拿分（见 engine._actionOk）。
+      repeat: seq > 1 && side === lastSide && side !== 'center',
       judgeStatus: 'pending'
     })
 
@@ -300,6 +304,12 @@ function parseChart(raw, song) {
   })
 
   out.sort((a, b) => a.targetTimeMs - b.targetTimeMs)
+  // 同向连续标记：外部谱面也要补算，否则引擎会把「本来就站在这边」当成
+  // 「没移动」，同向连续的第二个音符永远判不中。
+  for (let i = 0; i < out.length; i++) {
+    const prev = i > 0 ? out[i - 1].targetSide : null
+    out[i].repeat = i > 0 && out[i].targetSide === prev && out[i].targetSide !== 'center'
+  }
   return { notes: out, errors }
 }
 

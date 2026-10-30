@@ -421,6 +421,12 @@ class RhythmEngine {
       difficulty: Number(this.cfg.get('difficulty')) || 3,
       difficultyLabel: this.cfg.difficultyLabel ? this.cfg.difficultyLabel(this.cfg.get('difficulty')) : '',
       chartSeed: Number(this.cfg.get('chartSeed')) || 7,
+      // 判定口径版本：换了「怎么算命中」的规则就升它。
+      // v1 = sideThreshold 未接线（硬编码 0.1）+ 动作判定有无条件时间后门；
+      // v2 = 阈值接上配置 + 后门只对谱面标记的同向连续音符开放（站桩不能得分）。
+      // **v1 与 v2 的命中率不可直接对比**：v1 下站着不动能拿到中间音符 +
+      // 约四成左右音符，v2 只剩中间音符。
+      judgeVersion: 'v2',
       noteCount: snap.totalNotes,
       score: snap.score,
       breakdown: { base: snap.base, comboBonus: snap.comboBonus, finishBonus: snap.finishBonus },
@@ -587,8 +593,30 @@ class RhythmEngine {
 
   _actionOk(note, now) {
     const sameGap = Math.max(60, Number(this.cfg.get('sameSideGapMs')) || 320)
+    // 1. 有新动作（真的移动过）→ 放行
     if (this.action.seq > this.action.consumedSeq) return true
-    return now - (this.action.lastHitAt[note.targetSide] || -1e9) >= sameGap
+
+    // 2. 同向连续：患者已经在这一侧，不需要「重新进入」，
+    //    只要求距上次同侧命中隔开 sameGap，避免一次停留刷掉一串音符。
+    //
+    //    这里原来是**无条件**的时间后门：
+    //      return now - lastHitAt[side] >= sameGap
+    //    交替谱面下同侧音符间隔是 2 个音符（约 2.3 秒），远大于 sameGap(320ms)，
+    //    于是后门永远开着 —— 站着完全不动也能拿到全部中间音符 + 约四成左右音符
+    //    的 GOOD。训练彻底失去意义。现在必须靠谱面的 repeat 标记才放行。
+    if (note.repeat) {
+      return now - (this.action.lastHitAt[note.targetSide] || -1e9) >= sameGap
+    }
+
+    // 3. 中间音符：回中不产生新的 seq（_updateActions 只在进入左/右时自增），
+    //    所以只能走这条。它判的是「保持在正中」，站着不动本来就满足，
+    //    这不是漏洞 —— 真正的漏洞是左右音符也能靠后门白拿。
+    if (note.targetSide === 'center') {
+      return now - (this.action.lastHitAt.center || -1e9) >= sameGap
+    }
+
+    // 4. 需要换侧，但没有新动作 = 身体没动，不能命中
+    return false
   }
 
   _spawn(now) {

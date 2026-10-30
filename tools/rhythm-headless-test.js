@@ -158,6 +158,7 @@ const { HitJudge } = require('../pkgRhythm/games/rhythm/hit-judge.js')
 const { ScoreManager } = require('../pkgRhythm/games/rhythm/score.js')
 const { RhythmEngine } = require('../pkgRhythm/games/rhythm/engine.js')
 const { RhythmRenderer } = require('../pkgRhythm/games/rhythm/renderer.js')
+const { MotionTracker } = require('../utils/motion.js')
 const rhythmRecords = require('../pkgRhythm/utils/rhythm-record.js')
 const wireRecords = require('../utils/training-record.js')
 const fruitRecords = require('../pkgFruit/utils/fruit-record.js')
@@ -716,6 +717,29 @@ console.log('\n[10] 训练记录：防重复 / 模拟不上报 / 分库隔离')
   const cfg2 = wireRecords.getUploadConfig()
   eq(typeof cfg1.url, 'string', '节奏库有独立上报配置')
   eq(typeof cfg2.url, 'string', '走钢丝上报配置不受影响')
+}
+
+console.log('\n[11] sideThreshold 真的参与方向判定（不是只写进记录）')
+{
+  // 曾经的问题：`utils/motion.js` 里方向判定硬编码 ±0.1，而配置里
+  // sideThreshold 的默认值是 0.35 —— 治疗师拖滑块**毫无效果**，
+  // 而且失效的 0.35 还会被写进记录的 controlConfig，事后分析会以为
+  // 阈值是 0.35，实际判定用的是 0.1（实际阈值比设定小 3.5 倍）。
+  const dirAt = (th, target) => {
+    const cfg = getStore({ fresh: true })
+    cfg.reset()
+    cfg.patch({ sideThreshold: th }, 'test')
+    const m = new MotionTracker(cfg)
+    m.setSimMode(true)
+    m.setSimTarget(target, 0)
+    for (let i = 0; i < 200; i++) m.update(1 / 60)
+    return m.dir
+  }
+  eq(dirAt(0.2, 0.5), 'right', '阈值 0.2：控制量 0.5 算进入右侧')
+  eq(dirAt(0.6, 0.5), 'center', '阈值 0.6：同样的 0.5 不算进入（滑块生效了）')
+  eq(dirAt(0.6, 0.95), 'right', '阈值 0.6：控制量 0.95 才算进入')
+  eq(dirAt(0.2, -0.5), 'left', '负方向同样按阈值判定')
+  eq(dirAt(0.2, 0.05), 'center', '微弱偏移仍算中立')
 }
 
 console.log('\n----------------------------------------')
