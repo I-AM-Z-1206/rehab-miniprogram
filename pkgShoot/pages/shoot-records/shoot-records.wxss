@@ -422,3 +422,56 @@ page {
   font-size: 18rpx;
   color: #a3aab2;
 }
+
+/* ---------- 本游戏稳定率（页面顶部一行） ---------- */
+.mine {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 26rpx 28rpx;
+  margin-bottom: 18rpx;
+  border-radius: 28rpx;
+  background-color: #ffffff;
+  border: 1rpx solid #eef1f5;
+}
+
+.mine-left {
+  display: flex;
+  flex-direction: column;
+}
+
+.mine-label {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #1c2430;
+}
+
+.mine-sub {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #9aa1ad;
+}
+
+.mine-right {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+}
+
+.mine-val {
+  font-size: 44rpx;
+  font-weight: 700;
+  color: #1c2430;
+}
+
+.mine-delta {
+  margin-left: 12rpx;
+  font-size: 26rpx;
+  font-weight: 600;
+}
+
+.mine-delta.up { color: #12a06a; }
+.mine-delta.down { color: #d98324; }
+.mine-delta.flat { color: #b9c0ca; }
+

@@ -1,0 +1,78 @@
+<!--progress.wxml —— 我的进步（患者端）-->
+<navigation-bar title="我的进步" back="{{true}}" color="black" background="#ffffff"></navigation-bar>
+
+<scroll-view class="scrollarea" scroll-y>
+  <view class="page-body">
+
+    <!-- 主结论：一个数 + 一句话。患者只想知道「我有没有变好」 -->
+    <view class="hero tone-{{tone}}">
+      <view class="hero-line">
+        <text class="hero-num">{{headline}}</text>
+        <text class="hero-arrow up" wx:if="{{tone === 'up'}}">↑</text>
+        <text class="hero-arrow down" wx:elif="{{tone === 'down'}}">↓</text>
+        <text class="hero-arrow flat" wx:elif="{{tone === 'flat'}}">→</text>
+      </view>
+      <text class="hero-desc">{{detailText}}</text>
+    </view>
+
+    <!-- 本周打卡：只点亮练过的日子，中断的日子不做任何标记 -->
+    <view class="sec">
+      <view class="sec-head">
+        <text class="sec-title">本周打卡</text>
+        <text class="sec-meta">{{trainedDays}} / 7 天</text>
+      </view>
+      <view class="days">
+        <view class="day {{item.trained ? 'on' : ''}} {{item.today ? 'today' : ''}} {{item.future ? 'future' : ''}}"
+              wx:for="{{week}}" wx:key="label">
+          <view class="dot"></view>
+          <text class="day-label">{{item.label}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 走势：一条线，不做多条 -->
+    <view class="sec">
+      <view class="sec-head">
+        <text class="sec-title">稳定率走势</text>
+        <text class="sec-meta" wx:if="{{hasChart}}">最近 {{trendCount}} 次</text>
+      </view>
+      <view class="chart" wx:if="{{hasChart}}">
+        <canvas type="2d" id="chartTrend" class="cv"></canvas>
+      </view>
+      <text class="empty" wx:else>再练几次就能看到走势。少于 3 次不画线 —— 一两次的波动容易被当成趋势。</text>
+    </view>
+
+    <!-- 各项训练：按练得多少排序，让患者看到「我主要练的是哪个」 -->
+    <view class="sec">
+      <view class="sec-head">
+        <text class="sec-title">各项训练</text>
+        <text class="sec-meta">最近 5 次对比</text>
+      </view>
+      <view class="game" wx:for="{{games}}" wx:key="name">
+        <text class="g-name">{{item.name}}</text>
+        <text class="g-count">{{item.count}} 次</text>
+        <text class="g-val">{{item.value}}</text>
+        <text class="g-delta {{item.tone}}" wx:if="{{item.delta}}">{{item.delta}}</text>
+      </view>
+      <text class="empty" wx:if="{{!games.length}}">还没有训练记录。完成一局任意训练，这里就会开始统计。</text>
+    </view>
+
+    <!-- 累计：只增不减，中断也不会倒退 -->
+    <view class="sec">
+      <view class="sec-head">
+        <text class="sec-title">累计</text>
+      </view>
+      <view class="total">
+        <text class="total-num">{{totalCount}}</text>
+        <text class="total-item">次训练</text>
+        <text class="total-dot">·</text>
+        <text class="total-num">{{totalMinutes}}</text>
+        <text class="total-item">分钟</text>
+      </view>
+    </view>
+
+    <view class="cta" bindtap="goGames">继续训练</view>
+    <text class="foot">稳定率 = 身体待在目标范围内的时长占比，不是游戏分数。难度调高时暂时下降是正常的。</text>
+
+  </view>
+</scroll-view>

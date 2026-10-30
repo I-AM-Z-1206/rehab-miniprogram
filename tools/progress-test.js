@@ -162,6 +162,37 @@ console.log('\n[7] 账号隔离')
 const other = progress.summary({ pid: 'p_A_other', now: now })
 ok(other.totalCount === 0, '别的账号读不到 p_A 的记录')
 
+// ---------------------------------------------------------------- 8
+console.log('\n[8] 详情页数据（打卡 / 走势 / 累计）')
+loginAs('p_D')
+// 固定到 2026-10-28（周三）中午，避开「今天是周几」的边界
+const WED = new Date(2026, 9, 28, 12, 0, 0).getTime()
+shoot.save(rec('shoot', { zoneRate: 0.60, startedAt: new Date(2026, 9, 26, 10, 0, 0).toISOString() }))
+shoot.save(rec('shoot', { zoneRate: 0.70, startedAt: new Date(2026, 9, 28, 10, 0, 0).toISOString() }))
+const d = progress.detail({ pid: 'p_D', now: WED })
+ok(d.week.length === 7, '本周 7 天', String(d.week.length))
+ok(d.week[0].trained === true, '周一练过')
+ok(d.week[1].trained === false, '周二没练')
+ok(d.week[2].trained === true, '周三练过')
+ok(d.week[2].today === true, '周三是今天（外环标记）')
+ok(d.week[4].future === true, '周五还没到（置灰）')
+ok(d.trend.values.length === 2, '走势取到 2 个点', String(d.trend.values.length))
+ok(d.trend.values[0] === 60 && d.trend.values[1] === 70, '走势按时间升序且是百分数',
+  d.trend.values.join(','))
+ok(d.trend.labels.length === 2 && d.trend.labels[0].indexOf('/') > 0, '走势横轴是月/日',
+  d.trend.labels.join(','))
+ok(d.totalMinutes >= 1, '累计分钟数为正', String(d.totalMinutes))
+
+// ---------------------------------------------------------------- 9
+console.log('\n[9] 展示层格式化（记录页顶部那一行）')
+const gh = require('../utils/progress-view.js').gameHeadline
+const emptyGame = gh('rhythm', { pid: 'p_D' })
+ok(emptyGame.value === '--', '算不出来显示 -- 而不是 0%（0% 会被当成表现极差）', emptyGame.value)
+ok(emptyGame.has === false, 'has=false 让页面走「练几次后开始统计」')
+const shotGame = gh('shoot', { pid: 'p_D' })
+ok(shotGame.value === '65%', '两局 60/70 → 稳定率 65%', shotGame.value)
+ok(shotGame.count === 2, '次数正确')
+
 console.log('\n----------------------------------------')
 if (fails.length) {
   console.log('结果：' + fails.length + ' 项失败 / 共 ' + (pass + fails.length) + ' 项')

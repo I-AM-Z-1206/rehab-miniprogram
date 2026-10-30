@@ -102,6 +102,10 @@ Page({
     }
   },
 
+  goProgress() {
+    openPage('/pages/progress/progress')
+  },
+
   goGames() {
     selectTab(this, 1)
   }

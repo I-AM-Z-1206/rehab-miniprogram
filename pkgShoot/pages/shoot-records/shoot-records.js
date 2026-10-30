@@ -1,5 +1,7 @@
 // shoot-records.js —— 射击：训练记录（本地为准，可逐条或批量上报）
 const records = require('../../utils/shoot-record.js')
+const progress = require('../../../utils/progress.js')
+const { gameHeadline } = require('../../../utils/progress-view.js')
 
 const STATE_TEXT = {
   local: '待上报',
@@ -50,7 +52,9 @@ Page({
     uploadReady: false,
     uploadState: '未配置',
     expanded: '',
-    pendingCount: 0
+    pendingCount: 0,
+    // 本游戏的稳定率变化：就地能看到，不用跳到「我的进步」
+    mine: { has: false, count: 0, value: '--', delta: '', tone: 'none' }
   },
 
   onLoad() {
@@ -84,7 +88,8 @@ Page({
       stats: stats,
       uploadReady: !!cfg.url && cfg.enabled,
       uploadState: cfg.url ? (cfg.enabled ? '已配置' : '已填写未启用') : '未配置',
-      pendingCount: stats.pending
+      pendingCount: stats.pending,
+      mine: gameHeadline('shoot')
     })
   },
 

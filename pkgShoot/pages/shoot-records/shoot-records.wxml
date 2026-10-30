@@ -2,6 +2,20 @@
 <navigation-bar title="射击 · 训练记录" back="{{true}}" color="black" background="#FFFFFF"></navigation-bar>
 
 <scroll-view class="body" scroll-y>
+  <!-- 本游戏的稳定率：就地能看到变化，不用跳到「我的进步」。
+       指标不是分数 —— 分数受难度影响，升档就掉，会让人误以为退步。 -->
+  <view class="mine">
+    <view class="mine-left">
+      <text class="mine-label">本游戏稳定率</text>
+      <text class="mine-sub" wx:if="{{mine.has}}">最近 5 次 · 共 {{mine.count}} 次</text>
+      <text class="mine-sub" wx:else>练几次后开始统计</text>
+    </view>
+    <view class="mine-right">
+      <text class="mine-val">{{mine.value}}</text>
+      <text class="mine-delta {{mine.tone}}" wx:if="{{mine.delta}}">{{mine.delta}}</text>
+    </view>
+  </view>
+
   <!-- 概览 -->
   <view class="summary">
     <view class="sum-cell">

@@ -18,10 +18,11 @@
     <!-- 我的进步：患者每天打开第一眼看到的东西。
          指标是「控制稳定率」而不是分数 —— 分数受难度影响，升档就掉，
          会让人误以为退步。趋势至少攒够 3 次才显示，见 utils/progress.js。 -->
-    <view class="prog tone-{{prog.tone}}" bindtap="goGames">
+    <view class="prog tone-{{prog.tone}}" bindtap="goProgress">
       <view class="prog-head">
         <text class="prog-kicker">我的进步</text>
-        <text class="prog-meta" wx:if="{{prog.meta}}">{{prog.meta}}</text>
+        <text class="prog-meta" wx:if="{{prog.meta}}">{{prog.meta}} ›</text>
+        <text class="prog-meta" wx:else>查看 ›</text>
       </view>
       <view class="prog-main">
         <text class="prog-num {{prog.isNum ? 'is-num' : 'is-text'}}">{{prog.headline}}</text>

@@ -51,9 +51,13 @@ function toView(r) {
   }
 }
 
+const { gameHeadline } = require('../../../utils/progress-view.js')
+
 Page({
   data: {
     list: [],
+    // 本游戏稳定率（顶部一行）
+    mine: { has: false, count: 0, value: '--', delta: '', tone: 'none' },
     stats: { total: 0, uploaded: 0, pending: 0 },
     uploadReady: false,
     uploadState: '未配置',
@@ -83,7 +87,8 @@ Page({
       stats: stats,
       uploadReady: !!cfg.url && cfg.enabled,
       uploadState: cfg.url ? (cfg.enabled ? '已配置' : '已填写未启用') : '未配置',
-      pendingCount: stats.pending
+      pendingCount: stats.pending,
+      mine: gameHeadline('rhythm')
     })
   },
 

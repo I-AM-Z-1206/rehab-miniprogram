@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>我的进步 · 详情页预览</title>
+<style>
+  /* rpx → px 按 375 宽换算（1rpx = 0.5px） */
+  body {
+    margin: 0;
+    padding: 0 0 40px;
+    background: #fff;
+    width: 375px;
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  .nav {
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 600;
+    color: #000;
+    border-bottom: 1px solid #f4f6f9;
+  }
+  .page-body { padding: 8px 18px 36px; }
+
+  .hero { padding: 14px 0 16px; border-bottom: 1px solid #eef1f5; }
+  .hero-line { display: flex; align-items: baseline; }
+  .hero-num { font-size: 44px; font-weight: 700; letter-spacing: -1px; color: #1c2430; }
+  .hero-arrow { margin-left: 8px; font-size: 24px; font-weight: 700; color: #12a06a; }
+  .hero-desc { display: block; margin-top: 8px; font-size: 15px; line-height: 1.6; color: #5b6472; }
+
+  .sec { padding: 16px 0; border-bottom: 1px solid #eef1f5; }
+  .sec-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+  .sec-title { font-size: 15px; font-weight: 600; color: #1c2430; }
+  .sec-meta { font-size: 12px; color: #9aa1ad; }
+
+  .days { display: flex; justify-content: space-between; }
+  .day { display: flex; flex-direction: column; align-items: center; flex: 1; }
+  .dot { width: 24px; height: 24px; border-radius: 50%; background: #f0f2f5; border: 1px solid #e4e8ee; box-sizing: border-box; }
+  .day.on .dot { background: #0f9c8c; border-color: #0f9c8c; }
+  .day.today .dot { box-shadow: 0 0 0 3px rgba(15, 156, 140, 0.18); }
+  .day.future .dot { background: #fafbfc; border-color: #f0f2f5; }
+  .day-label { margin-top: 6px; font-size: 12px; color: #8b8f9a; }
+  .day.on .day-label { color: #0f9c8c; font-weight: 600; }
+  .day.future .day-label { color: #c8ccd4; }
+
+  .chart { width: 100%; height: 160px; }
+  .empty { display: block; font-size: 13px; line-height: 1.6; color: #9aa1ad; }
+
+  .game { display: flex; align-items: baseline; padding: 10px 0; border-bottom: 1px solid #f4f6f9; }
+  .game:last-child { border-bottom: none; }
+  .g-name { flex: 1; font-size: 15px; color: #1c2430; }
+  .g-count { font-size: 12px; color: #9aa1ad; margin-right: 12px; }
+  .g-val { font-size: 17px; font-weight: 600; color: #1c2430; min-width: 55px; text-align: right; }
+  .g-delta { font-size: 13px; font-weight: 600; min-width: 40px; text-align: right; }
+  .g-delta.up { color: #12a06a; }
+  .g-delta.down { color: #d98324; }
+  .g-delta.flat { color: #b9c0ca; }
+
+  .total { display: flex; align-items: baseline; }
+  .total-num { font-size: 22px; font-weight: 700; color: #1c2430; }
+  .total-item { margin-left: 4px; font-size: 13px; color: #5b6472; }
+  .total-dot { margin: 0 10px; color: #d3d7de; font-size: 13px; }
+
+  .cta {
+    margin-top: 20px; padding: 15px 0; border-radius: 999px;
+    text-align: center; font-size: 16px; font-weight: 600;
+    color: #fff; background: #0f9c8c;
+  }
+  .foot { display: block; margin-top: 14px; font-size: 12px; line-height: 1.7; color: #9aa1ad; }
+</style>
+</head>
+<body>
+  <div class="nav">我的进步</div>
+  <div class="page-body">
+
+    <div class="hero">
+      <div class="hero-line">
+        <span class="hero-num">68%</span>
+        <span class="hero-arrow">↑</span>
+      </div>
+      <span class="hero-desc">比上周稳了 6 个百分点</span>
+    </div>
+
+    <div class="sec">
+      <div class="sec-head"><span class="sec-title">本周打卡</span><span class="sec-meta">4 / 7 天</span></div>
+      <div class="days">
+        <div class="day on"><div class="dot"></div><span class="day-label">一</span></div>
+        <div class="day"><div class="dot"></div><span class="day-label">二</span></div>
+        <div class="day on today"><div class="dot"></div><span class="day-label">三</span></div>
+        <div class="day on"><div class="dot"></div><span class="day-label">四</span></div>
+        <div class="day on"><div class="dot"></div><span class="day-label">五</span></div>
+        <div class="day future"><div class="dot"></div><span class="day-label">六</span></div>
+        <div class="day future"><div class="dot"></div><span class="day-label">日</span></div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-head"><span class="sec-title">稳定率走势</span><span class="sec-meta">最近 10 次</span></div>
+      <svg class="chart" viewBox="0 0 339 160" preserveAspectRatio="none">
+        <line x1="34" y1="14" x2="330" y2="14" stroke="#f0f2f5" stroke-width="1"/>
+        <line x1="34" y1="61" x2="330" y2="61" stroke="#f0f2f5" stroke-width="1"/>
+        <line x1="34" y1="108" x2="330" y2="108" stroke="#f0f2f5" stroke-width="1"/>
+        <line x1="34" y1="154" x2="330" y2="154" stroke="#e4e8ee" stroke-width="1"/>
+        <text x="28" y="18" text-anchor="end" font-size="9" fill="#b4b2a9">100</text>
+        <text x="28" y="65" text-anchor="end" font-size="9" fill="#b4b2a9">70</text>
+        <text x="28" y="112" text-anchor="end" font-size="9" fill="#b4b2a9">40</text>
+        <path d="M34 120 L67 112 L100 116 L133 96 L166 88 L199 92 L232 74 L265 62 L298 52 L330 44"
+              fill="none" stroke="#0f9c8c" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+        <path d="M34 120 L67 112 L100 116 L133 96 L166 88 L199 92 L232 74 L265 62 L298 52 L330 44 L330 154 L34 154 Z"
+              fill="rgba(15,156,140,0.10)" stroke="none"/>
+        <text x="34" y="150" font-size="9" fill="#b4b2a9">10/18</text>
+        <text x="330" y="150" text-anchor="end" font-size="9" fill="#b4b2a9">10/30</text>
+      </svg>
+    </div>
+
+    <div class="sec">
+      <div class="sec-head"><span class="sec-title">各项训练</span><span class="sec-meta">最近 5 次对比</span></div>
+      <div class="game">
+        <span class="g-name">射击</span><span class="g-count">12 次</span>
+        <span class="g-val">74%</span><span class="g-delta up">+5</span>
+      </div>
+      <div class="game">
+        <span class="g-name">节奏训练</span><span class="g-count">9 次</span>
+        <span class="g-val">66%</span><span class="g-delta up">+3</span>
+      </div>
+      <div class="game">
+        <span class="g-name">接水果</span><span class="g-count">6 次</span>
+        <span class="g-val">61%</span><span class="g-delta flat"></span>
+      </div>
+      <div class="game">
+        <span class="g-name">走钢丝</span><span class="g-count">3 次</span>
+        <span class="g-val">58%</span><span class="g-delta down">-4</span>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-head"><span class="sec-title">累计</span></div>
+      <div class="total">
+        <span class="total-num">47</span><span class="total-item">次训练</span>
+        <span class="total-dot">·</span>
+        <span class="total-num">735</span><span class="total-item">分钟</span>
+      </div>
+    </div>
+
+    <div class="cta">继续训练</div>
+    <span class="foot">稳定率 = 身体待在目标范围内的时长占比，不是游戏分数。难度调高时暂时下降是正常的。</span>
+
+  </div>
+</body>
+</html>

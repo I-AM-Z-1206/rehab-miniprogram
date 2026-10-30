@@ -157,14 +157,8 @@ function deltaOf(cur, prev) {
   return cur - prev
 }
 
-/**
- * 一个账号的完整进步摘要。
- * @param {object} [opts] { now, pid }
- */
-function summary(opts) {
-  const o = opts || {}
-  const now = Number(o.now) || Date.now()
-  const items = readAll(o.pid)
+/** 一个账号的完整进步摘要（内部用，items 已经读好） */
+function summarize(items, now) {
   const ws = weekStart(now)
   const thisWeekItems = items.filter((it) => it.at >= ws && it.at <= now)
   const lastWeekItems = items.filter((it) => it.at >= ws - 7 * DAY && it.at < ws)
@@ -198,6 +192,70 @@ function summary(opts) {
     byGame: byGame,
     lastAt: items.length ? items[items.length - 1].at : 0
   }
+}
+
+/**
+ * 一个账号的进步摘要。
+ * @param {object} [opts] { now, pid }
+ */
+function summary(opts) {
+  const o = opts || {}
+  return summarize(readAll(o.pid), Number(o.now) || Date.now())
+}
+
+/** 本周 7 天：练过没有、是不是今天、是不是还没到 */
+function weekDays(items, now) {
+  const ws = weekStart(now)
+  const todayStart = new Date(now)
+  todayStart.setHours(0, 0, 0, 0)
+  const todayTs = todayStart.getTime()
+  const labels = ['一', '二', '三', '四', '五', '六', '日']
+  return labels.map((label, i) => {
+    const start = ws + i * DAY
+    const end = start + DAY
+    let trained = false
+    for (let k = 0; k < items.length; k++) {
+      if (items[k].at >= start && items[k].at < end) { trained = true; break }
+    }
+    return {
+      label: label,
+      trained: trained,
+      today: start === todayTs,
+      future: start > todayTs
+    }
+  })
+}
+
+/** 最近 n 次训练的稳定率序列（给折线图用） */
+function trendOf(items, n) {
+  const limit = Math.max(2, Number(n) || 10)
+  const usable = items.filter((it) => it.stability != null)
+  const last = usable.slice(-limit)
+  return {
+    labels: last.map((it) => {
+      const d = new Date(it.at)
+      return (d.getMonth() + 1) + '/' + d.getDate()
+    }),
+    values: last.map((it) => Math.round(it.stability * 100)),
+    count: last.length
+  }
+}
+
+/** 详情页要的全部数据（一次读完，别让页面读五遍 storage） */
+function detail(opts) {
+  const o = opts || {}
+  const now = Number(o.now) || Date.now()
+  const items = readAll(o.pid)
+  const base = summarize(items, now)
+  let totalSec = 0
+  for (let i = 0; i < items.length; i++) totalSec += secondsOf(items[i].raw)
+  return Object.assign({}, base, {
+    week: weekDays(items, now),
+    trend: trendOf(items, o.trendLimit || 10),
+    totalMinutes: Math.round(totalSec / 60),
+    // 各游戏按练得最多的排前面，患者一眼看到「我主要练的是哪个」
+    byGame: base.byGame.slice().sort((a, b) => b.count - a.count)
+  })
 }
 
 function pct(v) {
@@ -270,6 +328,22 @@ function describe(s) {
 
 /** 清空进度缓存用不到，但测试与「切换账号」需要重新读，所以不缓存任何东西 */
 
+/**
+ * 单个游戏的近期水平（记录页顶部那一行用）。
+ * 「最近 5 次」对「更早 5 次」，和详情页同一套口径。
+ */
+function gameOf(gameId, opts) {
+  const o = opts || {}
+  const items = readAll(o.pid).filter((it) => it.gameId === gameId)
+  const cur = weightedStability(items.slice(-5))
+  const prev = weightedStability(items.slice(-10, -5))
+  return {
+    count: items.length,
+    stability: cur,
+    delta: deltaOf(cur, prev)
+  }
+}
+
 module.exports = {
   STORES,
   MIN_SAMPLES,
@@ -277,8 +351,12 @@ module.exports = {
   stabilityOf,
   weightedStability,
   weekStart,
+  weekDays,
+  trendOf,
   readAll,
   summary,
+  detail,
+  gameOf,
   describe,
   pct
 }

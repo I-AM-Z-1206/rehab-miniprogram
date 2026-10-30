@@ -49,9 +49,13 @@ function toView(r) {
   }
 }
 
+const { gameHeadline } = require('../../../utils/progress-view.js')
+
 Page({
   data: {
     list: [],
+    // 本游戏稳定率（顶部一行）
+    mine: { has: false, count: 0, value: '--', delta: '', tone: 'none' },
     stats: { total: 0, uploaded: 0, pending: 0 },
     uploadReady: false,
     uploadState: '未配置',
@@ -100,6 +104,7 @@ Page({
       // enabled = 有网络 && 已登录；只说"未配置"会让人以为地址没填
       uploadState: cfg.url ? (cfg.enabled ? '已配置' : '待登录或离线') : '未配置',
       pendingCount: stats.pending,
+      mine: gameHeadline('race'),
       best: best
     })
   },
