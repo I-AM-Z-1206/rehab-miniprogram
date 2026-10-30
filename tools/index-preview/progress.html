@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>我的进步 · 卡片预览</title>
+<style>
+  /* rpx → px 按 375 宽换算（1rpx = 0.5px） */
+  body {
+    margin: 0;
+    padding: 20px 16px 40px;
+    background: #f5f6fa;
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    width: 343px;
+    box-sizing: content-box;
+  }
+  .label {
+    font-size: 12px;
+    color: #9aa1ad;
+    margin: 18px 0 8px;
+    letter-spacing: 1px;
+  }
+  .prog {
+    padding: 16px 14px;
+    margin-bottom: 12px;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 5px 15px rgba(15, 60, 90, 0.08);
+    border: 1px solid #eef1f5;
+  }
+  .prog-head { display: flex; align-items: center; justify-content: space-between; }
+  .prog-kicker { font-size: 12px; color: #8b8f9a; letter-spacing: 1px; }
+  .prog-meta { font-size: 12px; color: #0f9c8c; font-weight: 600; }
+  .prog-main { display: flex; align-items: baseline; margin-top: 6px; }
+  .prog-num { color: #1c2430; font-weight: 700; }
+  .prog-num.is-num { font-size: 38px; letter-spacing: -1px; }
+  .prog-num.is-text { font-size: 20px; }
+  .prog-arrow { margin-left: 7px; font-size: 20px; font-weight: 700; }
+  .prog-arrow.up { color: #12a06a; }
+  .prog-arrow.down { color: #d98324; }
+  .prog-arrow.flat { color: #9aa1ad; }
+  .prog-detail { display: block; margin-top: 7px; font-size: 14px; line-height: 1.6; color: #5b6472; }
+  .prog.tone-up { border-left: 4px solid #12a06a; }
+  .prog.tone-down { border-left: 4px solid #d98324; }
+  .prog.tone-flat { border-left: 4px solid #b9c0ca; }
+  .prog.tone-none { border-left: 4px solid #dfe4ea; }
+</style>
+</head>
+<body>
+  <div class="label">① 变好（本周 4 天 · 4 次）</div>
+  <div class="prog tone-up">
+    <div class="prog-head">
+      <span class="prog-kicker">我的进步</span>
+      <span class="prog-meta">本周 4 天 · 4 次</span>
+    </div>
+    <div class="prog-main">
+      <span class="prog-num is-num">68%</span>
+      <span class="prog-arrow up">↑</span>
+    </div>
+    <span class="prog-detail">比上周稳了 6 个百分点</span>
+  </div>
+
+  <div class="label">② 变差（如实说 + 给解释锚点）</div>
+  <div class="prog tone-down">
+    <div class="prog-head">
+      <span class="prog-kicker">我的进步</span>
+      <span class="prog-meta">本周 5 天 · 6 次</span>
+    </div>
+    <div class="prog-main">
+      <span class="prog-num is-num">61%</span>
+      <span class="prog-arrow down">↓</span>
+    </div>
+    <span class="prog-detail">比上周低 8 个百分点。如果最近调高了难度，这是正常的 —— 你在做更难的事</span>
+  </div>
+
+  <div class="label">③ 持平</div>
+  <div class="prog tone-flat">
+    <div class="prog-head">
+      <span class="prog-kicker">我的进步</span>
+      <span class="prog-meta">本周 3 天 · 3 次</span>
+    </div>
+    <div class="prog-main">
+      <span class="prog-num is-num">64%</span>
+      <span class="prog-arrow flat">→</span>
+    </div>
+    <span class="prog-detail">和上周基本持平，保持住了</span>
+  </div>
+
+  <div class="label">④ 这周还没练</div>
+  <div class="prog tone-none">
+    <div class="prog-head">
+      <span class="prog-kicker">我的进步</span>
+      <span class="prog-meta">累计 12 次</span>
+    </div>
+    <div class="prog-main">
+      <span class="prog-num is-text">这周还没开始</span>
+    </div>
+    <span class="prog-detail">上次训练是 3 天前，今天练一局？</span>
+  </div>
+
+  <div class="label">⑤ 完全没有记录（首次使用）</div>
+  <div class="prog tone-none">
+    <div class="prog-head">
+      <span class="prog-kicker">我的进步</span>
+    </div>
+    <div class="prog-main">
+      <span class="prog-num is-text">还没有训练数据</span>
+    </div>
+    <span class="prog-detail">完成任意一局训练，这里就会开始记录你的变化</span>
+  </div>
+
+  <div class="label">⑥ 样本不足（本周 1 次）</div>
+  <div class="prog tone-none">
+    <div class="prog-head">
+      <span class="prog-kicker">我的进步</span>
+      <span class="prog-meta">本周 1 天 · 1 次</span>
+    </div>
+    <div class="prog-main">
+      <span class="prog-num is-text">本周已练 1 次</span>
+    </div>
+    <span class="prog-detail">再练 2 次就能看到这周的变化（样本太少时波动会被误当成趋势）</span>
+  </div>
+</body>
+</html>
