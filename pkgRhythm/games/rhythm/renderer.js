@@ -538,9 +538,14 @@ class RhythmRenderer {
 
   _noteY(p) {
     const L = this.L
-    // 接近缓动从 1.7 降到 1.15：之前音符大部分时间挤在远端（地平线附近），
-    // 到判定线前突然加速，患者感觉"才看到就撞线"；调平后全程匀速、更可预判。
-    const t = Math.pow(Math.min(p, 1), 1.15)
+    // 匀速下落（指数 1.0）。
+    //
+    // 曾是 1.7 → 1.15，「1.7」让音符大部分时间挤在远端、到判定线前突然加速，
+    // 患者感觉「才看到就撞线」。1.15 只是把这股冲刺削弱了一点，**方向仍是加速**：
+    // 从地平线（0.12h）到判定线（0.84h）是 519px，末尾 20% 的时间走完 25% 的距离，
+    // 越靠近判定线越快 —— 这正是「音符来的速度太快」的来源。
+    // 匀速是唯一能预判的曲线：同样时间走同样距离，患者才能练出稳定的提前量。
+    const t = Math.min(p, 1)
     let y = lerp(L.horizonY, L.judgeY, t)
     // 过了判定线继续往前走一小段，而不是**停在**判定线上。
     // 停住的话，判定过的音符会和下一个音符叠在同一个位置 ——
@@ -628,10 +633,16 @@ class RhythmRenderer {
     ctx.restore()
   }
 
-  /** 节拍横线：每一拍一条，顺着跑道流向判定线（也在提示"这一拍"的位置） */
+  /** 节拍横线：每一拍一条，顺着跑道流向判定线 */
   _drawBeatLines(vm) {
     const ctx = this.ctx
     const L = this.L
+    // 音符已与音乐拍点解耦（见 README 第 16 节）：这些横线按拍点流过来，
+    // 而音符按毫秒来，两者抵达判定线的时刻对不上。患者会拿横线当
+    // 「该动了」的信号，然后每次都错 —— 而且画面被两套不同频率的节奏填满，
+    // 主观感受就是「音符又密又快」。只有音符真的落在拍点上（snapToBeat）
+    // 时，这些横线才有意义。
+    if (!this.cfg.get('snapToBeat')) return
     const beat = vm.beatMs || 500
     if (!beat) return
     const approach = clamp(Number(this.cfg.get('approachMs')) || 2400, 900, 4000)
@@ -642,7 +653,7 @@ class RhythmRenderer {
     for (let j = 0; j <= count; j++) {
       const p = 1 - ((j - phase) * beat) / approach
       if (p < 0 || p > 1.02) continue
-      const t = Math.pow(clamp(p, 0, 1), 1.15)
+      const t = clamp(p, 0, 1)
       const y = lerp(L.horizonY, L.judgeY, t)
       const half = lerp(L.roadTopHalf, L.roadBottomHalf, t)
       const a = 0.14 + 0.20 * p
@@ -670,8 +681,8 @@ class RhythmRenderer {
     if (!next || next.progress < 0.55) return
     const k = clamp((next.progress - 0.55) / 0.45, 0, 1)
 
-    // 用和车道一致的透视（同样的 pow(1.15) 缓动），否则会像贴了一张直边色块
-    const t0 = Math.pow(0.55, 1.15)
+    // 用和车道一致的缓动（现已统一为匀速），否则会像贴了一张直边色块
+    const t0 = 0.55
     const t1 = 1
     const y0 = lerp(L.horizonY, L.judgeY, t0)
     const y1 = L.judgeY
@@ -710,10 +721,14 @@ class RhythmRenderer {
       const n = notes[i]
       const p = n.progress
       if (p < 0 || p > 1.15) continue
-      const t = Math.pow(clamp(p, 0, 1), 1.15)
+      // 横向与纵向必须用同一条曲线：一个加速一个匀速，音符会走成一条弧，
+      // 看起来像「飘」而不是「落」。
+      const t = clamp(p, 0, 1)
       const y = this._noteY(p)
       const x = this._laneX(n.side, t)
-      const scale = 0.68 + 0.5 * Math.pow(clamp(p, 0, 1), 1.2)
+      // 放大同样改线性：原来 p^1.2 让音符在临近判定线时加速膨胀，
+      // 和纵向冲刺叠在一起，主观就是「扑过来」。
+      const scale = 0.68 + 0.5 * clamp(p, 0, 1)
       const R = (n.type === 'accent' ? 25 : 21) * scale
       const color = tint[n.side] || C.pink
       const deep = tintDeep[n.side] || C.pinkDeep

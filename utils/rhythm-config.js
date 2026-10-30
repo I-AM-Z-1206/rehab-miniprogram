@@ -130,13 +130,17 @@ const SCHEMA = {
   },
   approachMs: {
     group: '节奏判定', label: '音符飞行时间', type: 'num', unit: 'ms',
-    min: 900, max: 4000, step: 50, def: 2400,
-    tip: '音符从出现到抵达判定线的时间，越长越容易预判'
+    min: 900, max: 4000, step: 50, def: 3400,
+    // 这是「音符来得多快」的唯一旋钮：飞行距离固定约 519px（地平线 0.12h →
+    // 判定线 0.84h），所以 2600ms = 200px/s、3400ms = 153px/s。
+    // 加长的代价是屏上同时出现的音符变多（≈ approachMs / 音符间隔），
+    // 超过 3 个就开始糊，所以上限 4000 配窄间隔时会显得满。
+    tip: '音符从出现飞到判定线的时间。越长越容易预判（视觉速度 = 519px ÷ 本值），但屏上同时出现的音符也越多'
   },
   noteGapMs: {
     group: '节奏判定', label: '音符间隔', type: 'num', unit: 'ms',
-    min: 400, max: 3000, step: 50, def: 1100,
-    tip: '两个音符之间隔多少毫秒。这是训练强度的主参数，与音乐 BPM 无关，换曲子不会再变难度。低于约 700ms 多数患者来不及完成一次重心转移'
+    min: 400, max: 3000, step: 50, def: 1450,
+    tip: '两个音符之间隔多少毫秒。这是训练强度的主参数，与音乐 BPM 无关，换曲子不会再变难度。低于约 900ms 多数患者来不及「看清 → 移动 → 稳定」三件事'
   },
   snapToBeat: {
     group: '节奏判定', label: '吸附到音乐拍点', type: 'bool', def: false,
@@ -194,34 +198,41 @@ const GROUPS = ['难度', '音乐', '训练目标', '体感输入', '左右判�
 // 五档预设：只覆盖"游戏手感"参数，体感输入与音乐的选择保持治疗师设置
 //
 // noteGapMs 是训练强度的主参数，按「一次重心转移要多久」定，不按拍数定：
-// 患者完成一次左右转移 + 稳定判定约需 700~900ms，所以入门档留两倍余量，
-// 挑战档才压到 780ms（贴着 620ms 的物理下限再留一点安全余量）。
+// 患者完成一次左右转移 + 稳定判定约需 700~900ms，但那是**纯移动**的时间，
+// 不含看清音符、下决心、做完等它判定。所以入门档给到 2.2 秒，
+// 标准档 1.45 秒（患者反馈「来得太快」后从 1.15 放宽），
+// 挑战档 900ms 仍然贴着 620ms 的物理下限之上。
 // 因为不再吸附拍点，换任何曲子这些数字都不变 —— 难度终于只由治疗师决定。
-// prepMs 取不小于 approachMs，否则第一个音符会「半路冒出来」。
+//
+// approachMs 是**视觉速度**的唯一旋钮（音符从地平线 0.12h 飞到判定线 0.84h，
+// 距离约 519px）：approachMs 2600 → 200px/s，患者反馈「来得太快」。
+// 每一档 +600~800ms 后降到 137~185px/s。它必须 ≥ prepMs，否则第一个音符
+// 会「半路冒出来」；也不能无限加长 —— 屏上同时存在的音符数 = approachMs / noteGapMs，
+// 超过 3 个就开始糊，所以挑战档只到 2800。
 const PRESETS = {
   1: {
-    label: '入门', noteGapMs: 1800, restRate: 0.2, sameSideRate: 0.05,
-    perfectMs: 110, greatMs: 180, goodMs: 260, approachMs: 3000, prepMs: 3000,
+    label: '入门', noteGapMs: 2200, restRate: 0.2, sameSideRate: 0.05,
+    perfectMs: 110, greatMs: 180, goodMs: 260, approachMs: 3800, prepMs: 3800,
     stableMs: 80, sameSideGapMs: 260, durationSec: 60, prepBeats: 2
   },
   2: {
-    label: '轻量', noteGapMs: 1450, restRate: 0.14, sameSideRate: 0.08,
-    perfectMs: 95, greatMs: 160, goodMs: 235, approachMs: 2800, prepMs: 2800,
+    label: '轻量', noteGapMs: 1800, restRate: 0.14, sameSideRate: 0.08,
+    perfectMs: 95, greatMs: 160, goodMs: 235, approachMs: 3600, prepMs: 3600,
     stableMs: 100, sameSideGapMs: 280, durationSec: 75, prepBeats: 2
   },
   3: {
-    label: '标准', noteGapMs: 1150, restRate: 0.08, sameSideRate: 0.12,
-    perfectMs: 85, greatMs: 145, goodMs: 210, approachMs: 2600, prepMs: 2600,
+    label: '标准', noteGapMs: 1450, restRate: 0.08, sameSideRate: 0.12,
+    perfectMs: 85, greatMs: 145, goodMs: 210, approachMs: 3400, prepMs: 3400,
     stableMs: 120, sameSideGapMs: 320, durationSec: 90, prepBeats: 2
   },
   4: {
-    label: '进阶', noteGapMs: 950, restRate: 0.06, sameSideRate: 0.16,
-    perfectMs: 75, greatMs: 128, goodMs: 190, approachMs: 2400, prepMs: 2400,
+    label: '进阶', noteGapMs: 1150, restRate: 0.06, sameSideRate: 0.16,
+    perfectMs: 75, greatMs: 128, goodMs: 190, approachMs: 3100, prepMs: 3100,
     stableMs: 140, sameSideGapMs: 340, durationSec: 105, prepBeats: 2
   },
   5: {
-    label: '挑战', noteGapMs: 780, restRate: 0.04, sameSideRate: 0.2,
-    perfectMs: 65, greatMs: 112, goodMs: 170, approachMs: 2200, prepMs: 2200,
+    label: '挑战', noteGapMs: 900, restRate: 0.04, sameSideRate: 0.2,
+    perfectMs: 65, greatMs: 112, goodMs: 170, approachMs: 2800, prepMs: 2800,
     stableMs: 160, sameSideGapMs: 360, durationSec: 120, prepBeats: 2
   }
 }

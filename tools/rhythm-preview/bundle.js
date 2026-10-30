@@ -301,8 +301,20 @@
           def: 0,
           tip: '\u771F\u673A\u4E0A"\u542C\u5230"\u6BD4"\u770B\u5230"\u665A\u65F6\u8C03\u5927\uFF1B\u8BF7\u914D\u5408\u300C\u8BD5\u542C 8 \u62CD\u300D\u6821\u51C6'
         },
-        beatPulseOn: { group: "\u97F3\u4E50", label: "\u8282\u62CD\u8109\u51B2\u63D0\u793A", type: "bool", def: true, tip: "\u5224\u5B9A\u533A\u968F\u8282\u62CD\u67D4\u548C\u547C\u5438\uFF0C\u5E2E\u52A9\u611F\u77E5\u65F6\u673A" },
-        beatClickOn: { group: "\u97F3\u4E50", label: "\u8282\u62CD\u70B9\u51FB\u97F3", type: "bool", def: true, tip: "\u8BAD\u7EC3\u4E2D\u64AD\u653E\u8F7B\u5FAE\u8282\u62CD\u70B9\u51FB\uFF0C\u53EF\u5173\u95ED" },
+        beatPulseOn: {
+          group: "\u97F3\u4E50",
+          label: "\u4E34\u8FD1\u63D0\u793A\uFF08\u5224\u5B9A\u533A\u547C\u5438\uFF09",
+          type: "bool",
+          def: true,
+          tip: "\u5224\u5B9A\u533A\u4E0E\u8E0F\u677F\u968F**\u4E0B\u4E00\u4E2A\u97F3\u7B26**\u7684\u4E34\u8FD1\u67D4\u548C\u547C\u5438\uFF08\u4E0D\u662F\u8DDF\u7740\u97F3\u4E50\u62CD\u70B9\uFF09\uFF0C\u5E2E\u52A9\u60A3\u8005\u9884\u5224\u4EC0\u4E48\u65F6\u5019\u8BE5\u52A8"
+        },
+        beatClickOn: {
+          group: "\u97F3\u4E50",
+          label: "\u62CD\u70B9\u70B9\u51FB\u97F3",
+          type: "bool",
+          def: false,
+          tip: "\u6309\u97F3\u4E50\u62CD\u70B9\u54CD\u7684\u8F7B\u5FAE\u70B9\u51FB\u97F3\u3002\u97F3\u7B26\u8282\u594F\u5DF2\u72EC\u7ACB\u4E8E\u97F3\u4E50\uFF0C\u8FD9\u4E2A\u58F0\u97F3\u4E0E\u300C\u8BE5\u52A8\u4E86\u300D\u7684\u65F6\u523B\u65E0\u5173\uFF0C\u5EB7\u590D\u8BAD\u7EC3\u5EFA\u8BAE\u5173\u95ED"
+        },
         // ---------------- 训练目标 ----------------
         durationSec: {
           group: "\u8BAD\u7EC3\u76EE\u6807",
@@ -384,8 +396,14 @@
           min: 0.15,
           max: 0.8,
           step: 0.05,
-          def: 0.35,
-          tip: "|\u63A7\u5236\u91CF| \u8D85\u8FC7\u8BE5\u503C\u624D\u7B97\u771F\u6B63\u8FDB\u5165\u5DE6 / \u53F3\u533A\u57DF\uFF1B\u8D8A\u5927\u8D8A\u96BE\u89E6\u53D1"
+          def: 0.2,
+          // 0.35 → 0.2（2026-10-30）：0.35 从来没生效过（motion.js 里写死 ±0.1），
+          // 直接接上等于暗改判定 —— 患者「进入该侧」的时刻整体推迟约 120ms，
+          // 难度 5 的 PERFECT 直接归零。按默认死区 1.5° / 边界 12° 换算：
+          //   0.1 → 2.7°（太浅，呼吸都能触发）
+          //   0.2 → 3.9°（死区的 2.6 倍，明确侧倾才触发）← 取这个
+          //   0.35 → 5.7°（要明显摆动，幅度小的患者进不去）
+          tip: "|\u63A7\u5236\u91CF| \u8D85\u8FC7\u8BE5\u503C\u624D\u7B97\u8FDB\u5165\u5DE6 / \u53F3\u533A\u57DF\uFF1B\u8D8A\u5927\u8D8A\u96BE\u89E6\u53D1\u30020.2 \u7EA6\u7B49\u4E8E\u4FA7\u503E 4\xB0\uFF08\u9ED8\u8BA4\u6B7B\u533A\u7684 2.6 \u500D\uFF09"
         },
         stableMs: {
           group: "\u5DE6\u53F3\u5224\u5B9A",
@@ -410,9 +428,20 @@
           tip: '\u4FDD\u6301\u540C\u4E00\u4FA7\u65F6\uFF0C\u4E24\u6B21\u547D\u4E2D\u4E4B\u95F4\u81F3\u5C11\u95F4\u9694\u8FD9\u4E48\u4E45\uFF0C\u907F\u514D"\u4E00\u76F4\u7AD9\u7740\u5237\u5206"'
         },
         // ---------------- 节奏判定 ----------------
-        perfectMs: { group: "\u8282\u594F\u5224\u5B9A", label: "PERFECT \u7A97\u53E3", type: "num", unit: "\xB1ms", min: 25, max: 120, step: 5, def: 60 },
-        greatMs: { group: "\u8282\u594F\u5224\u5B9A", label: "GREAT \u7A97\u53E3", type: "num", unit: "\xB1ms", min: 45, max: 180, step: 5, def: 105 },
-        goodMs: { group: "\u8282\u594F\u5224\u5B9A", label: "GOOD \u7A97\u53E3", type: "num", unit: "\xB1ms", min: 70, max: 260, step: 5, def: 160 },
+        perfectMs: { group: "\u8282\u594F\u5224\u5B9A", label: "PERFECT \u7A97\u53E3", type: "num", unit: "\xB1ms", min: 25, max: 120, step: 5, def: 85 },
+        greatMs: { group: "\u8282\u594F\u5224\u5B9A", label: "GREAT \u7A97\u53E3", type: "num", unit: "\xB1ms", min: 45, max: 180, step: 5, def: 145 },
+        goodMs: { group: "\u8282\u594F\u5224\u5B9A", label: "GOOD \u7A97\u53E3", type: "num", unit: "\xB1ms", min: 70, max: 260, step: 5, def: 210 },
+        earlyFactor: {
+          group: "\u8282\u594F\u5224\u5B9A",
+          label: "\u63D0\u524D\u5BB9\u5DEE\u500D\u6570",
+          type: "num",
+          unit: "\xD7",
+          min: 1,
+          max: 3,
+          step: 0.1,
+          def: 1.8,
+          tip: "\u63D0\u524D\u8FDB\u5165\u8BE5\u4FA7\u65F6\u7684\u7A97\u53E3\u653E\u5927\u500D\u6570\u3002\u8EAF\u5E72\u79FB\u52A8\u5FC5\u987B\u63D0\u524D\u542F\u52A8\u624D\u80FD\u51C6\u65F6\u5230\u4F4D\uFF0C\u63D0\u524D\u662F\u6B63\u5E38\u7B56\u7565\u4E0D\u662F\u5931\u8BEF\uFF1B\u8FDF\u5230\u4F60\u7A97\u53E3\u4E0D\u53D8\uFF08\u90A3\u624D\u662F\u771F\u7684\u6162\u4E86\uFF09"
+        },
         approachMs: {
           group: "\u8282\u594F\u5224\u5B9A",
           label: "\u97F3\u7B26\u98DE\u884C\u65F6\u95F4",
@@ -421,19 +450,52 @@
           min: 900,
           max: 4e3,
           step: 50,
-          def: 2400,
-          tip: "\u97F3\u7B26\u4ECE\u51FA\u73B0\u5230\u62B5\u8FBE\u5224\u5B9A\u7EBF\u7684\u65F6\u95F4\uFF0C\u8D8A\u957F\u8D8A\u5BB9\u6613\u9884\u5224"
+          def: 3400,
+          // 这是「音符来得多快」的唯一旋钮：飞行距离固定约 519px（地平线 0.12h →
+          // 判定线 0.84h），所以 2600ms = 200px/s、3400ms = 153px/s。
+          // 加长的代价是屏上同时出现的音符变多（≈ approachMs / 音符间隔），
+          // 超过 3 个就开始糊，所以上限 4000 配窄间隔时会显得满。
+          tip: "\u97F3\u7B26\u4ECE\u51FA\u73B0\u98DE\u5230\u5224\u5B9A\u7EBF\u7684\u65F6\u95F4\u3002\u8D8A\u957F\u8D8A\u5BB9\u6613\u9884\u5224\uFF08\u89C6\u89C9\u901F\u5EA6 = 519px \xF7 \u672C\u503C\uFF09\uFF0C\u4F46\u5C4F\u4E0A\u540C\u65F6\u51FA\u73B0\u7684\u97F3\u7B26\u4E5F\u8D8A\u591A"
+        },
+        noteGapMs: {
+          group: "\u8282\u594F\u5224\u5B9A",
+          label: "\u97F3\u7B26\u95F4\u9694",
+          type: "num",
+          unit: "ms",
+          min: 400,
+          max: 3e3,
+          step: 50,
+          def: 1450,
+          tip: "\u4E24\u4E2A\u97F3\u7B26\u4E4B\u95F4\u9694\u591A\u5C11\u6BEB\u79D2\u3002\u8FD9\u662F\u8BAD\u7EC3\u5F3A\u5EA6\u7684\u4E3B\u53C2\u6570\uFF0C\u4E0E\u97F3\u4E50 BPM \u65E0\u5173\uFF0C\u6362\u66F2\u5B50\u4E0D\u4F1A\u518D\u53D8\u96BE\u5EA6\u3002\u4F4E\u4E8E\u7EA6 900ms \u591A\u6570\u60A3\u8005\u6765\u4E0D\u53CA\u300C\u770B\u6E05 \u2192 \u79FB\u52A8 \u2192 \u7A33\u5B9A\u300D\u4E09\u4EF6\u4E8B"
+        },
+        snapToBeat: {
+          group: "\u8282\u594F\u5224\u5B9A",
+          label: "\u5438\u9644\u5230\u97F3\u4E50\u62CD\u70B9",
+          type: "bool",
+          def: false,
+          tip: "\u6253\u5F00\u540E\u97F3\u7B26\u4F1A\u843D\u56DE\u97F3\u4E50\u62CD\u70B9\u4E0A\uFF08\u52A8\u4F5C\u8DDF\u97F3\u4E50\u8D70\uFF09\uFF1B\u5173\u95ED\u65F6\u4E25\u683C\u6309\u4E0A\u9762\u7684\u6BEB\u79D2\u95F4\u9694\u8D70\u3002\u5EB7\u590D\u8BAD\u7EC3\u9ED8\u8BA4\u5173\u95ED \u2014\u2014 \u97F3\u4E50\u662F\u80CC\u666F\uFF0C\u4E0D\u8BE5\u7531\u5B83\u51B3\u5B9A\u60A3\u8005\u6709\u591A\u7D2F"
         },
         noteStepBeats: {
           group: "\u8282\u594F\u5224\u5B9A",
-          label: "\u97F3\u7B26\u95F4\u9694",
+          label: "\u97F3\u7B26\u95F4\u9694\uFF08\u62CD\uFF09",
           type: "num",
           unit: "\u62CD",
           min: 0.5,
           max: 4,
           step: 0.25,
           def: 1,
-          tip: "\u6BCF\u51E0\u62CD\u6765\u4E00\u4E2A\u97F3\u7B26\uFF1B1 \u62CD = \u8DDF\u7740\u97F3\u4E50\u6BCF\u62CD\u4E00\u4E2A\uFF0C\u8D8A\u5927\u7EA6\u6162"
+          tip: "\u4EC5\u300C\u5438\u9644\u5230\u97F3\u4E50\u62CD\u70B9\u300D\u5F00\u542F\u65F6\u751F\u6548\uFF1A\u6BCF\u51E0\u62CD\u4E00\u4E2A\u97F3\u7B26\u3002\u5173\u95ED\u65F6\u4EE5\u4E0A\u65B9\u7684\u6BEB\u79D2\u95F4\u9694\u4E3A\u51C6"
+        },
+        prepMs: {
+          group: "\u8282\u594F\u5224\u5B9A",
+          label: "\u5F00\u5934\u9884\u5907\u65F6\u95F4",
+          type: "num",
+          unit: "ms",
+          min: 600,
+          max: 8e3,
+          step: 100,
+          def: 2400,
+          tip: "\u5F00\u59CB\u540E\u591A\u4E45\u51FA\u7B2C\u4E00\u4E2A\u97F3\u7B26\u3002\u5EFA\u8BAE\u4E0D\u5C0F\u4E8E\u97F3\u7B26\u98DE\u884C\u65F6\u95F4\uFF0C\u5426\u5219\u7B2C\u4E00\u4E2A\u97F3\u7B26\u4F1A\u300C\u534A\u8DEF\u5192\u51FA\u6765\u300D"
         },
         centerRate: {
           group: "\u8282\u594F\u5224\u5B9A",
@@ -448,14 +510,14 @@
         },
         restRate: {
           group: "\u8282\u594F\u5224\u5B9A",
-          label: "\u547C\u5438\u62CD\u95F4\u9694",
+          label: "\u547C\u5438\u95F4\u9694\u9891\u7387",
           type: "num",
           unit: "",
           min: 0,
           max: 0.5,
           step: 0.01,
-          def: 0.13,
-          tip: "\u6BCF N \u4E2A\u97F3\u7B26\u7A7A\u4E00\u62CD\uFF08\u56FA\u5B9A\u4F4D\u7F6E\uFF0C\u4E0D\u4F1A\u8FDE\u7740\u7A7A\uFF09\uFF1B0 = \u4E0D\u7559\u7A7A\u30020.13\u2248\u6BCF 8 \u4E2A\u7A7A\u4E00\u62CD"
+          def: 0.08,
+          tip: "\u6BCF N \u4E2A\u97F3\u7B26\u628A\u95F4\u9694\u62C9\u957F 1.5 \u500D\u4F5C\u4E3A\u5598\u606F\uFF08\u97F3\u7B26\u4E00\u4E2A\u4E0D\u5C11\uFF0C\u8282\u594F\u4E0D\u65AD\u7EBF\uFF09\u30020 = \u4E0D\u7559\u5598\u606F"
         },
         sameSideRate: {
           group: "\u8282\u594F\u5224\u5B9A",
@@ -497,13 +559,14 @@
       var PRESETS = {
         1: {
           label: "\u5165\u95E8",
-          noteStepBeats: 2,
-          restRate: 0.28,
+          noteGapMs: 2200,
+          restRate: 0.2,
           sameSideRate: 0.05,
-          perfectMs: 90,
-          greatMs: 150,
-          goodMs: 220,
-          approachMs: 3e3,
+          perfectMs: 110,
+          greatMs: 180,
+          goodMs: 260,
+          approachMs: 3800,
+          prepMs: 3800,
           stableMs: 80,
           sameSideGapMs: 260,
           durationSec: 60,
@@ -511,13 +574,14 @@
         },
         2: {
           label: "\u8F7B\u91CF",
-          noteStepBeats: 1.5,
-          restRate: 0.2,
+          noteGapMs: 1800,
+          restRate: 0.14,
           sameSideRate: 0.08,
-          perfectMs: 80,
-          greatMs: 130,
-          goodMs: 195,
-          approachMs: 2800,
+          perfectMs: 95,
+          greatMs: 160,
+          goodMs: 235,
+          approachMs: 3600,
+          prepMs: 3600,
           stableMs: 100,
           sameSideGapMs: 280,
           durationSec: 75,
@@ -525,13 +589,14 @@
         },
         3: {
           label: "\u6807\u51C6",
-          noteStepBeats: 1,
-          restRate: 0.12,
+          noteGapMs: 1450,
+          restRate: 0.08,
           sameSideRate: 0.12,
-          perfectMs: 70,
-          greatMs: 115,
-          goodMs: 170,
-          approachMs: 2600,
+          perfectMs: 85,
+          greatMs: 145,
+          goodMs: 210,
+          approachMs: 3400,
+          prepMs: 3400,
           stableMs: 120,
           sameSideGapMs: 320,
           durationSec: 90,
@@ -539,13 +604,14 @@
         },
         4: {
           label: "\u8FDB\u9636",
-          noteStepBeats: 0.75,
-          restRate: 0.08,
+          noteGapMs: 1150,
+          restRate: 0.06,
           sameSideRate: 0.16,
-          perfectMs: 60,
-          greatMs: 105,
-          goodMs: 155,
-          approachMs: 2400,
+          perfectMs: 75,
+          greatMs: 128,
+          goodMs: 190,
+          approachMs: 3100,
+          prepMs: 3100,
           stableMs: 140,
           sameSideGapMs: 340,
           durationSec: 105,
@@ -553,13 +619,14 @@
         },
         5: {
           label: "\u6311\u6218",
-          noteStepBeats: 0.5,
-          restRate: 0.06,
+          noteGapMs: 900,
+          restRate: 0.04,
           sameSideRate: 0.2,
-          perfectMs: 52,
-          greatMs: 92,
-          goodMs: 140,
-          approachMs: 2200,
+          perfectMs: 65,
+          greatMs: 112,
+          goodMs: 170,
+          approachMs: 2800,
+          prepMs: 2800,
           stableMs: 160,
           sameSideGapMs: 360,
           durationSec: 120,
@@ -1005,8 +1072,9 @@
           this.nx = clamp(this.nx, -1, 1);
           this.ny = clamp(this.ny, -1, 1);
           this.load = Math.max(Math.abs(this.nx), Math.abs(this.ny) * 0.75);
-          if (this.nx < -0.1) this.dir = "left";
-          else if (this.nx > 0.1) this.dir = "right";
+          const sideTh = clamp(Number(cfg2.get("sideThreshold")) || 0.1, 0.02, 1);
+          if (this.nx < -sideTh) this.dir = "left";
+          else if (this.nx > sideTh) this.dir = "right";
           else this.dir = "center";
           return this;
         }
@@ -1081,6 +1149,9 @@
       var { songById: songById2, beatMs } = require_rhythm_songs();
       var MAX_NOTES = 2400;
       var SIDES = ["left", "center", "right"];
+      var HARD_MIN_GAP_MS = 620;
+      var BREATHE_FACTOR = 1.5;
+      var ALLOWED_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4];
       function clamp(v, lo, hi) {
         return v < lo ? lo : v > hi ? hi : v;
       }
@@ -1110,54 +1181,94 @@
         const offsetMs = Number(song.offsetMs) || 0;
         const durationSec = clamp(Number(o.durationSec) || 90, 10, 600);
         const durationMs = durationSec * 1e3;
-        const step = clamp(Number(o.noteStepBeats) || 1, 0.25, 4);
+        const snapToBeat = !!o.snapToBeat;
+        const gapWanted = clamp(Number(o.noteGapMs) || Number(o.minGapMs) || 0, 0, 4e3);
+        const gapMs = Math.max(HARD_MIN_GAP_MS, gapWanted || 1e3);
+        let step = clamp(Number(o.noteStepBeats) || 1, 0.25, 4);
+        if (snapToBeat && gapWanted > 0) {
+          step = ALLOWED_STEPS.reduce((best, b) => {
+            return Math.abs(b * beat - gapWanted) < Math.abs(best * beat - gapWanted) ? b : best;
+          }, ALLOWED_STEPS[0]);
+          let guard = 0;
+          while (step * beat < HARD_MIN_GAP_MS && guard < 32) {
+            step += 0.25;
+            guard += 1;
+          }
+        }
+        step = clamp(step, 0.25, 8);
         const restRate = clamp(Number(o.restRate) || 0, 0, 0.6);
         const sameSideRate = clamp(Number(o.sameSideRate) || 0, 0, 0.6);
         const centerRate = clamp(Number(o.centerRate) || 0, 0, 0.6);
         const sameSideGapMs = clamp(Number(o.sameSideGapMs) || 320, 80, 2e3);
         const prepBeats = clamp(Number(o.prepBeats) || 4, 0, 16);
+        const prepMs = clamp(Number(o.prepMs) || 2400, 600, 1e4);
         const difficulty = clamp(Number(o.difficulty) || 3, 1, 5);
         const seed = Number(o.seed) || 7;
         const version = o.chartSeedVersion || "v1";
         const rng = mulberry32(hashSeed(song.songId + "|" + difficulty + "|" + seed + "|" + version));
-        const restEvery = restRate > 0 ? Math.max(4, Math.round(1 / restRate)) : 0;
+        const restEvery = restRate > 0 ? Math.max(2, Math.round(1 / restRate / 2)) : 0;
+        const accentEvery = clamp(Number(o.accentEvery) || 4, 2, 8);
+        const slots = [];
+        let restBeats = 0;
+        if (snapToBeat) {
+          let slot = 0;
+          for (let b = prepBeats; b * beat + offsetMs <= durationMs; b += step) {
+            const timeMs = Math.round(b * beat) + offsetMs;
+            if (timeMs > durationMs) break;
+            const early = b < prepBeats + 2 * step;
+            if (!early && restEvery) {
+              const barNow = Math.floor(b / beatsPerBar);
+              const barNext = Math.floor((b + step) / beatsPerBar);
+              if (barNext > barNow) {
+                slot += 1;
+                if (slot % restEvery === 0) {
+                  restBeats += 1;
+                  continue;
+                }
+              }
+            }
+            slots.push({ t: timeMs, b });
+          }
+        } else {
+          let t = offsetMs + prepMs;
+          while (t <= durationMs && slots.length < MAX_NOTES) {
+            slots.push({ t: Math.round(t), b: t / beat });
+            const breathe = restEvery > 0 && slots.length % restEvery === 0;
+            if (breathe) restBeats += 1;
+            t += Math.round(breathe ? gapMs * BREATHE_FACTOR : gapMs);
+          }
+        }
         const notes = [];
         let lastSide = "right";
+        let lastNonCenter = "right";
         let lastTime = -99999;
         let seq = 0;
-        let restBeats = 0;
-        let slot = 0;
-        for (let b = prepBeats; b * beat + offsetMs <= durationMs; b += step) {
-          if (notes.length >= MAX_NOTES) break;
-          const timeMs = Math.round(b * beat) + offsetMs;
-          if (timeMs > durationMs) break;
-          const early = b < prepBeats + 2 * step;
-          if (!early) {
-            slot += 1;
-            if (restEvery && slot % restEvery === 0) {
-              restBeats += 1;
-              continue;
-            }
-          }
-          let side = lastSide === "left" ? "right" : "left";
+        for (let i = 0; i < slots.length; i++) {
+          const timeMs = slots[i].t;
+          let side = lastNonCenter === "left" ? "right" : "left";
           if (centerRate > 0 && rng() < centerRate) side = "center";
           const same = rng() < sameSideRate;
           if (same && timeMs - lastTime >= sameSideGapMs) side = lastSide;
           if (side === lastSide && timeMs - lastTime < sameSideGapMs) {
             side = SIDES.find((s) => s !== lastSide) || "left";
           }
-          const onBar = Math.abs(b % beatsPerBar) < 1e-6;
+          const accent = snapToBeat ? Math.abs(slots[i].b % beatsPerBar) < 1e-6 : i % accentEvery === 0;
           seq += 1;
           notes.push({
             noteId: "n" + String(seq).padStart(4, "0"),
             targetSide: side,
-            beatIndex: Math.round(b * 1e3) / 1e3,
+            beatIndex: Math.round(slots[i].b * 1e3) / 1e3,
             targetTimeMs: timeMs,
-            noteType: onBar ? "accent" : "normal",
-            scoreValue: onBar ? 120 : 100,
+            noteType: accent ? "accent" : "normal",
+            scoreValue: accent ? 120 : 100,
+            // 同向连续：这条跟上一条同侧，患者**不需要重新移动**，已经在正确位置。
+            // 引擎拿它区分「真的移动了」和「本来就站在这边」——
+            // 没有这个标记，交替谱面下「站着不动」也能靠时间后门拿分（见 engine._actionOk）。
+            repeat: seq > 1 && side === lastSide && side !== "center",
             judgeStatus: "pending"
           });
           lastSide = side;
+          if (side !== "center") lastNonCenter = side;
           lastTime = timeMs;
         }
         return {
@@ -1172,6 +1283,10 @@
             version,
             durationSec,
             durationMs,
+            snapToBeat,
+            gapMs,
+            gapWantedMs: gapWanted,
+            prepMs,
             noteCount: notes.length,
             restBeats,
             leftCount: notes.filter((n) => n.targetSide === "left").length,
@@ -1233,6 +1348,10 @@
           });
         });
         out.sort((a, b) => a.targetTimeMs - b.targetTimeMs);
+        for (let i = 0; i < out.length; i++) {
+          const prev = i > 0 ? out[i - 1].targetSide : null;
+          out[i].repeat = i > 0 && out[i].targetSide === prev && out[i].targetSide !== "center";
+        }
         return { notes: out, errors };
       }
       function chartSummary(notes) {
@@ -1281,12 +1400,13 @@
           const p = clamp(Number(this.cfg.get("perfectMs")) || 60, 10, 300);
           const g = Math.max(p + 5, Number(this.cfg.get("greatMs")) || 105);
           const d = Math.max(g + 5, Number(this.cfg.get("goodMs")) || 160);
-          return { perfect: p, great: g, good: d };
+          const ef = clamp(Number(this.cfg.get("earlyFactor")) || 1, 1, 3);
+          return { perfect: p, great: g, good: d, earlyFactor: ef };
         }
-        /** 只按时间误差分级，不管方向 */
+        /** 只按时间误差分级，不管方向。deltaMs < 0 = 提前进入 */
         classify(deltaMs) {
           const w = this.windows;
-          const a = Math.abs(deltaMs);
+          const a = Math.abs(deltaMs) / (deltaMs < 0 ? w.earlyFactor : 1);
           if (a <= w.perfect) return VERDICT.PERFECT;
           if (a <= w.great) return VERDICT.GREAT;
           if (a <= w.good) return VERDICT.GOOD;
@@ -1354,7 +1474,7 @@
             return { verdict: VERDICT.MISS, deltaMs: sinceLine, reason: "too-late" };
           }
           const raw = entered - note.targetTimeMs;
-          const deltaMs = clamp(raw, -w.good, w.good);
+          const deltaMs = clamp(raw, -w.good * w.earlyFactor, w.good);
           const verdict = this.classify(deltaMs);
           if (!verdict) return { verdict: "pending", deltaMs: sinceLine, reason: "out" };
           return { verdict, deltaMs, reason: raw < 0 ? "early" : "hit" };
@@ -1506,7 +1626,7 @@
         ABORTED: "ABORTED"
       };
       var SENSOR_RESUME_MS = 600;
-      var NOTE_TAIL_MS = 700;
+      var NOTE_TAIL_MS = 380;
       var END_TAIL_MS = 1400;
       var FEEDBACK_KEEP_MS = 900;
       var GUIDE_GAP_MS = 9e3;
@@ -1687,15 +1807,18 @@
           const chart = o.notes ? { notes: o.notes.slice(), meta: o.meta || null } : buildChart({
             song: this.song,
             durationSec,
+            noteGapMs: this.cfg.get("noteGapMs"),
+            snapToBeat: this.cfg.get("snapToBeat"),
             noteStepBeats: this.cfg.get("noteStepBeats"),
             restRate: this.cfg.get("restRate"),
             sameSideRate: this.cfg.get("sameSideRate"),
             centerRate: this.cfg.get("centerRate"),
             sameSideGapMs: this.cfg.get("sameSideGapMs"),
+            prepMs: this.cfg.get("prepMs"),
             prepBeats: this.cfg.get("prepBeats"),
             difficulty: this.cfg.get("difficulty"),
             seed: this.cfg.get("chartSeed"),
-            chartSeedVersion: "v2"
+            chartSeedVersion: "v4"
           });
           if (!chart.notes.length) {
             return { ok: false, errors: ["\u8C31\u9762\u4E3A\u7A7A\uFF1A\u8BF7\u68C0\u67E5\u97F3\u7B26\u95F4\u9694 / \u8BAD\u7EC3\u65F6\u957F\u8BBE\u7F6E"] };
@@ -1708,6 +1831,7 @@
             judgedAt: 0,
             fade: 0
           }));
+          this.noteGapMs = chart.meta && chart.meta.gapMs || Number(this.cfg.get("noteGapMs")) || 1e3;
           this.active = [];
           this.cursor = 0;
           this.musicMs = 0;
@@ -1730,10 +1854,10 @@
           this.summary = null;
           this.motion.resetTrajectory();
           this.action = { seq: 0, side: "center", since: 0, consumedSeq: 0, lastHitAt: { left: -1e9, center: -1e9, right: -1e9 } };
-          const prep = clamp(Number(this.cfg.get("prepBeats")) || 4, 2, 8);
-          this.countdownMs = prep * this.beatMs;
+          const prepMs = clamp(Number(this.cfg.get("prepMs")) || 2400, 600, 1e4);
+          this.countdownMs = clamp(Math.round(prepMs * 0.4), 1200, 2e3);
           this.setState(STATE.COUNTDOWN);
-          this._emit("countdown", { beats: prep });
+          this._emit("countdown", { beats: Math.ceil(this.countdownMs / 1e3) });
           return { ok: true, warnings: v.warnings, noteCount: this.notes.length };
         }
         beginPlay() {
@@ -1831,6 +1955,12 @@
             difficulty: Number(this.cfg.get("difficulty")) || 3,
             difficultyLabel: this.cfg.difficultyLabel ? this.cfg.difficultyLabel(this.cfg.get("difficulty")) : "",
             chartSeed: Number(this.cfg.get("chartSeed")) || 7,
+            // 判定口径版本：换了「怎么算命中」的规则就升它。
+            // v1 = sideThreshold 未接线（硬编码 0.1）+ 动作判定有无条件时间后门；
+            // v2 = 阈值接上配置 + 后门只对谱面标记的同向连续音符开放（站桩不能得分）。
+            // **v1 与 v2 的命中率不可直接对比**：v1 下站着不动能拿到中间音符 +
+            // 约四成左右音符，v2 只剩中间音符。
+            judgeVersion: "v2",
             noteCount: snap.totalNotes,
             score: snap.score,
             breakdown: { base: snap.base, comboBonus: snap.comboBonus, finishBonus: snap.finishBonus },
@@ -1978,7 +2108,13 @@
         _actionOk(note, now) {
           const sameGap = Math.max(60, Number(this.cfg.get("sameSideGapMs")) || 320);
           if (this.action.seq > this.action.consumedSeq) return true;
-          return now - (this.action.lastHitAt[note.targetSide] || -1e9) >= sameGap;
+          if (note.repeat) {
+            return now - (this.action.lastHitAt[note.targetSide] || -1e9) >= sameGap;
+          }
+          if (note.targetSide === "center") {
+            return now - (this.action.lastHitAt.center || -1e9) >= sameGap;
+          }
+          return false;
         }
         _spawn(now) {
           const approach = clamp(Number(this.cfg.get("approachMs")) || 2400, 900, 4e3);
@@ -2090,6 +2226,24 @@
           }
           return out;
         }
+        /**
+         * 音符相位：距离下一个未判定音符还有多近（0 = 还很远，1 = 马上到）。
+         * 判定线 / 踏板 / 光柱的呼吸一律用它，不能用 clock.beatPhase ——
+         * 音符已经不吸附拍点了，跟着音乐拍点呼吸就是「灯在拍点上闪、音符在别的
+         * 时候到」，患者照着灯动反而全错。
+         */
+        _notePhase(now) {
+          const gap = Math.max(1, this.noteGapMs || 1e3);
+          for (let i = 0; i < this.active.length; i++) {
+            const n = this.active[i];
+            if (n.judged) continue;
+            const remain = n.targetTimeMs - now;
+            if (remain < 0) continue;
+            if (remain > gap) break;
+            return clamp(1 - remain / gap, 0, 1);
+          }
+          return 0;
+        }
         getViewModel(nowArg) {
           const now = typeof nowArg === "number" ? nowArg : this.clock ? this.clock.nowMs() : this.musicMs;
           const snap = this.score.snapshot();
@@ -2114,7 +2268,8 @@
             timeLeftSec: Math.max(0, round((this.durationMs - now) / 1e3, 1)),
             progress: this.durationMs > 0 ? clamp(now / this.durationMs, 0, 1) : 0,
             countdownSec: this.countdownMs / 1e3,
-            countdownBeat: Math.ceil(this.countdownMs / this.beatMs),
+            // 倒计时按秒读，不按拍 —— 音符已经不跟拍点走了，读拍会数出不存在的东西
+            countdownBeat: Math.ceil(this.countdownMs / 1e3),
             score: snap.score,
             perfect: snap.perfect,
             great: snap.great,
@@ -2137,6 +2292,9 @@
             feedback: recent,
             feedbacks: this.feedbacks,
             beatPhase: this.clock && this.clock.beatPhase ? this.clock.beatPhase() : 0,
+            // 音符相位：0 = 下一个音符还很远，1 = 马上就到。视觉呼吸一律用它，
+            // 不能用 beatPhase —— 那会让提示和音符错开（见 start() 里的说明）。
+            notePhase: this._notePhase(now),
             beatFlash: this.beatFlash,
             hitFlash: this.hitFlash,
             missFlash: this.missFlash,
@@ -3104,14 +3262,16 @@
         }
         _noteY(p) {
           const L = this.L;
-          const t = Math.pow(clamp(p, 0, 1), 1.15);
-          return lerp(L.horizonY, L.judgeY, t);
+          const t = Math.min(p, 1);
+          let y = lerp(L.horizonY, L.judgeY, t);
+          if (p > 1) y += (p - 1) * (L.judgeY - L.horizonY) * 0.3;
+          return y;
         }
         _drawWorld(vm, screen) {
           const ctx = this.ctx;
           const L = this.L;
           if (this.cfg.get("beatPulseOn") && screen === "play") {
-            const pulse = (1 - vm.beatPhase) * 0.5;
+            const pulse = (vm.notePhase || 0) * 0.5;
             const g = ctx.createRadialGradient(L.cx, L.judgeY, 10, L.cx, L.judgeY, L.W * 0.55);
             g.addColorStop(0, "rgba(150,190,255," + (0.1 * pulse).toFixed(3) + ")");
             g.addColorStop(1, "rgba(150,190,255,0)");
@@ -3166,11 +3326,11 @@
           }
           ctx.restore();
         }
-        /** 判定线：随节拍亮起的一道柔光（不闪屏） */
+        /** 判定线：随下一个音符的临近亮起的一道柔光（不闪屏） */
         _drawJudgeGlow(vm) {
           const ctx = this.ctx;
           const L = this.L;
-          const pulse = this.cfg.get("beatPulseOn") ? 1 - (vm.beatPhase || 0) : 0.4;
+          const pulse = this.cfg.get("beatPulseOn") ? vm.notePhase || 0 : 0.4;
           const t = (L.judgeY - L.horizonY) / (L.stageBottom + 20 - L.horizonY);
           const half = lerp(L.roadTopHalf, L.roadBottomHalf, t);
           ctx.save();
@@ -3183,10 +3343,11 @@
           ctx.fillRect(L.cx - half, L.judgeY - 3, half * 2, 6);
           ctx.restore();
         }
-        /** 节拍横线：每一拍一条，顺着跑道流向判定线（也在提示"这一拍"的位置） */
+        /** 节拍横线：每一拍一条，顺着跑道流向判定线 */
         _drawBeatLines(vm) {
           const ctx = this.ctx;
           const L = this.L;
+          if (!this.cfg.get("snapToBeat")) return;
           const beat = vm.beatMs || 500;
           if (!beat) return;
           const approach = clamp(Number(this.cfg.get("approachMs")) || 2400, 900, 4e3);
@@ -3197,7 +3358,7 @@
           for (let j = 0; j <= count; j++) {
             const p = 1 - (j - phase) * beat / approach;
             if (p < 0 || p > 1.02) continue;
-            const t = Math.pow(clamp(p, 0, 1), 1.15);
+            const t = clamp(p, 0, 1);
             const y = lerp(L.horizonY, L.judgeY, t);
             const half = lerp(L.roadTopHalf, L.roadBottomHalf, t);
             const a = 0.14 + 0.2 * p;
@@ -3223,7 +3384,7 @@
           }
           if (!next || next.progress < 0.55) return;
           const k = clamp((next.progress - 0.55) / 0.45, 0, 1);
-          const t0 = Math.pow(0.55, 1.15);
+          const t0 = 0.55;
           const t1 = 1;
           const y0 = lerp(L.horizonY, L.judgeY, t0);
           const y1 = L.judgeY;
@@ -3257,10 +3418,10 @@
             const n = notes[i];
             const p = n.progress;
             if (p < 0 || p > 1.15) continue;
-            const t = Math.pow(clamp(p, 0, 1), 1.15);
+            const t = clamp(p, 0, 1);
             const y = this._noteY(p);
             const x = this._laneX(n.side, t);
-            const scale = 0.68 + 0.5 * Math.pow(clamp(p, 0, 1), 1.2);
+            const scale = 0.68 + 0.5 * clamp(p, 0, 1);
             const R = (n.type === "accent" ? 25 : 21) * scale;
             const color = tint[n.side] || C.pink;
             const deep = tintDeep[n.side] || C.pinkDeep;
@@ -3364,7 +3525,7 @@
           const ctx = this.ctx;
           const L = this.L;
           const beatOn = this.cfg.get("beatPulseOn");
-          const pulse = beatOn ? 1 - (vm.beatPhase || 0) : 0;
+          const pulse = beatOn ? vm.notePhase || 0 : 0;
           const armed = vm.dir;
           const r = (L.padH || 26) * 1.05;
           ["left", "center", "right"].forEach((side) => {
@@ -3904,7 +4065,7 @@
             size: 10.5,
             radius: 14
           });
-          this._button("beat", 12 + (bw + gap) * 2, by, bw, bh, "\u8282\u62CD" + (beatOn ? "\u5F00" : "\u5173"), {
+          this._button("beat", 12 + (bw + gap) * 2, by, bw, bh, "\u63D0\u793A" + (beatOn ? "\u5F00" : "\u5173"), {
             variant: beatOn ? "panelOn" : "panel",
             icon: "wave",
             size: 10.5,
@@ -3921,7 +4082,7 @@
           const ctx = this.ctx;
           const L = this.L;
           const n = Math.max(1, vm.countdownBeat);
-          const frac = vm.countdownSec % (vm.beatMs / 1e3) / (vm.beatMs / 1e3);
+          const frac = vm.countdownSec - Math.floor(vm.countdownSec);
           const scale = 1 + (1 - frac) * 0.25;
           ctx.save();
           ctx.fillStyle = "rgba(255,255,255,0.55)";
@@ -4109,12 +4270,12 @@
             y += steps.length * 22 + 8;
           }
           if (showParams) {
-            const beatSec = 60 / Math.max(30, vm.bpm || 90);
-            const stepBeats = Math.max(0.25, Number(this.cfg.get("noteStepBeats")) || 1);
-            const est = Math.max(1, Math.round((Number(this.cfg.get("durationSec")) || 90) / (beatSec * stepBeats)));
+            const gapMs = Math.max(620, Number(this.cfg.get("noteGapMs")) || 1100);
+            const prepMs = Number(this.cfg.get("prepMs")) || 2400;
+            const est = Math.max(1, Math.round(Math.max(0, (Number(this.cfg.get("durationSec")) || 90) * 1e3 - prepMs) / gapMs));
             const params2 = [
               { k: "\u65F6\u957F", v: (Number(this.cfg.get("durationSec")) || 90) + " \u79D2" },
-              { k: "\u97F3\u7B26\u95F4\u9694", v: stepBeats + " \u62CD" },
+              { k: "\u97F3\u7B26\u95F4\u9694", v: gapMs + "ms" },
               { k: "\u5224\u5B9A\u7A97\u53E3", v: "\xB1" + (Number(this.cfg.get("goodMs")) || 160) + "ms" },
               { k: "\u9884\u4F30\u97F3\u7B26", v: "\u7EA6 " + est + " \u4E2A" }
             ];
@@ -4248,7 +4409,8 @@
           const steps = [
             { t: "\u4F20\u611F\u5668\u5361\u5728\u80F8\u5E26\u4E0A", d: "\u80F8\u5E26\u4ECE\u814B\u4E0B\u6700\u9AD8\u70B9\u7ED5\u4E00\u5708\u56FA\u5B9A" },
             { t: "\u5750\u7A33\u6216\u7AD9\u7A33", d: "\u53CC\u624B\u81EA\u7136\u653E\u4E0B\uFF0C\u8EAB\u4F53\u4FDD\u6301\u4E2D\u7ACB\u4F4D" },
-            { t: "\u542C " + (Number(this.cfg.get("prepBeats")) || 2) + " \u62CD\u9884\u5907\u97F3", d: "\u97F3\u4E50\u5F00\u59CB\u540E\u8DDF\u7740\u62CD\u5B50\u5DE6\u53F3\u79FB\u52A8" }
+            // 不再提「听 N 拍」：音符节奏已经独立于音乐，跟着拍子动反而会错
+            { t: "\u8DDF\u7740\u97F3\u7B26\u5DE6\u53F3\u79FB\u52A8", d: "\u97F3\u7B26\u843D\u5230\u5224\u5B9A\u7EBF\u65F6\u628A\u91CD\u5FC3\u79FB\u5230\u5BF9\u5E94\u4E00\u4FA7" }
           ];
           const stepTop = waveY + 46;
           steps.forEach((s, i) => {

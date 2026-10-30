@@ -305,10 +305,11 @@ class RhythmEngine {
     this.action = { seq: 0, side: 'center', since: 0, consumedSeq: 0, lastHitAt: { left: -1e9, center: -1e9, right: -1e9 } }
 
     // 倒计时也改成毫秒：它跟拍点没关系，只负责让患者「准备好」。
-    // 取 prepMs 的六成 —— 剩下的时间交给第一个音符自己飞进来（prepMs），
-    // 两段加起来跟原来「2 拍倒计时 + 2 拍预备」的总时长差不多。
+    // 取 prepMs 的四成 —— 剩下的时间交给第一个音符自己飞进来（prepMs）。
+    // 系数从 0.6 降到 0.4 是因为飞行时间加长到 3800ms 后，0.6 会让开局
+    // 空等 6 秒（倒计时 2.3s + 飞行 3.8s），患者会以为卡住了。
     const prepMs = clamp(Number(this.cfg.get('prepMs')) || 2400, 600, 10000)
-    this.countdownMs = clamp(Math.round(prepMs * 0.6), 1200, 2400)
+    this.countdownMs = clamp(Math.round(prepMs * 0.4), 1200, 2000)
     this.setState(STATE.COUNTDOWN)
     this._emit('countdown', { beats: Math.ceil(this.countdownMs / 1000) })
 
