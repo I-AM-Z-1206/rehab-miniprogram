@@ -3,6 +3,7 @@ const { selectTab, openPage } = require('../../utils/tab.js')
 const speaker = require('../../utils/speaker.js')
 const WitBle = require('../../utils/witble.js')
 const progress = require('../../utils/progress.js')
+const zero = require('../../utils/zero.js')
 
 // 每次进入小程序只播报一次欢迎语
 let welcomed = false
@@ -11,6 +12,13 @@ Page({
   data: {
     bleLinked: false, // 蓝牙是否已连接（全局单例，任何页面连上都生效）
     bleLinkedName: '',
+    // 训练前的三步：连接 → 标定 → 训练。
+    // 零点标定原来被我放在「工具」区，那是错的：传感器每次佩戴位置不同，
+    // 不标定所有判定都会偏，它不是可选项，是必经的一步。
+    zeroSet: false,
+    zeroToday: false,
+    step: 1,
+    stateText: '未连接',
     // 「我的进步」：患者每天打开第一眼要看的东西。
     // 指标是控制稳定率，不是分数 —— 分数受难度影响，升档就掉，会让人误以为退步。
     prog: {
@@ -29,6 +37,7 @@ Page({
   onShow() {
     selectTab(this, 0)
     this.refreshBle()
+    this.refreshZero()
     this.refreshProgress()
     if (!welcomed) {
       welcomed = true
@@ -52,25 +61,54 @@ Page({
     this.setData({ bleLinked: linked, bleLinkedName: name })
   },
 
-  // 主操作：没连上就去连；连上了直接进训练 —— 首页原来连完蓝牙就没出口了
-  goWit() {
-    if (this.data.bleLinked) {
-      speaker.speak('传感器已连接，选择今天的训练项目')
-      selectTab(this, 1)
+  /**
+   * 读零点状态并算出当前处在第几步。
+   *
+   * 零点是设备级的：传感器每次戴的位置不一样，昨天标的不代表今天准。
+   * 所以「已标定」要按自然日判断 —— 光看 set=true 会一直显示已标定，
+   * 患者第二天戴上就用昨天的零点，判定全偏也不知道为什么。
+   */
+  refreshZero() {
+    let z = { set: false, at: 0 }
+    try { z = zero.get() } catch (e) { /* 读不到就当没标定 */ }
+    const sameDay = !!(z.set && z.at) &&
+      new Date(z.at).toDateString() === new Date().toDateString()
+    const linked = this.data.bleLinked
+    const step = !linked ? 1 : (sameDay ? 3 : 2)
+    let stateText = '未连接'
+    if (linked) stateText = sameDay ? '已连接 · 今天已标定' : '已连接 · 未标定'
+    this.setData({
+      zeroSet: !!z.set,
+      zeroToday: sameDay,
+      step: step,
+      stateText: stateText
+    })
+  },
+
+  // 第 1 步：连接（已连接时点它是看设备详情）
+  goConnect() {
+    if (!this.data.bleLinked) speaker.speak('请确认传感器已开机，蓝灯快闪后点击扫描设备')
+    openPage('/pages/wit/wit')
+  },
+
+  // 第 2 步：标定
+  goCalibrate() {
+    if (!this.data.bleLinked) {
+      wx.showToast({ title: '先连接传感器', icon: 'none' })
       return
     }
-    speaker.speak('请确认传感器已开机，蓝灯快闪后点击扫描设备')
-    openPage('/pages/wit/wit')
-  },
-
-  // 设备详情：点状态行进蓝牙页（看数据、断开都在这）
-  goDevice() {
-    openPage('/pages/wit/wit')
-  },
-
-  // 零点标定：独立功能页
-  goCalibrate() {
+    speaker.speak('站直不动，按一下标定')
     openPage('/pages/calibrate/calibrate')
+  },
+
+  // 第 3 步：开始训练
+  goTrain() {
+    speaker.speak('选择今天的训练项目')
+    selectTab(this, 1)
+  },
+
+  hintConnect() {
+    wx.showToast({ title: '先连接传感器', icon: 'none' })
   },
 
   /**

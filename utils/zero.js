@@ -13,7 +13,7 @@
 // 标定入口：pages/calibrate（零点标定页）。
 
 const KEY = 'wt_zero_v1'
-const DEF = { roll: 0, pitch: 0, set: false }
+const DEF = { roll: 0, pitch: 0, set: false, at: 0 }
 
 let state = null
 
@@ -50,9 +50,9 @@ function load() {
     s = wx.getStorageSync(KEY)
   } catch (e) { /* 忽略 */ }
   if (s && typeof s.roll === 'number' && typeof s.pitch === 'number') {
-    state = { roll: wrap180(s.roll), pitch: wrap180(s.pitch), set: !!s.set }
+    state = { roll: wrap180(s.roll), pitch: wrap180(s.pitch), set: !!s.set, at: Number(s.at) || 0 }
   } else {
-    state = { roll: DEF.roll, pitch: DEF.pitch, set: DEF.set }
+    state = { roll: DEF.roll, pitch: DEF.pitch, set: DEF.set, at: DEF.at }
   }
   syncApp(state)
   return state
@@ -61,7 +61,7 @@ function load() {
 // 取零点偏移量（度）：全 App 唯一读取入口
 function get() {
   const s = load()
-  return { roll: s.roll, pitch: s.pitch, set: s.set }
+  return { roll: s.roll, pitch: s.pitch, set: s.set, at: s.at }
 }
 
 // 直接设置偏移量（度）：含义是在传感器 roll / pitch 上「加上」这两个值
@@ -69,7 +69,10 @@ function set(roll, pitch) {
   state = {
     roll: round2(wrap180(Number(roll) || 0)),
     pitch: round2(wrap180(Number(pitch) || 0)),
-    set: true
+    set: true,
+    // 标定时刻：零点是**设备级**的，传感器每次佩戴位置变了就不准了。
+    // 光有 set=true 不够 —— 它一旦为真就永远为真，第二天戴上还是「已标定」。
+    at: Date.now()
   }
   persist(state)
   syncApp(state)
@@ -78,7 +81,7 @@ function set(roll, pitch) {
 
 // 清除零点：恢复传感器原始角度
 function reset() {
-  state = { roll: 0, pitch: 0, set: false }
+  state = { roll: 0, pitch: 0, set: false, at: 0 }
   persist(state)
   syncApp(state)
   return get()

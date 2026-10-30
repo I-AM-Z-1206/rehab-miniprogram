@@ -234,3 +234,92 @@ page {
 .wk.on .wk-label {
   color: #0f9c8c;
 }
+
+/* ---------- 步骤号 ---------- */
+.primary-row {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+}
+
+.primary-no {
+  margin-right: 14rpx;
+  font-size: 24rpx;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.66);
+}
+
+/* ---------- 未完成 / 已完成的步骤行 ---------- */
+.step {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 30rpx 4rpx;
+  border-bottom: 1rpx solid #eceff3;
+}
+
+.step-no {
+  width: 44rpx;
+  font-size: 24rpx;
+  font-weight: 600;
+  color: #c8ccd4;
+}
+
+.step-check {
+  width: 44rpx;
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #0f9c8c;
+}
+
+.step-main {
+  flex: 1;
+}
+
+.step-name {
+  display: block;
+  font-size: 30rpx;
+  color: #1a1f26;
+}
+
+.step.pending .step-name {
+  color: #b3b9c2;
+}
+
+.step.done .step-name {
+  color: #8b9099;
+}
+
+.step-desc {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 24rpx;
+  color: #c0c5cd;
+}
+
+.step-go {
+  font-size: 24rpx;
+  color: #0f9c8c;
+  padding-left: 16rpx;
+}
+
+/* ---------- 就绪后的一行小字（重新标定入口） ---------- */
+.ready {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22rpx 4rpx;
+  border-bottom: 1rpx solid #eceff3;
+}
+
+.ready-text {
+  font-size: 24rpx;
+  color: #949aa3;
+}
+
+.ready-go {
+  font-size: 24rpx;
+  font-weight: 600;
+  color: #0f9c8c;
+}
