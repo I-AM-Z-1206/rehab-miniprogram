@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>首页新版（两态）</title>
+<style>
+  body { margin: 0; background: #fff; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; display: flex; gap: 24px; padding: 16px; }
+  .phone { width: 375px; }
+  .cap { font-size: 11px; color: #b3b9c2; letter-spacing: 1px; margin-bottom: 6px; }
+  .nav { height: 44px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 600; border-bottom: 1px solid #f4f6f9; }
+  .page { padding: 4px 20px 40px; }
+
+  .device { display: flex; align-items: center; padding: 14px 0 12px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: #d3d7de; margin-right: 7px; }
+  .dot.on { background: #0f9c8c; }
+  .device-name { flex: 1; font-size: 12px; color: #8b9099; letter-spacing: 0.25px; }
+  .device-state { font-size: 12px; color: #8b9099; }
+  .device-state.on { color: #0f9c8c; }
+
+  .primary { padding: 17px 16px; border-radius: 12px; background: #0f9c8c; }
+  .primary-title { display: block; font-size: 19px; font-weight: 600; color: #fff; letter-spacing: 0.25px; }
+  .primary-sub { display: block; margin-top: 6px; font-size: 12.5px; line-height: 1.5; color: rgba(255,255,255,0.82); }
+
+  .prog { margin-top: 6px; padding: 17px 2px 15px; border-bottom: 1px solid #eceff3; }
+  .prog-line { display: flex; align-items: baseline; }
+  .prog-num { font-size: 32px; font-weight: 700; color: #1a1f26; letter-spacing: -0.5px; }
+  .prog-arrow { margin-left: 7px; font-size: 17px; font-weight: 700; color: #0f9c8c; }
+  .prog-say { display: block; margin-top: 5px; font-size: 14.5px; line-height: 1.55; color: #4a515c; }
+
+  .week { display: flex; margin-top: 13px; }
+  .wk { display: flex; flex-direction: column; align-items: center; margin-right: 13px; }
+  .wk-dot { width: 13px; height: 13px; border-radius: 50%; background: #f2f4f7; border: 1px solid #e6eaf0; box-sizing: border-box; }
+  .wk.on .wk-dot { background: #0f9c8c; border-color: #0f9c8c; }
+  .wk.today .wk-dot { box-shadow: 0 0 0 2.5px rgba(15,156,140,0.16); }
+  .wk-label { margin-top: 4px; font-size: 11px; color: #b3b9c2; }
+  .wk.on .wk-label { color: #0f9c8c; }
+
+  .prog-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 9px; }
+  .prog-meta { font-size: 12px; color: #949aa3; }
+  .prog-go { font-size: 12.5px; font-weight: 600; color: #0f9c8c; }
+
+  .tool { display: flex; align-items: center; padding: 15px 2px; border-bottom: 1px solid #eceff3; }
+  .tool-main { flex: 1; }
+  .tool-name { display: block; font-size: 15px; color: #1a1f26; }
+  .tool-desc { display: block; margin-top: 3px; font-size: 12px; color: #949aa3; }
+  .tool-go { font-size: 17px; color: #c8ccd4; padding-left: 8px; }
+
+  .tip { display: block; margin-top: 14px; font-size: 11.5px; line-height: 1.75; color: #a8aeb8; }
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="cap">未连接</div>
+  <div class="nav">首页</div>
+  <div class="page">
+    <div class="device">
+      <div class="dot"></div>
+      <span class="device-name">WT9011DCL 姿态传感器</span>
+      <span class="device-state">未连接</span>
+    </div>
+    <div class="primary">
+      <span class="primary-title">连接蓝牙传感器</span>
+      <span class="primary-sub">打开传感器电源，蓝灯快闪后点这里</span>
+    </div>
+    <div class="prog">
+      <div class="prog-line"><span class="prog-num">68%</span><span class="prog-arrow">↑</span></div>
+      <span class="prog-say">比上周稳了 6 个百分点</span>
+      <div class="week">
+        <div class="wk on"><div class="wk-dot"></div><span class="wk-label">一</span></div>
+        <div class="wk"><div class="wk-dot"></div><span class="wk-label">二</span></div>
+        <div class="wk on today"><div class="wk-dot"></div><span class="wk-label">三</span></div>
+        <div class="wk on"><div class="wk-dot"></div><span class="wk-label">四</span></div>
+        <div class="wk on"><div class="wk-dot"></div><span class="wk-label">五</span></div>
+        <div class="wk"><div class="wk-dot"></div><span class="wk-label">六</span></div>
+        <div class="wk"><div class="wk-dot"></div><span class="wk-label">日</span></div>
+      </div>
+      <div class="prog-foot"><span class="prog-meta">本周 4 次</span><span class="prog-go">查看进步 ›</span></div>
+    </div>
+    <div class="tool">
+      <div class="tool-main"><span class="tool-name">零点标定</span><span class="tool-desc">校正姿态零点，查看实时曲线</span></div>
+      <span class="tool-go">›</span>
+    </div>
+    <span class="tip">传感器开机后蓝灯快闪。绑在胸前，连接一次，不退出小程序就不会断开。</span>
+  </div>
+</div>
+
+<div class="phone">
+  <div class="cap">已连接</div>
+  <div class="nav">首页</div>
+  <div class="page">
+    <div class="device">
+      <div class="dot on"></div>
+      <span class="device-name">WT9011DCL 姿态传感器</span>
+      <span class="device-state on">已连接</span>
+    </div>
+    <div class="primary">
+      <span class="primary-title">开始训练</span>
+      <span class="primary-sub">传感器已连接，选择今天的训练项目</span>
+    </div>
+    <div class="prog">
+      <div class="prog-line"><span class="prog-num">68%</span><span class="prog-arrow">↑</span></div>
+      <span class="prog-say">比上周稳了 6 个百分点</span>
+      <div class="week">
+        <div class="wk on"><div class="wk-dot"></div><span class="wk-label">一</span></div>
+        <div class="wk"><div class="wk-dot"></div><span class="wk-label">二</span></div>
+        <div class="wk on today"><div class="wk-dot"></div><span class="wk-label">三</span></div>
+        <div class="wk on"><div class="wk-dot"></div><span class="wk-label">四</span></div>
+        <div class="wk on"><div class="wk-dot"></div><span class="wk-label">五</span></div>
+        <div class="wk"><div class="wk-dot"></div><span class="wk-label">六</span></div>
+        <div class="wk"><div class="wk-dot"></div><span class="wk-label">日</span></div>
+      </div>
+      <div class="prog-foot"><span class="prog-meta">本周 4 次</span><span class="prog-go">查看进步 ›</span></div>
+    </div>
+    <div class="tool">
+      <div class="tool-main"><span class="tool-name">零点标定</span><span class="tool-desc">校正姿态零点，查看实时曲线</span></div>
+      <span class="tool-go">›</span>
+    </div>
+    <span class="tip">传感器开机后蓝灯快闪。绑在胸前，连接一次，不退出小程序就不会断开。</span>
+  </div>
+</div>
+
+</body>
+</html>

@@ -18,6 +18,8 @@ Page({
       headline: '',
       detail: '',
       meta: '',
+      arrow: '',
+      week: [],
       days: 0,
       count: 0,
       total: 0
@@ -50,13 +52,19 @@ Page({
     this.setData({ bleLinked: linked, bleLinkedName: name })
   },
 
-  // 蓝牙连接：进专门的蓝牙页做扫描连接
+  // 主操作：没连上就去连；连上了直接进训练 —— 首页原来连完蓝牙就没出口了
   goWit() {
     if (this.data.bleLinked) {
-      speaker.speak('设备已连接，可查看传感器数据')
-    } else {
-      speaker.speak('请确认传感器已开机，蓝灯快闪后点击扫描设备')
+      speaker.speak('传感器已连接，选择今天的训练项目')
+      selectTab(this, 1)
+      return
     }
+    speaker.speak('请确认传感器已开机，蓝灯快闪后点击扫描设备')
+    openPage('/pages/wit/wit')
+  },
+
+  // 设备详情：点状态行进蓝牙页（看数据、断开都在这）
+  goDevice() {
     openPage('/pages/wit/wit')
   },
 
@@ -73,17 +81,18 @@ Page({
    */
   refreshProgress() {
     try {
-      const sum = progress.summary()
-      const desc = progress.describe(sum)
-      const w = sum.thisWeek
+      // detail 比 summary 多给 week（打卡圆点）；首页要用，所以调 detail
+      const d = progress.detail()
+      const desc = progress.describe(d)
+      const w = d.thisWeek
       // 一天练一局很常见，「4 天 · 4 次」是重复的，合并成「4 次」
       let meta = ''
       if (w.count > 0) {
         meta = w.days === w.count
           ? '本周 ' + w.count + ' 次'
           : '本周 ' + w.days + ' 天 · ' + w.count + ' 次'
-      } else if (sum.totalCount > 0) {
-        meta = '累计 ' + sum.totalCount + ' 次'
+      } else if (d.totalCount > 0) {
+        meta = '累计 ' + d.totalCount + ' 次'
       }
       this.setData({
         prog: {
@@ -91,10 +100,11 @@ Page({
           headline: desc.headline,
           detail: desc.detail,
           meta: meta,
-          isNum: desc.headline.indexOf('%') >= 0,
+          arrow: desc.tone === 'up' ? '↑' : (desc.tone === 'down' ? '↓' : (desc.tone === 'flat' ? '→' : '')),
+          week: d.week,
           days: w.days,
           count: w.count,
-          total: sum.totalCount
+          total: d.totalCount
         }
       })
     } catch (e) {
@@ -104,9 +114,5 @@ Page({
 
   goProgress() {
     openPage('/pages/progress/progress')
-  },
-
-  goGames() {
-    selectTab(this, 1)
   }
 })

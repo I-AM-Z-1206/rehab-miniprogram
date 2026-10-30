@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>首页现状</title>
+<style>
+  body {
+    margin: 0; width: 375px; background: #f5f6fa;
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  .nav { height: 44px; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 600; }
+  .ui-body { padding: 0 16px 24px; }
+
+  /* hero */
+  .hero {
+    border-radius: 16px; padding: 18px 16px; margin-bottom: 12px; color: #fff;
+    background: linear-gradient(135deg, #0e9484 0%, #19b5a3 100%);
+    box-shadow: 0 6px 14px rgba(15, 156, 140, 0.22);
+  }
+  .hero-tag { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 999px; font-size: 11px; background: rgba(255,255,255,0.22); }
+  .hero-tag-ico { width: 12px; height: 12px; background: rgba(255,255,255,0.8); border-radius: 2px; margin-right: 4px; }
+  .hero-title { margin-top: 10px; font-size: 22px; font-weight: 700; }
+  .hero-desc { margin-top: 5px; font-size: 12px; opacity: 0.9; }
+
+  /* prog */
+  .prog {
+    padding: 16px 14px; margin-bottom: 12px; border-radius: 16px; background: #fff;
+    box-shadow: 0 5px 15px rgba(15, 60, 90, 0.08); border: 1px solid #eef1f5;
+  }
+  .prog.tone-up { border-left: 4px solid #12a06a; }
+  .prog-head { display: flex; align-items: center; justify-content: space-between; }
+  .prog-kicker { font-size: 12px; color: #8b8f9a; letter-spacing: 1px; }
+  .prog-meta { font-size: 12px; color: #0f9c8c; font-weight: 600; }
+  .prog-main { display: flex; align-items: baseline; margin-top: 6px; }
+  .prog-num { font-size: 38px; font-weight: 700; letter-spacing: -1px; color: #1c2430; }
+  .prog-arrow { margin-left: 7px; font-size: 20px; font-weight: 700; color: #12a06a; }
+  .prog-detail { display: block; margin-top: 7px; font-size: 14px; line-height: 1.6; color: #5b6472; }
+
+  /* cta */
+  .cta {
+    display: flex; align-items: center; padding: 16px 14px; margin-bottom: 12px;
+    border-radius: 16px; background: #fff;
+    box-shadow: 0 5px 15px rgba(15, 60, 90, 0.08); border: 1px solid #eef1f5;
+  }
+  .cta-icon {
+    width: 44px; height: 44px; border-radius: 12px; background: #f0f6f5;
+    display: flex; align-items: center; justify-content: center; margin-right: 12px;
+  }
+  .cta-icon i { width: 22px; height: 22px; border-radius: 4px; background: #0f9c8c; display: block; }
+  .cta-main { flex: 1; }
+  .cta-title { font-size: 15px; font-weight: 600; color: #1c2430; }
+  .cta-desc { margin-top: 4px; font-size: 12px; color: #8b8f9a; line-height: 1.5; }
+  .cta-go { font-size: 13px; color: #0f9c8c; font-weight: 600; }
+
+  .cta-state { display: flex; align-items: center; padding: 0 4px 12px; }
+  .cta-dot { width: 7px; height: 7px; border-radius: 50%; background: #d3d7de; margin-right: 6px; }
+  .cta-state-text { font-size: 12px; color: #8b8f9a; }
+
+  .ui-tip { font-size: 12px; line-height: 1.7; color: #9aa1ad; padding: 4px 2px; }
+</style>
+</head>
+<body>
+  <div class="nav">首页</div>
+  <div class="ui-body">
+    <div class="hero">
+      <div><span class="hero-tag"><i class="hero-tag-ico"></i>WT9011DCL · 姿态传感</span></div>
+      <div class="hero-title">运动康复助手</div>
+      <div class="hero-desc">连一次蓝牙，全程不断开</div>
+    </div>
+
+    <div class="prog tone-up">
+      <div class="prog-head">
+        <span class="prog-kicker">我的进步</span>
+        <span class="prog-meta">本周 4 次 ›</span>
+      </div>
+      <div class="prog-main">
+        <span class="prog-num">68%</span>
+        <span class="prog-arrow">↑</span>
+      </div>
+      <span class="prog-detail">比上周稳了 6 个百分点</span>
+    </div>
+
+    <div class="cta">
+      <div class="cta-icon"><i></i></div>
+      <div class="cta-main">
+        <div class="cta-title">连接蓝牙传感器</div>
+        <div class="cta-desc">未连接 · 点击扫描并连接设备</div>
+      </div>
+      <div class="cta-go">连接 ›</div>
+    </div>
+    <div class="cta-state">
+      <div class="cta-dot"></div>
+      <div class="cta-state-text">蓝牙未连接</div>
+    </div>
+
+    <div class="cta">
+      <div class="cta-icon"><i style="background:#2f7bd6"></i></div>
+      <div class="cta-main">
+        <div class="cta-title">零点标定</div>
+        <div class="cta-desc">一键标定姿态虚拟零点（Roll / Pitch），并查看实时姿态曲线</div>
+      </div>
+      <div class="cta-go">进入 ›</div>
+    </div>
+
+    <div class="ui-tip">用法：① 传感器开机（蓝灯快闪）→ ② 点上方「连接蓝牙传感器」→ ③ 把传感器绑在胸前即可查看姿态数据。连接成功后，不出小程序就不会自动断开。</div>
+  </div>
+</body>
+</html>

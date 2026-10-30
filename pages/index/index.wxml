@@ -1,65 +1,55 @@
-<!--index.wxml—— 首页：蓝牙连接（主位）+ 功能入口-->
+<!--index.wxml—— 首页：设备准备（主操作）+ 进步概览 + 工具---->
 <navigation-bar title="首页" back="{{false}}" color="black" background="#FFF"></navigation-bar>
 <scroll-view class="ui-scroll" scroll-y type="list">
-  <view class="ui-body">
+  <view class="page">
 
-    <!-- 顶部横幅 -->
-    <view class="hero">
-      <view class="hero-tag-row">
-        <view class="hero-tag">
-          <image class="hero-tag-ico" src="/assets/icons/bluetooth-white.png" mode="aspectFit" />
-          <text>WT9011DCL · 姿态传感</text>
+    <!-- 设备状态：一行，轻。原来这里有一个绿色渐变横幅写着「运动康复助手」，
+         每次打开都占掉四分之一屏幕，却不提供任何信息 —— 患者早就知道自己在用什么。 -->
+    <view class="device" bindtap="goDevice">
+      <view class="dot {{bleLinked ? 'on' : ''}}"></view>
+      <text class="device-name">WT9011DCL 姿态传感器</text>
+      <text class="device-state {{bleLinked ? 'on' : ''}}">{{bleLinked ? '已连接' : '未连接'}}</text>
+    </view>
+
+    <!-- 主操作：整页唯一的实心块，也是唯一需要「按下去」的东西。
+         同一个位置承担两步：没连上时是「连接」，连上之后变成「开始训练」——
+         首页原来连完蓝牙就没事干了，患者还得自己去找「游戏」tab。 -->
+    <view class="primary" bindtap="goWit">
+      <text class="primary-title">{{bleLinked ? '开始训练' : '连接蓝牙传感器'}}</text>
+      <text class="primary-sub">{{bleLinked ? '传感器已连接，选择今天的训练项目' : '打开传感器电源，蓝灯快闪后点这里'}}</text>
+    </view>
+
+    <!-- 我的进步：一句话 + 一个数，不是「大数字 + 小标签」的指标卡。
+         患者要的是「我在变好」这件事，不是记住 68% 这个绝对值。 -->
+    <view class="prog" bindtap="goProgress">
+      <view class="prog-line">
+        <text class="prog-num">{{prog.headline}}</text>
+        <text class="prog-arrow {{prog.tone}}" wx:if="{{prog.arrow}}">{{prog.arrow}}</text>
+      </view>
+      <text class="prog-say">{{prog.detail}}</text>
+      <view class="week">
+        <view class="wk {{item.trained ? 'on' : ''}} {{item.today ? 'today' : ''}} {{item.future ? 'future' : ''}}"
+              wx:for="{{prog.week}}" wx:key="label">
+          <view class="wk-dot"></view>
+          <text class="wk-label">{{item.label}}</text>
         </view>
       </view>
-      <view class="hero-title">运动康复助手</view>
-      <view class="hero-desc">连一次蓝牙，全程不断开</view>
+      <view class="prog-foot">
+        <text class="prog-meta">{{prog.meta}}</text>
+        <text class="prog-go">查看进步 ›</text>
+      </view>
     </view>
 
-    <!-- 我的进步：患者每天打开第一眼看到的东西。
-         指标是「控制稳定率」而不是分数 —— 分数受难度影响，升档就掉，
-         会让人误以为退步。趋势至少攒够 3 次才显示，见 utils/progress.js。 -->
-    <view class="prog tone-{{prog.tone}}" bindtap="goProgress">
-      <view class="prog-head">
-        <text class="prog-kicker">我的进步</text>
-        <text class="prog-meta" wx:if="{{prog.meta}}">{{prog.meta}} ›</text>
-        <text class="prog-meta" wx:else>查看 ›</text>
+    <!-- 工具：低优先，一行带过 -->
+    <view class="tool" bindtap="goCalibrate">
+      <view class="tool-main">
+        <text class="tool-name">零点标定</text>
+        <text class="tool-desc">校正姿态零点，查看实时曲线</text>
       </view>
-      <view class="prog-main">
-        <text class="prog-num {{prog.isNum ? 'is-num' : 'is-text'}}">{{prog.headline}}</text>
-        <text class="prog-arrow up" wx:if="{{prog.tone === 'up'}}">↑</text>
-        <text class="prog-arrow down" wx:elif="{{prog.tone === 'down'}}">↓</text>
-        <text class="prog-arrow flat" wx:elif="{{prog.tone === 'flat'}}">→</text>
-      </view>
-      <text class="prog-detail">{{prog.detail}}</text>
+      <text class="tool-go">›</text>
     </view>
 
-    <!-- 蓝牙连接：主界面中间的主操作 -->
-    <view class="cta ble {{bleLinked ? 'linked' : ''}}" bindtap="goWit">
-      <view class="cta-icon"><image class="ico ico-lg" src="/assets/icons/bluetooth-teal.png" mode="aspectFit" /></view>
-      <view class="cta-main">
-        <view class="cta-title">连接蓝牙传感器</view>
-        <view class="cta-desc">{{bleLinked ? '已连接 · 点击查看传感器数据' : '未连接 · 点击扫描并连接设备'}}</view>
-      </view>
-      <view class="cta-go">{{bleLinked ? '已连接' : '连接 ›'}}</view>
-    </view>
-    <view class="cta-state">
-      <view class="cta-dot {{bleLinked ? 'on' : ''}}"></view>
-      <view class="cta-state-text">{{bleLinked ? '蓝牙已连接' + (bleLinkedName ? ' · ' + bleLinkedName : '') : '蓝牙未连接'}}</view>
-    </view>
-
-    <!-- 零点标定入口 -->
-    <view class="cta cal" bindtap="goCalibrate">
-      <view class="cta-icon"><image class="ico ico-lg" src="/assets/icons/focus-blue.png" mode="aspectFit" /></view>
-      <view class="cta-main">
-        <view class="cta-title">零点标定</view>
-        <view class="cta-desc">一键标定姿态虚拟零点（Roll / Pitch），并查看实时姿态曲线</view>
-      </view>
-      <view class="cta-go">进入 ›</view>
-    </view>
-
-    <view class="ui-tip">
-      用法：① 传感器开机（蓝灯快闪）→ ② 点上方「连接蓝牙传感器」→ ③ 把传感器绑在胸前即可查看姿态数据。连接成功后，不出小程序就不会自动断开。
-    </view>
+    <text class="tip">传感器开机后蓝灯快闪。绑在胸前，连接一次，不退出小程序就不会断开。</text>
 
   </view>
 </scroll-view>

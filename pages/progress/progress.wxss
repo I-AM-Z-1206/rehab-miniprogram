@@ -1,10 +1,11 @@
 /** progress.wxss —— 我的进步
  *
- * 视觉原则（和标定页一致）：
- *   1. 纯白底、1rpx 细线分区、靠留白和字号建立层级，不堆白卡片 + 阴影；
- *   2. 颜色只承担功能：上升=青绿、下降=琥珀、持平/无数据=灰。
- *      **不用红色** —— 红色像警报，康复场景会让人紧张；
- *   3. 字号偏大：使用者多为中老年患者，14px 以下的正文字太小。
+ * 和首页同一套语言：纯白底、1rpx 细线分区、不堆卡片、不用阴影。
+ *
+ * 颜色只承担功能：上升=青绿、下降=琥珀、持平/无数据=灰。
+ * **不用红色** —— 红色像警报，康复场景会让人紧张。
+ *
+ * 字号偏大：使用者多为中老年患者，14px 以下的正文字太小。
  */
 
 page {
@@ -19,129 +20,126 @@ page {
   overflow-y: hidden;
 }
 
-.page-body {
-  padding: 16rpx 36rpx 72rpx;
+.page {
+  padding: 20rpx 40rpx 80rpx;
 }
 
-/* ---------- 主结论 ---------- */
-.hero {
-  padding: 28rpx 0 32rpx;
-  border-bottom: 1rpx solid #eef1f5;
+/* ---------- 结论 ---------- */
+.head {
+  padding: 30rpx 0 34rpx;
 }
 
-.hero-line {
+.head-line {
   display: flex;
   flex-direction: row;
   align-items: baseline;
 }
 
-.hero-num {
-  font-size: 88rpx;
+.head-num {
+  font-size: 76rpx;
   font-weight: 700;
-  letter-spacing: -2rpx;
-  color: #1c2430;
+  letter-spacing: -1.5rpx;
+  color: #1a1f26;
 }
 
-.hero-arrow {
+.head-arrow {
   margin-left: 16rpx;
-  font-size: 48rpx;
+  font-size: 38rpx;
   font-weight: 700;
 }
 
-.hero-arrow.up { color: #12a06a; }
-.hero-arrow.down { color: #d98324; }
-.hero-arrow.flat { color: #9aa1ad; }
+.head-arrow.up { color: #0f9c8c; }
+.head-arrow.down { color: #c47b1f; }
+.head-arrow.flat { color: #a8aeb8; }
 
-.hero-desc {
+.head-say {
   display: block;
-  margin-top: 16rpx;
+  margin-top: 12rpx;
   font-size: 30rpx;
   line-height: 1.6;
-  color: #5b6472;
+  color: #4a515c;
 }
 
 /* ---------- 分区 ---------- */
-.sec {
+.block {
+  display: block;
   padding: 32rpx 0;
-  border-bottom: 1rpx solid #eef1f5;
+  border-top: 1rpx solid #eceff3;
 }
 
-.sec-head {
+/* 打卡是唯一需要横向一行的分区 */
+.block-week {
   display: flex;
   flex-direction: row;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 24rpx;
+  align-items: center;
 }
 
-.sec-title {
-  font-size: 30rpx;
-  font-weight: 600;
-  color: #1c2430;
+.block-title {
+  display: block;
+  font-size: 26rpx;
+  color: #949aa3;
+  margin-bottom: 6rpx;
 }
 
-.sec-meta {
-  font-size: 24rpx;
-  color: #9aa1ad;
+.block-note {
+  display: block;
+  width: 100%;
+  font-size: 25rpx;
+  line-height: 1.7;
+  color: #a8aeb8;
 }
 
 /* ---------- 本周打卡 ---------- */
-.days {
+.week {
   display: flex;
   flex-direction: row;
-  justify-content: space-between;
-}
-
-.day {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
   flex: 1;
 }
 
-.dot {
-  width: 48rpx;
-  height: 48rpx;
-  border-radius: 50%;
-  background-color: #f0f2f5;
-  border: 2rpx solid #e4e8ee;
+.wk {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-right: 26rpx;
 }
 
-.day.on .dot {
+.wk-dot {
+  width: 26rpx;
+  height: 26rpx;
+  border-radius: 50%;
+  background-color: #f2f4f7;
+  border: 2rpx solid #e6eaf0;
+  box-sizing: border-box;
+}
+
+.wk.on .wk-dot {
   background-color: #0f9c8c;
   border-color: #0f9c8c;
 }
 
-/* 今天加一圈外环，但不改填充色：今天没练就不该显示成练过 */
-.day.today .dot {
-  box-shadow: 0 0 0 6rpx rgba(15, 156, 140, 0.18);
+.wk.today .wk-dot {
+  box-shadow: 0 0 0 5rpx rgba(15, 156, 140, 0.16);
 }
 
-/* 还没到的日子：只是稍微淡一点，不能淡到看不见 —— 那会被当成显示坏了 */
-.day.future .dot {
-  background-color: #f7f9fb;
-  border-color: #e6eaf0;
+.wk-label {
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #b3b9c2;
 }
 
-.day-label {
-  margin-top: 12rpx;
-  font-size: 24rpx;
-  color: #8b8f9a;
-}
-
-.day.on .day-label {
+.wk.on .wk-label {
   color: #0f9c8c;
-  font-weight: 600;
 }
 
-.day.future .day-label {
-  color: #c8ccd4;
+.week-meta {
+  font-size: 24rpx;
+  color: #949aa3;
 }
 
-/* ---------- 走势 ---------- */
 .chart {
   width: 100%;
   height: 320rpx;
+  margin-top: 16rpx;
 }
 
 .cv {
@@ -149,87 +147,74 @@ page {
   height: 320rpx;
 }
 
-.empty {
-  display: block;
-  font-size: 26rpx;
-  line-height: 1.6;
-  color: #9aa1ad;
-}
-
-/* ---------- 各项训练 ---------- */
-.game {
+/* ---------- 各项训练（表格） ---------- */
+.row {
   display: flex;
   flex-direction: row;
   align-items: baseline;
-  padding: 20rpx 0;
-  border-bottom: 1rpx solid #f4f6f9;
+  width: 100%;
+  padding: 14rpx 0;
 }
 
-.game:last-child {
-  border-bottom: none;
-}
-
-.g-name {
+.row-name {
   flex: 1;
-  font-size: 30rpx;
-  color: #1c2430;
+  font-size: 29rpx;
+  color: #1a1f26;
 }
 
-.g-count {
-  font-size: 24rpx;
-  color: #9aa1ad;
+.row-count {
+  font-size: 23rpx;
+  color: #b3b9c2;
   margin-right: 24rpx;
 }
 
-.g-val {
-  font-size: 34rpx;
+.row-val {
+  font-size: 32rpx;
   font-weight: 600;
-  color: #1c2430;
-  min-width: 110rpx;
+  color: #1a1f26;
+  min-width: 106rpx;
   text-align: right;
 }
 
-.g-delta {
-  font-size: 26rpx;
+.row-delta {
+  font-size: 25rpx;
   font-weight: 600;
-  min-width: 80rpx;
+  min-width: 76rpx;
   text-align: right;
 }
 
-.g-delta.up { color: #12a06a; }
-.g-delta.down { color: #d98324; }
-.g-delta.flat { color: #b9c0ca; }
+.row-delta.up { color: #0f9c8c; }
+.row-delta.down { color: #c47b1f; }
+.row-delta.flat { color: #b3b9c2; }
 
 /* ---------- 累计 ---------- */
-.total {
-  display: flex;
-  flex-direction: row;
+.block-last {
   align-items: baseline;
 }
 
 .total-num {
-  font-size: 44rpx;
+  font-size: 40rpx;
   font-weight: 700;
-  color: #1c2430;
+  color: #1a1f26;
 }
 
 .total-item {
   margin-left: 8rpx;
-  font-size: 26rpx;
-  color: #5b6472;
+  font-size: 25rpx;
+  color: #4a515c;
 }
 
-.total-dot {
+.total-sep {
   margin: 0 20rpx;
   color: #d3d7de;
-  font-size: 26rpx;
+  font-size: 25rpx;
 }
 
 /* ---------- 底部 ---------- */
 .cta {
-  margin-top: 40rpx;
+  margin-top: 48rpx;
   padding: 30rpx 0;
-  border-radius: 999rpx;
+  border-radius: 16rpx;
   text-align: center;
   font-size: 32rpx;
   font-weight: 600;
@@ -238,13 +223,13 @@ page {
 }
 
 .cta:active {
-  opacity: 0.88;
+  background-color: #0d8b7d;
 }
 
 .foot {
   display: block;
   margin-top: 28rpx;
-  font-size: 24rpx;
-  line-height: 1.7;
-  color: #9aa1ad;
+  font-size: 23rpx;
+  line-height: 1.75;
+  color: #a8aeb8;
 }
