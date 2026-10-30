@@ -1,57 +1,117 @@
-/**games.wxss—— 游戏中心页样式（复用 app.wxss 的 ui- 通用类）**/
+/**games.wxss —— 游戏中心
+ *
+ * 和首页同一套语言：纯白底、1rpx 细线、不堆卡片、不用阴影。
+ * 原来这里是「横幅 + 分区标题 + 卡片列表」，五款游戏权重完全相同，
+ * 而玩家来这一页只做一件事 —— 挑一个开始。
+ *
+ * 字号偏大：使用者多为中老年患者。
+ */
 
 /* Skyline 下页面骨架：scroll-view 依赖 page 的 flex 布局撑开高度 */
 page {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: #f5f6fa;
+  background-color: #ffffff;
 }
 
-/* 顶部横幅：游戏主题蓝紫渐变 */
-.game-banner {
-  background: linear-gradient(135deg, #eef0ff 0%, #eaf7f4 100%);
+.page {
+  padding: 8rpx 40rpx 180rpx;
 }
 
-.ui-banner-main {
+/* ---------- 顶部一句 ---------- */
+.lead {
+  padding: 26rpx 0 10rpx;
+}
+
+.lead-title {
+  display: block;
+  font-size: 40rpx;
+  font-weight: 600;
+  color: #1a1f26;
+  letter-spacing: -0.5rpx;
+}
+
+.lead-desc {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 25rpx;
+  line-height: 1.5;
+  color: #949aa3;
+}
+
+/* ---------- 分组 ---------- */
+.group {
+  padding: 44rpx 0 14rpx;
+}
+
+.group-gap {
+  padding-top: 52rpx;
+}
+
+.group-title {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #1a1f26;
+}
+
+.group-hint {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #a8aeb8;
+}
+
+/* ---------- 游戏行 ---------- */
+.row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 26rpx 4rpx;
+  border-bottom: 1rpx solid #eceff3;
+  transition: opacity 0.12s ease;
+}
+
+.row:active {
+  opacity: 0.55;
+}
+
+.row-icon {
+  width: 48rpx;
+  height: 48rpx;
+  margin-right: 24rpx;
+}
+
+.row-main {
   flex: 1;
 }
 
-/* 「5 款」大数字 */
-.banner-count {
-  font-size: 26rpx;
-  color: #7a7f8a;
-  display: flex;
-  align-items: baseline;
+.row-title {
+  display: block;
+  font-size: 32rpx;
+  color: #1a1f26;
 }
 
-.banner-num {
-  font-size: 56rpx;
-  font-weight: 800;
-  color: #2f7bd6;
-  margin-right: 8rpx;
+.row-desc {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 24rpx;
+  line-height: 1.5;
+  color: #949aa3;
 }
 
-/* 分类图标底色：静态 / 动态区分 */
-.ui-row-icon.static {
-  background-color: #eef4ff;
-  border-radius: 22rpx;
+.row-go {
+  padding-left: 16rpx;
+  font-size: 34rpx;
+  color: #c8ccd4;
 }
 
-.ui-row-icon.dynamic {
-  background-color: #fff3e9;
-  border-radius: 22rpx;
-}
-
-/* 「可训练」小标签：已实现的游戏 */
-.game-ready {
-  margin-left: 12rpx;
-  padding: 2rpx 12rpx;
-  border-radius: 100rpx;
-  font-size: 19rpx;
-  font-weight: 500;
-  color: #0f9c8c;
-  background-color: #e7f7f4;
-  border: 1rpx solid rgba(15, 156, 140, 0.35);
-  vertical-align: middle;
+/* ---------- 底部 ---------- */
+.tip {
+  display: block;
+  margin-top: 44rpx;
+  font-size: 23rpx;
+  line-height: 1.75;
+  color: #a8aeb8;
 }

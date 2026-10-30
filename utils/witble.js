@@ -36,6 +36,10 @@ class WitBle {
   constructor() {
     this.devices = []
     this.connectedId = ''
+    // 本次连接建立的时刻。零点是设备级的：传感器每摘一次再戴上，
+    // 佩戴角度就变了，之前标的零点必须作废 —— 判断依据是「标定时刻是否
+    // 晚于本次连接」，而不是「今天标过没有」。一次连接一次标定。
+    this.connectedAt = 0
     this.services = []
     this.notifyChar = null
     this.writeChar = null
@@ -266,6 +270,8 @@ class WitBle {
       state: true,
       success: () => {
         that.log('订阅成功：' + nc.charId.slice(0, 8))
+        // 订阅成功 = 本次连接真正可用，打上时间戳给零点判断用
+        that.connectedAt = Date.now()
         if (that.handlers.onReady) that.handlers.onReady()
       },
       fail: (err) => {
@@ -405,6 +411,7 @@ class WitBle {
       wx.closeBLEConnection({ deviceId: this.connectedId, complete: () => {} })
       this.connectedId = ''
     }
+    this.connectedAt = 0
     this.buf = []
     this.services = []
     this.notifyChar = null

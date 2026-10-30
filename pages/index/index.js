@@ -64,22 +64,27 @@ Page({
   /**
    * 读零点状态并算出当前处在第几步。
    *
-   * 零点是设备级的：传感器每次戴的位置不一样，昨天标的不代表今天准。
-   * 所以「已标定」要按自然日判断 —— 光看 set=true 会一直显示已标定，
-   * 患者第二天戴上就用昨天的零点，判定全偏也不知道为什么。
+   * 零点是设备级的：传感器每摘一次再戴上，佩戴角度就变了，之前标的零点
+   * 直接作废。所以判断依据是「**标定时刻是否晚于本次连接**」，
+   * 不是「今天标过没有」—— 一天里断开重连三次，就要标三次。
    */
   refreshZero() {
     let z = { set: false, at: 0 }
     try { z = zero.get() } catch (e) { /* 读不到就当没标定 */ }
-    const sameDay = !!(z.set && z.at) &&
-      new Date(z.at).toDateString() === new Date().toDateString()
+    let linkedAt = 0
+    try {
+      const ble = WitBle.getShared()
+      linkedAt = ble.connectedAt || 0
+    } catch (e) { /* 忽略 */ }
+    // 本次连接之后标定过才算数；连接中但还没订阅成功（linkedAt=0）也不算
+    const ready = !!(z.set && z.at && linkedAt && z.at >= linkedAt)
     const linked = this.data.bleLinked
-    const step = !linked ? 1 : (sameDay ? 3 : 2)
+    const step = !linked ? 1 : (ready ? 3 : 2)
     let stateText = '未连接'
-    if (linked) stateText = sameDay ? '已连接 · 今天已标定' : '已连接 · 未标定'
+    if (linked) stateText = ready ? '已连接 · 本次已标定' : '已连接 · 待标定'
     this.setData({
       zeroSet: !!z.set,
-      zeroToday: sameDay,
+      zeroToday: ready,
       step: step,
       stateText: stateText
     })

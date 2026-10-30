@@ -50,7 +50,9 @@
     <!-- 状态徽章：一句话说清现在是标过还是没标过 -->
     <view class="badge {{zeroSet ? 'badge-on' : 'badge-off'}}">
       <view class="badge-dot"></view>
-      <text>{{zeroSet ? '已标定，所有页面共用这个零点' : '还没标定，当前读数是传感器原始角度'}}</text>
+      <text wx:if="{{zeroSet}}">本次连接已标定，所有页面共用这个零点</text>
+      <text wx:elif="{{zeroStale}}">上次的零点已失效（传感器重新佩戴过），请重新标定</text>
+      <text wx:else>还没标定，当前读数是传感器原始角度</text>
     </view>
 
     <!-- 标定时的姿态分布：**放在按钮之前**。

@@ -21,7 +21,7 @@
         <text class="primary-sub">选择今天的训练项目</text>
       </view>
       <view class="ready" bindtap="goCalibrate">
-        <text class="ready-text">今天已标定</text>
+        <text class="ready-text">本次连接已标定</text>
         <text class="ready-go">重新标定 ›</text>
       </view>
     </block>
@@ -88,7 +88,7 @@
       </view>
     </view>
 
-    <text class="tip">传感器开机后蓝灯快闪。绑在胸前，每次佩戴位置变了就重新标定一次。</text>
+    <text class="tip">传感器开机后蓝灯快闪。绑在胸前。每次摘下再戴上都要重新标定 —— 佩戴角度变了，旧零点就不准了。</text>
 
   </view>
 </scroll-view>

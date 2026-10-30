@@ -42,6 +42,7 @@ Page({
     zeroRoll: '0.00',
     zeroPitch: '0.00',
     zeroSet: false,
+    zeroStale: false,
     zeroCalibrating: false,
     zeroRemain: 0,
     curRoll: '--',
@@ -181,10 +182,15 @@ Page({
   // ---------- 姿态虚拟零点（两个全局变量：zeroRoll / zeroPitch） ----------
   refreshZero() {
     const z = zero.get()
+    // 「已标定」要按本次连接算：传感器每摘一次再戴上，佩戴角度就变了，
+    // 上一次的零点直接作废。只看 z.set 会写「已标定」但其实已经不准了。
+    const linkedAt = (this.ble && this.ble.connectedAt) || 0
+    const valid = !!(z.set && z.at && linkedAt && z.at >= linkedAt)
     this.setData({
       zeroRoll: (z.roll >= 0 ? '+' : '') + z.roll.toFixed(2),
       zeroPitch: (z.pitch >= 0 ? '+' : '') + z.pitch.toFixed(2),
-      zeroSet: !!z.set
+      zeroSet: valid,
+      zeroStale: !!z.set && !valid
     })
   },
 
