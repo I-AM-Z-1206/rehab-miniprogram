@@ -1388,7 +1388,7 @@ class FruitRenderer {
 
     this._text('怎么玩', cardX + 20, cardY + 26, { size: 12, weight: '700', color: C.ink })
     const steps = [
-      '站好或坐稳，在中立位完成零点标定',
+      '站好或坐稳 —— 零点在首页标定过就行，不用每次重标',
       '身体向左或向右倾，果篮会跟着横向移动',
       '水果落下前把果篮移到它正下方就算接住'
     ]
