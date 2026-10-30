@@ -449,3 +449,34 @@ page {
   color: #a1a1aa;
   padding: 12rpx 0;
 }
+
+/* ---------- 标定时的姿态分布（按钮上方，常驻） ----------
+   放在这里的原因：两条实时曲线只是两个数字在滚动，看不出「稳不稳」；
+   这张散点图（点云 + 1σ 范围 + 抖动幅度）才是按下标定前的判断依据。 */
+.zero {
+  margin: 8rpx 0 24rpx;
+}
+
+.zero-head {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12rpx;
+}
+
+.zero-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #1a1f26;
+}
+
+.zero-hint {
+  font-size: 23rpx;
+  color: #949aa3;
+}
+
+/* 比原来的 440rpx 稍矮：它要让出首屏空间给下面的标定按钮 */
+.chart-zero {
+  height: 400rpx;
+}

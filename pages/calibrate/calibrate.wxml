@@ -53,6 +53,32 @@
       <text>{{zeroSet ? '已标定，所有页面共用这个零点' : '还没标定，当前读数是传感器原始角度'}}</text>
     </view>
 
+    <!-- 标定时的姿态分布：**放在按钮之前**。
+         两条实时曲线只是两个数字在滚动，看不出「稳不稳」；
+         这张散点图（加点云 + 1σ 范围 + 抖动幅度）才是在按下标定前
+         判断「现在能不能标」的依据。之前它被压在两条曲线下面，
+         患者要滚过两屏才看得到，等于没有。 -->
+    <view class="zero">
+      <view class="zero-head">
+        <text class="zero-title">标定时的姿态分布</text>
+        <text class="zero-hint" wx:if="{{zeroCalibrating}}">正在采集，保持静止</text>
+        <text class="zero-hint" wx:elif="{{zeroCount}}">横轴 Roll，纵轴 Pitch</text>
+        <text class="zero-hint" wx:else>按下面的按钮，这里会显示这 3 秒的晃动</text>
+      </view>
+      <view class="chart chart-zero"><canvas type="2d" id="chartZero" class="cv"></canvas></view>
+      <view class="legend">
+        <view class="lg"><view class="sw sw-sd"></view><text>1σ 范围</text></view>
+        <view class="lg"><view class="sw sw-range"></view><text>最大抖动</text></view>
+        <view class="lg"><view class="sw-dot"></view><text>零点</text></view>
+      </view>
+      <view class="stats">
+        <view class="st"><view class="st-n">{{zeroCount}}</view><view class="st-l">采样点</view></view>
+        <view class="st"><view class="st-n">{{zeroSpanR}}°</view><view class="st-l">前后抖动</view></view>
+        <view class="st"><view class="st-n">{{zeroSpanP}}°</view><view class="st-l">左右抖动</view></view>
+        <view class="st"><view class="st-n {{zeroQuality === 'warn' ? 'warn' : 'ok'}}">{{zeroSd}}°</view><view class="st-l">标准差</view></view>
+      </view>
+    </view>
+
     <!-- 操作：标定中显示倒计时，否则显示两个按钮 -->
     <view wx:if="{{zeroCalibrating}}" class="running">
       <!-- 转动的只是外面那圈描边，数字必须固定，否则会跟着转圈 -->
@@ -93,7 +119,7 @@
     <!-- 技术细节：默认展开。图表区用 wx:if 而不是 hidden，
          收起时彻底销毁 canvas 省内存，展开时由 toggleDetail 重建 -->
     <view class="fold" bindtap="toggleDetail">
-      <text>{{showDetail ? '收起' : '曲线与分布图'}}</text>
+      <text>{{showDetail ? '收起' : 'Roll / Pitch 实时曲线'}}</text>
       <view class="fold-arrow {{showDetail ? 'up' : ''}}"></view>
     </view>
 
@@ -102,23 +128,6 @@
       <view class="chart"><canvas type="2d" id="chartRoll" class="cv"></canvas></view>
       <view class="sub">Pitch 实时（°）</view>
       <view class="chart"><canvas type="2d" id="chartPitch" class="cv"></canvas></view>
-
-      <view class="sub">标定时的姿势分布</view>
-      <view class="hint">横轴 Roll，纵轴 Pitch</view>
-      <view class="chart chart-lg"><canvas type="2d" id="chartZero" class="cv"></canvas></view>
-
-      <view class="legend">
-        <view class="lg"><view class="sw sw-sd"></view><text>1σ 范围</text></view>
-        <view class="lg"><view class="sw sw-range"></view><text>最大抖动</text></view>
-        <view class="lg"><view class="sw-dot"></view><text>零点</text></view>
-      </view>
-
-      <view class="stats">
-        <view class="st"><view class="st-n">{{zeroCount}}</view><view class="st-l">采样点</view></view>
-        <view class="st"><view class="st-n">{{zeroSpanR}}°</view><view class="st-l">前后抖动</view></view>
-        <view class="st"><view class="st-n">{{zeroSpanP}}°</view><view class="st-l">左右抖动</view></view>
-        <view class="st"><view class="st-n {{zeroQuality === 'warn' ? 'warn' : 'ok'}}">{{zeroSd}}°</view><view class="st-l">标准差</view></view>
-      </view>
     </view>
 
     <!-- 说明：一句话，放在最后 -->

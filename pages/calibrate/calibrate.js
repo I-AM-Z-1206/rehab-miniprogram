@@ -81,7 +81,10 @@ Page({
 
   // 视图就绪后再取 canvas 节点（此时宽高才有效）
   onReady() {
-    // 图表默认展开，画布已经在节点树里，直接建
+    // 姿态分布图在按钮上方、常驻显示（它才是判断「现在能不能标」的依据），
+    // 所以要单独建一次，不跟着「曲线」那个折叠一起销毁。
+    this._later(() => this.initZeroChart(), 50)
+    // 实时曲线默认展开，画布已经在节点树里，直接建
     this.ensureCharts()
   },
 
@@ -100,7 +103,7 @@ Page({
     // 必须丢掉落重建，否则再展开后图表是死的（只有空白）
     this.rollChart = null
     this.pitchChart = null
-    this.zeroChart = null
+    // zeroChart 不在这里销毁：它在折叠区外面，画布一直在
     this._chartsInited = false
     if (showDetail) this.ensureCharts()
   },
@@ -110,6 +113,7 @@ Page({
     this._clearTimers()
     if (this.zeroTimer) { clearInterval(this.zeroTimer); this.zeroTimer = null }
     this.zeroSamples = null
+    this.zeroChart = null
     WitBle.detach(this.ble)
   },
 
@@ -292,12 +296,20 @@ Page({
       series: [{ color: '#2f7bd6', fill: 'rgba(47, 123, 214, 0.08)' }],
       unit: '°'
     }).then((c) => { this.pitchChart = c; this.drawRealtime() })
-    this.createScatter('chartZero', { unit: '°', minSpan: 2 })
+  },
+
+  /** 姿态分布图（常驻，见 onReady 的说明） */
+  initZeroChart() {
+    if (this.zeroChart) return Promise.resolve(this.zeroChart)
+    // minSpan 2° → 0.8°：视窗跨度固定是对的（稳和晃要能对比），
+    // 但 2° 太大 —— 站得稳的人抖动只有 0.01~0.1°，在 2.6° 的窗口里
+    // 缩成一个十字，看着像「没数据」。0.8° 下 0.3° 的晃动能占到小半屏。
+    return this.createScatter('chartZero', { unit: '°', minSpan: 0.8 })
       .then((c) => {
         this.zeroChart = c
-        // 收起重开时点云要补画回来，否则只剩空坐标系
         this.lastScatterAt = 0
         this.pushZeroScatter()
+        return c
       })
   },
 
