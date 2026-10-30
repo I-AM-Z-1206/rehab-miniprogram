@@ -22,6 +22,7 @@ const { FruitRenderer } = require('../../games/fruit/renderer.js')
 const { AudioKit } = require('../../../utils/game/audio.js')
 const records = require('../../utils/fruit-record.js')
 const { getNickname } = require('../../../utils/tab.js')
+const deviceReady = require('../../../utils/device-ready.js')
 
 const SENSOR_HZ = 50
 const TAP_SLOP = 14
@@ -468,7 +469,8 @@ Page({
     switch (id) {
       // ---- 介绍页 ----
       case 'start':
-        engine.prepare()
+        // 不再直接进「设备准备」页：就绪时应当直接开一局
+        this.beginGame()
         break
       case 'settings':
         wx.navigateTo({ url: '/pkgFruit/pages/fruit-settings/fruit-settings' })
@@ -571,6 +573,80 @@ Page({
       return
     }
     this.hint('需要先开始训练（PLAYING）才能测试', '#9A6414', 0)
+  },
+
+  /**
+   * 点「开始训练」。
+   *
+   * 首页已经把连接和零点标定做完了，这里再走一遍「设备准备」页等于同一件事
+   * 做两次 —— 实测最直接的反馈就是「点一下开始，人还停在准备页」。
+   * 所以就绪时直接进倒计时；只有真的没就绪才拦住，并且给两条出路：
+   * 去补做（连接 / 标定），或者切到模拟数据。
+   */
+  beginGame() {
+    const engine = this.engine
+    if (!engine) return
+    if (engine.simMode) { this.tryStart(); return }
+    const st = deviceReady.check(this.ble)
+    if (st.ready) { this.tryStart(); return }
+    // 已连接、零点也对，只是数据还没开始推（刚进页面那几十毫秒）。
+    // 等一下再试，别让患者看到「没有可用的传感器数据」这种吓人的提示。
+    if (st.connected && engine.motion && !engine.motion.isLive()) {
+      this._later(() => {
+        const again = deviceReady.check(this.ble)
+        if (again.ready) this.tryStart()
+        else this.askDevice(again)
+      }, 650)
+      return
+    }
+    this.askDevice(st)
+  },
+
+  /**
+   * 没就绪：说清缺什么，并给「去补做」和「用模拟数据」两条路。
+   *
+   * 三种情况要分开说，否则会指错方向：
+   *   没连接 → 去连接
+   *   连了但零点失效 → 去标定
+   *   连了、零点也对，就是收不到数据 → 检查胸带/电量（提示「去标定」没用）
+   */
+  askDevice(st) {
+    const engine = this.engine
+    if (!engine) return
+    const needZero = st.connected && !st.zeroOk
+    const noData = st.connected && st.zeroOk
+
+    let title = '还不能开始'
+    let content = st.reason + '。'
+    let confirmText = '去连接'
+    if (!st.connected) {
+      title = '还没连接传感器'
+      content = '请先把胸带上的传感器开机，再回来连接。'
+    } else if (needZero) {
+      content = st.reason + '。请先完成零点标定 —— 传感器位置变了，旧零点就不准了。'
+      confirmText = '去标定'
+    } else if (noData) {
+      title = '收不到传感器数据'
+      content = '传感器已连接，但数据没有传上来。请检查胸带是否贴合、传感器是否还有电；也可以先用模拟数据试一次。'
+      confirmText = '查看设备'
+    }
+
+    wx.showModal({
+      title: title,
+      content: content,
+      confirmText: confirmText,
+      cancelText: '用模拟数据',
+      success: (r) => {
+        if (r.confirm) {
+          wx.navigateTo({ url: needZero ? '/pages/calibrate/calibrate' : '/pages/wit/wit' })
+          return
+        }
+        if (!r.cancel) return
+        engine.setSimMode(true)
+        this.hint('已切换到模拟数据（不会当作真实训练）', '#9A6414', 0)
+        this.tryStart()
+      }
+    })
   },
 
   tryStart(isRestart) {

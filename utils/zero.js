@@ -125,10 +125,23 @@ function apply(d) {
   return out
 }
 
+/**
+ * 丢弃内存缓存并重新读一次 storage。
+ *
+ * 正常流程用不到：set / reset 都会同步更新缓存，全 App 又是同一个模块实例。
+ * 存在的意义是**测试**——要伪造「上次佩戴时标的零点」就得直接写 storage，
+ * 而 load() 有缓存，不重新读的话写进去的值根本不生效。
+ */
+function reload() {
+  state = null
+  return load()
+}
+
 module.exports = {
   get,
   set,
   reset,
+  reload,
   setFromAngles,
   setFromSamples,
   apply,
