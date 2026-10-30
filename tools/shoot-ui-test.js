@@ -455,6 +455,27 @@ console.log('\n[9] 靶子：城市光核 —— 亮度必须反映进度，中�
   cfg.reset()
 }
 
+// ---------------------------------------------------------------- 城市与光核的余量
+console.log('\n[...] 城市不得插进光核（这是取景的死上限）')
+// 「光核下沿 → 地平线」这段高度是死的：光核是靶子（判定中心），城市长在它下面。
+// 两次放大城市都差点撞上，撞了就是「塔从光核里长出来」的穿帮。
+// 光核位置在 engine.js 的 MONSTER_Y_RATIO，塔高在 scene2d.js 的 CITY_SCALE ——
+// 改任何一个都必须重算这个余量，所以这里钉住。
+for (const [w, h] of [[390, 720], [414, 896], [320, 568]]) {
+  const { engine } = makeEngine({ w: w, h: h })
+  const sc = engine.scene
+  if (!sc || !sc.spires) { ok(false, w + '×' + h + ' 场景未构建', 'scene 为空'); continue }
+  const maxTower = Math.max.apply(null, sc.spires.map((s) => s.h * w))
+  const towerTop = sc.horizonY - maxTower
+  const coreBottom = engine.monster.y + engine.monster.radius
+  ok(towerTop > coreBottom,
+    w + '×' + h + ' 最高塔顶在光核下沿以下（余量 ' + (towerTop - coreBottom).toFixed(0) + 'px）',
+    '塔顶 ' + towerTop.toFixed(0) + ' / 光核下沿 ' + coreBottom.toFixed(0))
+  ok(maxTower / h > 0.07,
+    w + '×' + h + ' 城市高度不低于 7% 屏高（放大过的效果别被谁改回去）',
+    (maxTower / h * 100).toFixed(1) + '%')
+}
+
 
 finish()
 

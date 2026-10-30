@@ -479,7 +479,10 @@ console.log('\n[3f] 地平线是弧，不是直线')
   ok(isFinite(ridgeLeft) && isFinite(ridgeMid), '山脊有路径点可量')
   const drop = ridgeLeft - ridgeMid
   ok(drop >= 10, '天际线两端比中间低 ' + drop.toFixed(1) + 'px（弧成立）')
-  near(ridgeLeft, ridgeRight, 1.5, '左右对称')
+  // 对称性直接量弧函数，不量路径点：路径沿弧的采样步长是 6px，x=0 与 x=W
+  // 两侧不一定落在同一相位上，量出来的差可以到 2~3px，跟弧是否对称无关。
+  // 弧的对称性由 horizonYAt 的 u² 保证，这里就该量它。
+  near(scene.horizonYAt(0, sc), scene.horizonYAt(W, sc), 0.01, '弧左右端点精确对称')
 
   // 垂度：0.045 × 390 ≈ 17.6px
   ok(drop > 8 && drop < 40, '垂度在合理区间（' + drop.toFixed(1) + 'px，别做成鱼眼）')
@@ -594,7 +597,7 @@ console.log('\n[4] 不依赖 WebGL / three')
     'HORIZON_RATIO', 'buildScene', 'drawCityLights', 'drawFloorGlow', 'drawFloorPath',
     'drawGrain', 'drawGround',
     'drawKeepPillar', 'drawNebula', 'drawPlanet', 'drawRidge', 'drawShock', 'drawSky',
-    'drawStars', 'drawVignette', 'drawWater', 'fillEllipse', 'ringEllipse', 'softShadow'
+    'drawStars', 'drawVignette', 'drawWater', 'fillEllipse', 'horizonYAt', 'ringEllipse', 'softShadow'
   ]
   eq(keys.join(','), allowed.join(','), '导出接口与约定一致')
 }
