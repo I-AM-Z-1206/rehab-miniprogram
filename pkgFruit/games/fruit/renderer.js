@@ -145,7 +145,7 @@ class FruitRenderer {
     // 篮体高 ≈ 0.96 半宽（与 fruits.drawBasket 一致），再留一点投影空间。
     // 之前 rimY 只按固定 52px 上抬，导致篮体下半截被底部按钮压住，视觉上像个"盘子"。
     const basketH = basketHalfW * 0.96 + 10
-    const groundY = H - (short ? 62 : 76)
+    const groundY = H - (short ? 44 : 56)
     const rimY = groundY - basketH
 
     this.L = {
@@ -163,8 +163,6 @@ class FruitRenderer {
       rimY: rimY,
       catchLine: 1,
       basketHalfW: basketHalfW,
-      btnY: H - (short ? 46 : 52),
-      btnH: short ? 38 : 42,
       horizonY: H * (short ? 0.5 : 0.52),
       fruitScale: W / DESIGN_WIDTH
     }
@@ -707,6 +705,18 @@ class FruitRenderer {
     const bx = vm.basket ? clamp(vm.basket.x, 0, 1) : 0.5
     depth.softShadow(ctx, bx * W, L.groundY + 2, L.basketHalfW * 1.55, 9, 0.30, '44,72,40')
 
+    // 头顶的树冠：水果得有个"从哪儿掉下来"的来源。
+    //
+    // 之前水果直接从蓝天白云里凭空出现，穿过远山往下掉 —— 画面读起来像
+    // 「水果从天上砸向草地」，而不是「接水果」。加一片树冠之后，水果从叶缝
+    // 里掉出来，观众立刻接受这个来源；同时它正好填掉画面上方那片空得发慌的天。
+    //
+    // 画在水果之前 = 水果在树冠前面（朝观众落过来），所以露出位置不必和叶缝
+    // 严格对齐；叶子只是告诉观众"上面有棵树"。
+    // 只在游戏屏画。介绍页的大标题是深色文字，树叶一盖就完全读不出来
+    // （实测第一版把「接水果」三个字埋进了叶子里）。
+    if (screen === 'play') this._drawCanopy()
+
     // 水果（先画，被篮口覆盖）
     this._drawFruits(vm)
     // 最低水果的落点引导线：让"把果篮移过去"这件事看得明白
@@ -720,6 +730,166 @@ class FruitRenderer {
 
     // 屏幕边缘暗角：环境绿而不是纯黑，纯黑在暖色草地上会发脏
     depth.vignette(ctx, { w: W, h: H, color: '32,60,40', alpha: 0.17, cy: 0.55, inner: 0.40, outer: 0.98 })
+  }
+
+  /**
+   * 头顶的树冠：水果得有个"从哪儿掉下来"的来源。
+   *
+   * 这块试了三版，踩到的坑都记在这里，改之前先看：
+   *  1. **必须从屏幕顶边开始**。从 HUD 下沿开始的话，树冠上面还露着一条天，
+   *     一块上下都有天的深绿色只能读成"飘在空中的篱笆"。
+   *  2. **实心带的下沿不要做深缝**。第二版让缝把底边顶上去 50 多像素，
+   *     结果天空从缝里戳出三角形的洞，看着像渲染故障。
+   *     疏密交给"跳过几个叶团"，不要交给底边曲线。
+   *  3. **叶团半径要差 2~3 倍**。等大的圆并排 = 篱笆。
+   *  4. 叶子必须垂到 HUD 下沿以下，否则整块被卡片挡住，等于没画。
+   *
+   * 全部用 hash(i) 定值：同一尺寸下每次绘制必须完全一样，
+   * 用 Math.random 会逐帧抽搐。
+   */
+  _drawCanopy() {
+    const ctx = this.ctx
+    const L = this.L
+    const W = L.W
+
+    const top = -6
+    // 实心带的下沿压到 HUD 卡片下沿：卡片是不透明的，树冠必须垂到它下面
+    // 才看得见。第一版只铺到 fieldTop，整块被卡片盖住，等于没画。
+    const bandBottom = L.hudBottom + 6
+    // 叶子的下缘：HUD 下沿再往下约 1/5 屏高 —— 这个高度刚好压住画面上方，
+    // 又不侵占地面的接取区
+    const fringeBottom = bandBottom + Math.max(64, L.fieldH * 0.20)
+
+    // 疏密：这几处跳过叶团，透出天空（主缝偏左，正中会显得刻意对称）
+    const gaps = [[W * 0.42, W * 0.050], [W * 0.21, W * 0.026], [W * 0.75, W * 0.022]]
+
+    // ---- 实心带：底边只有轻微的叶缘起伏，不做深缝 ----
+    const N = 56
+    const edgeY = []
+    for (let i = 0; i <= N; i++) {
+      const x = (i / N) * W
+      let y = bandBottom
+      y += Math.sin((x / W) * Math.PI * 4.7 + 1.7) * 4.0
+      y += Math.sin((x / W) * Math.PI * 2.2 + 0.4) * 3.4
+      // 主缝：底边往上收一道浅 V，光从这儿透下来。
+      // 幅度必须远小于带高（带高约 100px，这里只抬 26px）——
+      // 之前抬 50 多像素，天空直接从缝里戳出三角形的洞。
+      const dg = Math.abs(x - gaps[0][0])
+      if (dg < gaps[0][1] * 1.4) {
+        const k = 1 - dg / (gaps[0][1] * 1.4)
+        y -= 26 * k * k
+      }
+      edgeY.push(y)
+    }
+    const g = ctx.createLinearGradient(0, top, 0, bandBottom + 10)
+    g.addColorStop(0, '#0D1B13')
+    g.addColorStop(0.55, '#17301F')
+    g.addColorStop(1, '#26482D')
+    ctx.save()
+    ctx.beginPath()
+    ctx.moveTo(0, top - 4)
+    ctx.lineTo(W, top - 4)
+    ctx.lineTo(W, edgeY[N])
+    for (let i = N; i >= 0; i--) ctx.lineTo((i / N) * W, edgeY[i])
+    ctx.closePath()
+    ctx.fillStyle = g
+    ctx.fill()
+    ctx.restore()
+
+    // ---- 叶团：贴着实心带连成一片 ----
+    // 关键约束：**cy 必须紧贴 bandBottom**（偏移不超过一个半径）。
+    // 试过让它们沿 fringeBottom 均匀撒开，结果叶团和实心带之间露出天空，
+    // 一排深绿球飘在蓝天上，看着像漂浮的灌木。
+    // 叶团要"从带上挂下来"，不能"撒在天里"。
+    const clusters = Math.max(12, Math.round(W / 26))
+    for (let i = 0; i < clusters; i++) {
+      const t = (i + 0.5) / clusters
+      const x = t * W + (hash(i, 3) - 0.5) * (W / clusters) * 0.55
+      if (this._inCanopyGap(x, gaps)) continue
+      // 半径差 2.4 倍：大小悬殊才不像篱笆
+      const r = (0.032 + Math.pow(hash(i, 7), 1.5) * 0.046) * W
+      const cy = bandBottom + (hash(i, 13) - 0.10) * r * 1.15
+      this._canopyBlob(x, cy, r, i)
+    }
+
+    // 第二层：少量更大的叶团垂得更低，制造纵深（全在同一深度会像贴纸）
+    for (let i = 0; i < 5; i++) {
+      const x = (0.08 + i * 0.21) * W + (hash(i, 91) - 0.5) * W * 0.06
+      if (this._inCanopyGap(x, gaps)) continue
+      const r = (0.038 + hash(i, 93) * 0.026) * W
+      const cy = bandBottom + r * (0.60 + hash(i, 97) * 0.50)
+      this._canopyBlob(x, cy, r, i + 40)
+    }
+
+    // ---- 垂叶：细长梭形，专门打散"圆 + 圆" ----
+    const blades = Math.max(7, Math.round(W / 46))
+    for (let i = 0; i < blades; i++) {
+      const t = (i + 0.5) / blades
+      const x = t * W + (hash(i, 41) - 0.5) * (W / blades) * 0.95
+      if (this._inCanopyGap(x, gaps)) continue
+      const len = (0.026 + hash(i, 43) * 0.030) * W
+      const sway = Math.sin(this.clock * 0.85 + i * 1.7) * 2.6
+      const tilt = (hash(i, 47) - 0.5) * 1.15
+      const yTop = bandBottom - 2 + hash(i, 51) * (fringeBottom - bandBottom - len) * 0.45
+      ctx.save()
+      ctx.translate(x, yTop)
+      ctx.rotate(tilt)
+      ctx.beginPath()
+      ctx.moveTo(sway * 0.2, 0)
+      ctx.quadraticCurveTo(len * 0.30 + sway * 0.4, len * 0.42, sway * 0.5, len)
+      ctx.quadraticCurveTo(-len * 0.30 + sway * 0.4, len * 0.42, sway * 0.2, 0)
+      ctx.closePath()
+      ctx.fillStyle = i % 3 === 0 ? 'rgba(40,78,47,0.98)' : 'rgba(24,48,32,0.99)'
+      ctx.fill()
+      if (i % 3 === 0) {
+        ctx.beginPath()
+        ctx.moveTo(sway * 0.2, 1)
+        ctx.quadraticCurveTo(sway * 0.45, len * 0.5, sway * 0.5, len * 0.94)
+        ctx.lineWidth = Math.max(0.8, len * 0.05)
+        ctx.strokeStyle = 'rgba(122,166,96,0.30)'
+        ctx.stroke()
+      }
+      ctx.restore()
+    }
+
+    // ---- 树冠下方柔影：叶子不能贴在天上，得有厚度 ----
+    const sh = ctx.createLinearGradient(0, bandBottom, 0, fringeBottom + 26)
+    sh.addColorStop(0, 'rgba(16,36,24,0.26)')
+    sh.addColorStop(1, 'rgba(16,36,24,0)')
+    ctx.fillStyle = sh
+    ctx.fillRect(0, bandBottom, W, fringeBottom + 26 - bandBottom)
+  }
+
+  /** 落点是否落在"透光缝"里（缝里不长叶子） */
+  _inCanopyGap(x, gaps) {
+    for (let i = 0; i < gaps.length; i++) {
+      if (Math.abs(x - gaps[i][0]) < gaps[i][1]) return true
+    }
+    return false
+  }
+
+  /** 一簇叶子：3~4 片错位小椭圆 + 左上亮缘。单个大圆会读成灌木 */
+  _canopyBlob(cx, cy, r, seed) {
+    const ctx = this.ctx
+    ctx.save()
+    const n = 3 + Math.round(hash(seed, 55) * 1.6)
+    for (let k = 0; k < n; k++) {
+      const kx = cx + (hash(seed * 7 + k, 61) - 0.5) * r * 1.55
+      const ky = cy + (hash(seed * 7 + k, 67) - 0.5) * r * 0.85
+      const kr = r * (0.50 + hash(seed * 7 + k, 71) * 0.55)
+      ctx.beginPath()
+      ctx.ellipse(kx, ky, kr, kr * (0.78 + hash(seed * 7 + k, 73) * 0.3),
+        (hash(seed * 7 + k, 79) - 0.5) * 0.5, 0, Math.PI * 2)
+      ctx.fillStyle = k === 0 ? 'rgba(19,40,26,0.99)' : 'rgba(28,56,36,0.97)'
+      ctx.fill()
+    }
+    ctx.beginPath()
+    ctx.ellipse(cx - r * 0.18, cy - r * 0.24, r * 0.60, r * 0.44, 0,
+      Math.PI * 1.05, Math.PI * 1.85)
+    ctx.lineWidth = Math.max(1.1, r * 0.10)
+    ctx.strokeStyle = 'rgba(120,164,94,0.30)'
+    ctx.stroke()
+    ctx.restore()
   }
 
   _fruitPx(f) {
@@ -763,9 +933,12 @@ class FruitRenderer {
       }
 
       if (f.state === 'missed') {
-        // 漏接：继续下落 + 缩小 + 淡出，落地即消失（不做抖动或红屏）
-        const t = clamp((f.y - 1) / 0.3, 0, 1)
-        drawFruit(ctx, f.type, p.x, p.y, r0 * (1 - t * 0.28), f.rot, { alpha: (1 - t) * 0.85 })
+        // 漏接：越过篮口后**立刻**淡出缩小，不做"在草地上滑一段"。
+        // 原来用 0.3 的归一化距离，配合 1.7 倍速要将近 0.7 秒才彻底消失，
+        // 水果会一路滑到草地深处，看起来像在地上滚。
+        // 0.12 大约 0.25 秒，正好是"掉进草里就没"。
+        const t = clamp((f.y - 1) / 0.12, 0, 1)
+        drawFruit(ctx, f.type, p.x, p.y, r0 * (1 - t * 0.34), f.rot, { alpha: (1 - t) * 0.85 })
         continue
       }
 
@@ -1079,77 +1252,32 @@ class FruitRenderer {
       ctx.fill()
     }
 
-    this._drawBottomBar(vm)
+    this._drawTopIcons(vm)
   }
 
-  _drawBottomBar(vm) {
-    const ctx = this.ctx
+  /**
+   * 顶部两个小图标：暂停 / 结束。
+   *
+   * 原来它们和一条"果篮位置条"横在屏幕底部，正好压在接取区上 ——
+   * 篮子被挤在角落，漏接的水果从按钮边上滑走，画面读起来很挤。
+   * 挪到 HUD 卡片下方右侧（叶子上面），底部整条留给篮子和下落区。
+   *
+   * 位置条一并去掉：篮子本来就在屏幕上，对准时还有引导线变色，
+   * 再画一条横条只是重复。
+   */
+  _drawTopIcons(vm) {
     const L = this.L
     const W = L.W
-    const by = L.btnY
-    const bh = L.btnH
-    const bw = Math.min(84, W * 0.22)
-
-    this._button('pause', 12, by, bw, bh, vm.state === 'PAUSED' ? '继续' : '暂停', {
-      variant: 'glass', icon: vm.state === 'PAUSED' ? 'play' : 'pause', size: 12
+    const size = 34
+    const gap = 8
+    const y = L.hudBottom + 8
+    const quitX = W - 12 - size
+    const pauseX = quitX - gap - size
+    const paused = vm.state === 'PAUSED'
+    this._button('pause', pauseX, y, size, 30, '', {
+      variant: 'glass', icon: paused ? 'play' : 'pause', size: 13
     })
-    this._button('quit', W - 12 - bw, by, bw, bh, '结束', {
-      variant: 'glass', icon: 'exit', size: 12
-    })
-
-    // 果篮位置条：身体左右倾 → 这里的小圆点就是篮子位置
-    const basketX = clamp(vm.basket ? vm.basket.x : 0.5, 0, 1)
-    const x0 = 12 + bw + 12
-    const x1 = W - 12 - bw - 12
-    const pillW = Math.max(40, x1 - x0)
-    const pillH = Math.min(30, bh)
-    const pillY = by + (bh - pillH) / 2
-
-    ctx.save()
-    ctx.shadowColor = 'rgba(16,48,32,0.12)'
-    ctx.shadowBlur = 10
-    ctx.shadowOffsetY = 3
-    rr(ctx, x0, pillY, pillW, pillH, pillH / 2)
-    ctx.fillStyle = 'rgba(255,255,255,0.94)'
-    ctx.fill()
-    ctx.shadowBlur = 0
-    ctx.shadowOffsetY = 0
-
-    const trackX0 = x0 + 14
-    const trackX1 = x0 + pillW - 30
-    const trackW = Math.max(20, trackX1 - trackX0)
-    const ty = pillY + pillH / 2
-
-    // 轨道
-    rr(ctx, trackX0, ty - 2.5, trackW, 5, 2.5)
-    ctx.fillStyle = 'rgba(21,45,34,0.09)'
-    ctx.fill()
-
-    // 三段刻度：左 / 中 / 右
-    for (let i = 0; i < 3; i++) {
-      const tx = trackX0 + trackW * (i / 2)
-      ctx.fillStyle = i === 1 ? 'rgba(21,45,34,0.28)' : 'rgba(21,45,34,0.16)'
-      ctx.fillRect(tx - 0.6, ty - (i === 1 ? 6 : 4.5), 1.2, i === 1 ? 12 : 9)
-    }
-
-    // 圆点 = 果篮当前位置；对准水果时变绿并轻微放大
-    const aligned = !!vm.aligned
-    const kx = trackX0 + trackW * basketX
-    const kr = aligned ? 7 : 6
-    ctx.beginPath()
-    ctx.arc(kx, ty, kr, 0, Math.PI * 2)
-    ctx.fillStyle = aligned ? C.teal : C.amber
-    ctx.fill()
-    ctx.lineWidth = 2
-    ctx.strokeStyle = 'rgba(255,255,255,0.95)'
-    ctx.stroke()
-
-    // 右侧：方向词
-    const dirWord = vm.dir === 'left' ? '左' : (vm.dir === 'right' ? '右' : '中')
-    this._text(dirWord, x0 + pillW - 11, ty + 3.2, {
-      size: 9.5, weight: '700', color: aligned ? C.tealDeep : C.inkMute, align: 'right'
-    })
-    ctx.restore()
+    this._button('quit', quitX, y, size, 30, '', { variant: 'glass', icon: 'exit', size: 13 })
   }
 
   _dot(x, y, r, color) {

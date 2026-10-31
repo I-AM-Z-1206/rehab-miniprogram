@@ -507,5 +507,37 @@ console.log('\n[8] 训练记录：防重复 + 模拟不上报 + 与走钢丝分�
     fruit.getUploadConfig().url === '' && wire.getUploadConfig().url === '', 'not isolated')
 }
 
+// ---------------------------------------------------------------- 画面结构
+// 渲染层没法在 node 里真跑 canvas，但这两条是"一改就翻车"的结构约束，
+// 用源码断言盯着比截图回归便宜得多。
+function sectionScene() {
+  console.log('\n[画面] 接水果的背景结构')
+  const fs = require('fs')
+  const path = require('path')
+  const src = fs.readFileSync(path.join(__dirname, '../pkgFruit/games/fruit/renderer.js'), 'utf8')
+
+  check('有头顶树冠（水果要有来源，不能从蓝天里凭空冒出来）',
+    /_drawCanopy\s*\(/.test(src), 'missing _drawCanopy')
+
+  // 只在 play 屏画：介绍页的大标题是深色字，树叶一盖就读不出来。
+  // 第一版就是全屏无差别绘制，把「接水果」三个字埋进了叶子里。
+  check('树冠只在游戏屏绘制',
+    /if \(screen === 'play'\) this\._drawCanopy\(\)/.test(src), 'canopy not gated by screen')
+
+  // 树冠必须用 hash() 定值；Math.random 会让叶子逐帧抽搐
+  const canopy = src.slice(src.indexOf('_drawCanopy()'), src.indexOf('_fruitPx('))
+  // 注释里会提到 Math.random（就是解释为什么不能用），所以先剥掉注释行再查
+  const canopyCode = canopy.split('\n')
+    .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+    .join('\n')
+  check('树冠绘制是确定性的（不用 Math.random）',
+    canopyCode.length > 200 && canopyCode.indexOf('Math.random') < 0, 'uses Math.random')
+
+  check('底部不再压按钮（接取区整条留给篮子）',
+    src.indexOf('_drawBottomBar') < 0, 'bottom bar still exists')
+}
+
+sectionScene()
+
 console.log('\n' + (failed ? '结果：' + failed + ' 项未通过' : '结果：全部通过'))
 process.exit(failed ? 1 : 0)
