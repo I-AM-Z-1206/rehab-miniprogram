@@ -80,12 +80,41 @@ class FruitSpawner {
    * @param {Array} fruits 场上水果
    * @param {object} [avoid] { x, half }：果篮当前位置与半宽
    */
-  _pickX(fruits, avoid) {
+  _pickX(fruits, avoid, spread, c_maxOffset) {
     // 可及范围：果篮中心能到 [basketMinX, basketMaxX]，落点铺满这一段就都能接到
     const minX = FIELD_MIN_X
     const maxX = FIELD_MAX_X
     const gap = Math.min(MIN_X_GAP, Math.max(0.02, (maxX - minX) * 0.32))
     const blockers = (fruits || []).filter((f) => f.state === 'fall' && f.y < NEAR_TOP).map((f) => f.x)
+
+    // ---- 自适应落点（主路径）----
+    // 距离由引擎按「当前能力」给定，这里只决定左右方向 + 一点抖动。
+    // 为什么不再用均匀随机：均匀随机时"这局难不难"取决于运气 ——
+    // 连着三颗落在最远端，再强的患者也接不住；连着三颗都在近处，再弱也全中。
+    // 命中率因此混进了难度噪声，没法当能力指标用。距离受控之后才有得比。
+    if (typeof spread === 'number' && spread > 0.002) {
+      const jitter = 0.88 + this.rng() * 0.24
+      // 上限必须是「果篮真的能到多远」，不是屏幕边缘 —— 否则抖动会把水果
+      // 甩到可及范围之外，患者再怎么倾也够不着（实测 12° 档位报出 12.9°）。
+      const maxOff = Math.max(0.02, Math.min(
+        typeof c_maxOffset === 'number' ? c_maxOffset : (0.5 - 0.05),
+        0.5 - 0.05
+      ))
+      const off = Math.min(spread * jitter, maxOff)
+      const first = this.rng() < 0.5 ? -1 : 1
+      for (let k = 0; k < 2; k++) {
+        const side = k === 0 ? first : -first
+        const x = clamp(0.5 + side * off, minX, maxX)
+        let blocked = false
+        for (let i = 0; i < blockers.length; i++) {
+          if (Math.abs(blockers[i] - x) < gap) { blocked = true; break }
+        }
+        if (!blocked) return x
+      }
+      // 两侧都被占：宁可稍微偏一点，也不要让它落在篮口正上方
+      return clamp(0.5 + first * off, minX, maxX)
+    }
+
     const keepOut = avoid && typeof avoid.x === 'number'
       ? Math.max(0, Number(avoid.half) || 0) * 1.15
       : 0
@@ -149,7 +178,7 @@ class FruitSpawner {
     const x = this._pickX(fruits, {
       x: c.basketX,
       half: c.basketHalf
-    })
+    }, c.spread, c.maxOffset)
     this.serial += 1
     out.push({
       id: 'f' + this.serial,

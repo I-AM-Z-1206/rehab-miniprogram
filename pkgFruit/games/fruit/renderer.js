@@ -2012,19 +2012,45 @@ class FruitRenderer {
       })
     })
 
-    // 指标
+    // ---- 能力指标（metricVersion v2）----
+    //
+    // 这里换掉的不是"多加几个数"，而是**口径**：原来六个格子里的「命中率 /
+    // 最长稳定 / 平均偏离」都受"这局水果落在哪"影响，跨局不可比。
+    // 现在四个核心数都是能力值，难度自适应之后它们仍然可比。
+    //
+    // 用词给患者看，不用 D75/RT50 这种代号：
+    //   够得着 = 成功率 75% 时需要的侧倾角度（功能性前伸的等价物）
+    //   反应   = 从看见到开始动
+    //   到位   = 从开始动到篮口对上
     y = tileY + tileH + gapA + (tight ? 8 : 10)
     const holdRate = typeof sum.holdRate === 'number' ? sum.holdRate : 0
-    const metrics = [
-      { k: '命中率', v: Math.round((sum.accuracy || 0) * 100) + '%', hi: true },
+    const mm = (sum.metrics && sum.metrics.trials) ? sum.metrics : {}
+    const cells = [
+      {
+        k: '够得着',
+        v: mm.d75 === null || mm.d75 === undefined ? '--' : mm.d75.toFixed(1) + '°',
+        hi: true,
+        why: mm.d75 === null || mm.d75 === undefined ? '样本还不够' : ''
+      },
+      {
+        k: '反应',
+        v: mm.rt50 === null || mm.rt50 === undefined ? '--' : mm.rt50.toFixed(2) + ' 秒',
+        why: mm.rt50 === null || mm.rt50 === undefined ? '没动过' : ''
+      },
+      {
+        k: '到位',
+        v: mm.mt50 === null || mm.mt50 === undefined ? '--' : mm.mt50.toFixed(2) + ' 秒'
+      },
       { k: '稳定率', v: Math.round(holdRate * 100) + '%' },
-      { k: '最长稳定', v: (sum.holdBestSec || 0).toFixed(1) + ' 秒' },
-      { k: '平均偏离', v: (sum.deviationAvgDeg || 0).toFixed(1) + '° / ±' + (sum.holdToleranceDeg || 6) + '°' },
-      { k: '训练时长', v: this._fmtSec(sum.durationSec || 0) },
-      { k: '数据来源', v: sum.dataSource === 'simulation' ? '模拟' : '真实' }
+      {
+        k: '有效训练',
+        v: mm.activeRate === null || mm.activeRate === undefined
+          ? '--' : Math.round(mm.activeRate * 100) + '%'
+      },
+      { k: '命中率', v: Math.round((sum.accuracy || 0) * 100) + '%' }
     ]
     const cellW = gw / 2
-    metrics.forEach((m, i) => {
+    cells.forEach((m, i) => {
       const mx = gx + (i % 2) * cellW
       const my = y + Math.floor(i / 2) * mGap
       this._text(m.k, mx, my + 9, { size: 9, weight: '500', color: C.inkMute })
@@ -2055,9 +2081,12 @@ class FruitRenderer {
     })
     y += swayRows.length * rowGap + gapA * 0.7
 
-    this._text('稳定率与偏离角都是姿态代理指标，不是真实位移；成绩仅用于训练对比。', gx, y + 8, {
-      size: 9.5, weight: '500', color: 'rgba(21,45,34,0.4)'
-    })
+    // 这句话比上面所有数字都重要：它是患者和治疗师读这些数的框架。
+    this._text(
+      '够得着 = 成功率 75% 时需要的侧倾角度；反应 / 到位是这类动作的中位耗时。' +
+      (mm.trials ? '' : ' 本局样本不足，能力指标暂不显示。'),
+      gx, y + 8, { size: 9, weight: '500', color: 'rgba(21,45,34,0.4)' }
+    )
     const footBottom = y + 14
 
     // 底部按钮

@@ -29,6 +29,7 @@
 
 const { MotionTracker } = require('../../../utils/motion.js')
 const { ScoreManager } = require('./score.js')
+const metrics = require('./metrics.js')
 const { FruitSpawner, FRUIT_TYPES, DESIGN_WIDTH, scoreOf } = require('./spawner.js')
 
 const STATE = {
@@ -49,6 +50,14 @@ const CATCH_LINE = 1 // 归一化：篮子口所在高度
 const MISS_AFTER = 0.035 // 越过篮子口这么多仍没接住 → 记漏接
 const REMOVE_AFTER = 1.3 // 落到这里之后从数组移除
 const CATCH_ANIM_SEC = 0.36 // 入篮动画时长（渲染层用）
+// 「患者开始动了」的判据：控制量相对"水果刚出现时"的位置变化超过这么多。
+// 取 0.10 = 满行程的 10%，换算成 12° 满行程约 1.2°，略低于死区 1.5° —— 
+// 再小就会把呼吸和传感器噪声也算成"他动了"。
+const RESPOND_NX = 0.10
+// 自适应落点：接住往上加、漏接往下减（不对称，防一次失手就崩）
+const REACH_UP = 0.5
+const REACH_DOWN = 1.0
+const REACH_MIN = 1.5
 const BASKET_EDGE = 0.02 // 果篮中心离屏幕边缘至少留出的余量（归一化）
 
 // 每种水果的归一化半径（相对 390 设计宽度），与渲染层缩放保持一致
@@ -132,6 +141,11 @@ class FruitEngine {
     this.calibrated = false
     this.lastCalibration = null
 
+    // ---- 能力指标（见 metrics.js）----
+    // trials：逐颗接取记录，一局一条；reachDeg：当前自适应的落点距离（度）
+    this.trials = []
+    this.reachDeg = REACH_MIN
+
     this.interruption = { count: 0, totalSec: 0, active: false, startedAt: 0 }
     this._resumeAt = 0
     this._lowTimeWarned = false
@@ -150,6 +164,56 @@ class FruitEngine {
     this.basketMinX = edge
     this.basketMaxX = 1 - edge
     this.basket.x = clamp(this.basket.x, this.basketMinX, this.basketMaxX)
+  }
+
+  // ---------------------------------------------------------------- 距离换算
+  //
+  // 指标一律用**角度**（度）表达，不用屏幕比例。原因：
+  //   「他能够到 9.6°」是康复上说得通的话（相当于功能性前伸）；
+  //   「他能够到 0.32 屏宽」换个手机就变了，跨设备没法比。
+  // 换算基准是「标定零点 = 屏幕中心」，所以左右满行程都等于各自的 limit 角。
+
+  /** 果篮能左右的半幅（归一化） */
+  _travel() {
+    return Math.max(1e-6, 0.5 - this.basketMinX)
+  }
+
+  /** 自适应不能超过左右满行程里较小的那个，否则水果够不到 */
+  _maxReachDeg() {
+    const l = Number(this.cfg.get('leftLimit')) || 12
+    const r = Number(this.cfg.get('rightLimit')) || 12
+    return Math.min(l, r)
+  }
+
+  /**
+   * 自适应的下限：**必须落在篮口之外**。
+   *
+   * 这条是调参调出来的教训：一开始把下限设成 1.5°，结果 1.5° 换算成横向偏移
+   * 只有 0.045，而接取容差是 catchHalf + 果实半径（约 0.15）——
+   * 水果直接掉进篮子里，患者站着不动就接住了，于是"自适应"一路涨到 6°，
+   * 因为每一颗都算成功。
+   *
+   * 下限 = 接取容差再往外一点，这样每颗水果都必须真的移动身体。
+   */
+  _minReachDeg() {
+    let maxR = 0
+    Object.keys(RADIUS_MAP).forEach((k) => { maxR = Math.max(maxR, RADIUS_MAP[k] || 0) })
+    // 再留 2% 屏宽的余量：西瓜的接取容差正好等于 catchHalf + 它自己的半径，
+    // 不加余量的话最大的那颗会刚好落在边界上被判接住，原地不动也能得一分。
+    const edge = this.catchHalf + maxR * 0.55 + 0.02
+    return clamp(this._degOfX(0.5 + edge), 1, this._maxReachDeg())
+  }
+
+  /** 横向位置 → 需要多大的侧倾 */
+  _degOfX(x) {
+    const travel = this._travel()
+    return clamp((Math.abs(x - 0.5) / travel) * this._maxReachDeg(), 0, 90)
+  }
+
+  /** 要多少度 → 横向偏移（归一化） */
+  _offsetForDeg(deg) {
+    const travel = this._travel()
+    return clamp((deg / this._maxReachDeg()) * travel, 0, travel)
   }
 
   // ---------------------------------------------------------------- 状态
@@ -253,6 +317,10 @@ class FruitEngine {
     this.missFlash = 0
     this.comboFlash = 0
     this._milestoneIdx = 0
+    this.trials.length = 0
+    // 每局从"最保守的距离"起步，让前两颗一定接得住 —— 
+    // 开局连丢两颗的挫败感比后面少拿几分严重得多
+    this.reachDeg = this._minReachDeg()
     this._lowTimeWarned = false
     this.finished = false
     this.summary = null
@@ -345,6 +413,15 @@ class FruitEngine {
       comboMax: snap.maxCombo,
       // ---- 稳定统计（辅助指标，不影响接取）----
       holdRate: this.elapsedSec > 0.2 ? round(this.hold.timeSec / this.elapsedSec, 3) : 0,
+      // ---- 能力指标（metricVersion v2）----
+      // 与 v1 不可直接对比：从 v2 起落点受控（自适应），命中率不再被"这局运气"污染，
+      // 但数值本身会变，拿旧记录当基线会读错。
+      metricVersion: 'v2',
+      metrics: metrics.summarize(this.trials, {
+        elapsedSec: this.elapsedSec,
+        holdRate: this.elapsedSec > 0.2 ? this.hold.timeSec / this.elapsedSec : null
+      }),
+      reachDeg: round(this.reachDeg, 1),
       holdTimeSec: round(this.hold.timeSec, 1),
       holdBestSec: round(this.hold.bestSec, 1),
       holdOutCount: this.hold.outCount,
@@ -589,7 +666,12 @@ class FruitEngine {
       fruits: this.fruits,
       progress: progress,
       basketX: this.basket.x,
-      basketHalf: this.basketHalf
+      basketHalf: this.basketHalf,
+      // 自适应落点：这一次水果离中心多远（归一化半幅）。
+      // 只调距离，速度/间隔仍然由难度档固定 —— 两个维度一起动，指标就不可解释了。
+      spread: this._offsetForDeg(this.reachDeg),
+      // 可及上限：抖动不能把水果甩到果篮够不到的地方
+      maxOffset: this._travel()
     })
     for (let i = 0; i < spawns.length; i++) this.fruits.push(this._makeFruit(spawns[i]))
 
@@ -608,6 +690,25 @@ class FruitEngine {
       f.swayPhase += f.swaySpeed * step
       f.x = clamp(f.baseX + Math.sin(f.swayPhase) * f.swayAmp, 0.02, 0.98)
       f.rot += f.vrot * step
+
+      // ---- 逐颗留痕 ----
+      // rt 从「水果进入屏幕」算起：屏幕外那段时间患者看不见，不该算成反应时间。
+      if (!f.trk.visibleAt && prevY < 0 && f.y >= 0) {
+        f.trk.visibleAt = this.t
+        f.trk.nx0 = this.motion.nx
+        // 出现时篮口已经罩住它 → 这颗不需要"转移重心"，mt 无从谈起
+        f.trk.startedInside = Math.abs(f.x - this.basket.x) <= this.catchHalf
+      }
+      if (f.trk.visibleAt && !f.trk.responded &&
+          Math.abs(this.motion.nx - f.trk.nx0) >= RESPOND_NX) {
+        f.trk.responded = true
+        f.trk.movedAt = this.t
+      }
+      // 到位：从开始动到篮口与水果对上线
+      if (f.trk.responded && !f.trk.arrivedAt &&
+          Math.abs(f.x - this.basket.x) <= this.catchHalf) {
+        f.trk.arrivedAt = this.t
+      }
 
       // 已经记过漏接：只下落，不再参与接取判定
       if (missed) continue
@@ -630,6 +731,7 @@ class FruitEngine {
         f.state = 'missed'
         f.missedAt = this.t
         this.score.miss()
+        this._finishTrial(f, false)
         this.missFlash = 1
         this._emit('miss', {
           x: f.x,
@@ -670,8 +772,54 @@ class FruitEngine {
       swaySpeed: spec.swaySpeed,
       state: 'fall',
       scored: false,
-      caughtAt: 0
+      caughtAt: 0,
+      // 这颗水果要求患者侧倾多少度 —— 指标里的 d 就是它
+      dDeg: this._degOfX(spec.x),
+      // 逐颗留痕：看得见的那一刻、当时的位置、开始动、到位
+      trk: { visibleAt: 0, nx0: 0, responded: false, movedAt: 0, arrivedAt: 0, startedInside: false }
     }
+  }
+
+  /**
+   * 结算一颗水果的记录，并推进自适应距离。
+   *
+   * 口径（都写进 metricVersion v2）：
+   *  · rt  从「水果进入屏幕（y≥0）」到「患者开始动」——屏幕外的下落时间不算反应时间
+   *  · mt  从「开始动」到「进入接取窗口」——只对真的动过的水果有意义
+   *  · noResponse 全程控制量变化都没超过一个 RESPOND_NX —— 这颗他根本没理
+   */
+  _finishTrial(f, hit) {
+    const trk = f.trk || {}
+    const visibleSec = trk.visibleAt ? Math.max(0, this.t - trk.visibleAt) : 0
+    const rt = trk.responded ? Math.max(0, trk.movedAt - trk.visibleAt) : null
+    // mt 只在"真的需要移动"时才有意义：如果水果一出现就已经在篮口范围内，
+    // 患者哪怕动一下，到位耗时也会是 0.0x 秒 —— 那个数不是"他转移得快"，
+    // 是"这件事根本不需要转移"。混进去会把 MT50 拉向 0。
+    const needMove = trk.startedInside === false
+    const mt = (needMove && trk.responded && trk.arrivedAt)
+      ? Math.max(0, trk.arrivedAt - trk.movedAt) : null
+
+    this.trials.push({
+      dDeg: round(f.dDeg, 1),
+      side: f.baseX < 0.5 ? 'left' : 'right',
+      hit: !!hit,
+      rt: rt === null ? null : round(rt, 2),
+      mt: mt === null ? null : round(mt, 2),
+      visibleSec: round(visibleSec, 2),
+      // 「没响应」= 没动**且**没接住。
+      // 只判 !responded 是错的：患者本来就站在正确位置，水果落进篮子里，
+      // 他当然不用动 —— 那颗他接着了，不能算走神。
+      noResponse: !trk.responded && !hit,
+      stable: !!this.hold.holding,
+      at: round(this.t, 2)
+    })
+
+    // 自适应：接住 +0.5°，漏接 -1.0°。不对称是有意的 ——
+    // 一次失手就退一大步，患者会感觉"越练越难"；反过来慢慢加压他没有压力。
+    const max = this._maxReachDeg()
+    const min = this._minReachDeg()
+    if (hit) this.reachDeg = clamp(this.reachDeg + REACH_UP, min, max)
+    else this.reachDeg = clamp(this.reachDeg - REACH_DOWN, min, max)
   }
 
   /**
@@ -790,6 +938,7 @@ class FruitEngine {
     f.catchFromX = f.x
     const value = scoreOf(this.cfg, f.type)
     const r = this.score.hit(value, f.type)
+    this._finishTrial(f, true)
 
     this.basket.squash = 1
     this.basket.flash = 1

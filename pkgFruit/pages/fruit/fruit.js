@@ -355,6 +355,12 @@ Page({
       interruptedCount: s.interruptedCount,
       sensorInterrupted: s.sensorInterrupted,
       grade: s.grade,
+      // ---- 能力指标（v2）----
+      // trials 只在内存里参与计算，不写进记录：一局 60 颗 × 十几个字段会让
+      // 本地记录体积翻几倍，而 D75/RT50/MT50 已经把结论浓缩好了。
+      metricVersion: s.metricVersion,
+      metrics: s.metrics,
+      reachDeg: s.reachDeg,
       startedAt: s.startedAt,
       endedAt: s.endedAt,
       calibration: s.calibration,

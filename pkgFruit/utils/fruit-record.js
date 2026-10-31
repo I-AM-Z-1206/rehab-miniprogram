@@ -10,8 +10,17 @@
 
 const base = require('../../utils/training-record.js')
 
+function fmtDeg(v) {
+  return (typeof v === 'number' && isFinite(v)) ? v.toFixed(1) + '°' : '样本不足'
+}
+
+function fmtSec(v) {
+  return (typeof v === 'number' && isFinite(v)) ? v.toFixed(2) + ' 秒' : '--'
+}
+
 function describeFruit(record) {
   const holdRate = record.holdRate
+  const m = record.metrics || {}
   const rows = [
     ['昵称', record.nickname || '体验用户'],
     ['游戏', '接水果 · ' + (record.scene || '果园场景')],
@@ -20,6 +29,11 @@ function describeFruit(record) {
     ['接住 / 漏接', (record.hits || 0) + ' / ' + (record.misses || 0)],
     ['接取成功率', Math.round((record.accuracy || 0) * 100) + '%'],
     ['姿态稳定率', holdRate === undefined || holdRate === null ? '暂无数据' : Math.round(holdRate * 100) + '%'],
+    // 能力指标 v2：这三个数跨局可比（难度自适应之后仍然可比），
+    // 命中率不能——它受"这局水果落在哪"影响。
+    ['能够到（成功率 75% 的侧倾）', fmtDeg(m && m.d75)],
+    ['反应 / 到位（中位）', fmtSec(m && m.rt50) + ' / ' + fmtSec(m && m.mt50)],
+    ['有效训练占比', m && typeof m.activeRate === 'number' ? Math.round(m.activeRate * 100) + '%' : '暂无数据'],
     ['最长连续稳定', (record.holdBestSec || 0) + ' 秒'],
     ['平均偏离 / 稳定容差', (record.deviationAvgDeg || 0) + '° / ±' + (record.holdToleranceDeg || 0) + '°'],
     ['偏离超限次数', String(record.holdOutCount || 0)],
