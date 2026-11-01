@@ -96,11 +96,11 @@ function runCountdown() {
   }
 }
 
-/** 自动跟拍：在音符到达判定线前 160ms 移到正确一侧 */
+/** 自动跟拍：音符到线后 120ms 才动（模拟真实反应），给它足够时间稳住 */
 function autoTarget() {
-  const next = engine.active.find((n) => !n.judged)
+  const next = engine.pending
   if (!next) return
-  if (clock.t >= next.targetTimeMs - 160) {
+  if (clock.t >= next.targetTimeMs + 120) {
     engine.setSimTarget(next.targetSide === 'left' ? -1 : (next.targetSide === 'right' ? 1 : 0))
   }
 }
@@ -108,6 +108,9 @@ function autoTarget() {
 const scenario = (params.get('screen') || '').toLowerCase()
 let frozen = FROZEN
 let stateText = ''
+
+if (params.get('bg')) cfg.set('backgroundId', params.get('bg'), 'preview')
+if (params.get('lv')) cfg.applyDifficulty(Number(params.get('lv')) || 3)
 
 if (scenario === 'prepare') {
   engine.prepare()
@@ -121,7 +124,7 @@ if (scenario === 'prepare') {
   runCountdown()
   const targetHits = scenario === 'combo' ? 18 : 6
   let guard = 0
-  while (engine.state === 'PLAYING' && engine.score.hits < targetHits && guard < 6000) {
+  while (engine.state === 'PLAYING' && engine.score.completed < targetHits && guard < 6000) {
     autoTarget()
     clock.advance(DT * 1000)
     engine.update(DT)
@@ -130,6 +133,13 @@ if (scenario === 'prepare') {
   }
   // 再走一点，让飘字 / 连击 / 粒子处在"刚命中"的状态
   simulate(180)
+} else if (scenario === 'gate') {
+  // 门控定格：音符停在判定线上等，逐级提示升到第 2 级（判定台点亮）
+  engine.prepare()
+  engine.startCountdown()
+  runCountdown()
+  simulate(Number(params.get('wait')) || 7000)
+  frozen = true
 } else if (scenario === 'pause') {
   engine.prepare()
   engine.startCountdown()
@@ -185,10 +195,13 @@ function updateStateText() {
   if (el) el.textContent = (frozen ? '（已定格）' : '') + (STATE_TEXT[engine.state] || engine.state)
   const live = document.getElementById('live')
   if (live) {
+    const p = engine.pending
     live.textContent = '得分 ' + engine.score.total +
-      ' · P ' + engine.score.perfect + ' / G ' + engine.score.great + ' / GD ' + engine.score.good +
-      ' · MISS ' + engine.score.miss + ' · 连击 ' + engine.score.combo +
-      ' · 音符 ' + engine.active.length + ' · 时间 ' + (clock.t / 1000).toFixed(1) + 's'
+      ' · 稳住了 ' + engine.score.perfect + ' / 很稳 ' + engine.score.great + ' / 完成了 ' + engine.score.good +
+      ' · 未完成 ' + engine.score.unsolved + ' · 连击 ' + engine.score.combo +
+      ' · 到场 ' + (p ? 1 : 0) + ' · 提示L' + (engine.hintLevel || 0) +
+      ' · 背景 ' + (cfg.get('backgroundId')) +
+      ' · 时间 ' + (clock.t / 1000).toFixed(1) + 's'
   }
 }
 

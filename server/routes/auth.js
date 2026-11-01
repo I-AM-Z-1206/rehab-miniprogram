@@ -33,7 +33,10 @@ function therapistOpenids() {
  */
 function roleFor(openid, devId) {
   if (therapistOpenids().includes(openid)) return 'therapist'
-  if (wx.DEV_LOGIN && /^therapist/i.test(String(devId || ''))) return 'therapist'
+  // devId 提权是开发后门：生产必须彻底关掉，否则任何人把设备标识改成
+  // therapist-xxx 就能读全部患者数据、改治疗参数。不只是 DEV_LOGIN 要关。
+  if (wx.DEV_LOGIN && process.env.NODE_ENV !== 'production' &&
+    /^therapist/i.test(String(devId || ''))) return 'therapist'
   return 'patient'
 }
 

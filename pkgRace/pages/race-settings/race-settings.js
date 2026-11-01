@@ -14,7 +14,6 @@
 // ----------------------------------------------------------------------------
 
 const records = require('../../utils/race-record.js')
-const api = require('../../../utils/api.js')
 
 const ENGINE_KEY = 'nrr_therapist_params_v1'
 const SEED_KEY = 'race_motion_seed_v2'
@@ -244,7 +243,6 @@ Page({
     levelRows: [],
     uploadReady: false,
     uploadState: '未配置',
-    endpoint: '',
     savedAt: ''
   },
 
@@ -310,11 +308,10 @@ Page({
         session: L.session + ' 秒'
       })),
       uploadReady: !!upload.url && upload.enabled,
-      // enabled = 有网络 && 已登录。没说清楚就会出现「地址明明填了却不上报」的困惑。
-      uploadState: upload.url
-        ? (upload.enabled ? '已就绪' : '待登录或离线')
-        : '仅本机保存',
-      endpoint: api.getBase() || ''
+      // 状态要把「不上报」的真实原因说出来，否则患者只会看到「已就绪」却没数据。
+      uploadState: !upload.url
+        ? '离线'
+        : (!upload.consent ? '已关闭上传' : (upload.enabled ? '自动同步' : '待登录'))
     })
   },
 

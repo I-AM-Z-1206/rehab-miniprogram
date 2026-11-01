@@ -17,6 +17,21 @@ const FIELD_MAX_X = 0.91
 const MIN_X_GAP = 0.19 // 同时下落的水果在横向至少间隔这么多，避免完全重叠
 const NEAR_TOP = 0.34 // 只和还没落到这个高度以下的水果做避让
 
+// ---- 黄金苹果（v3 重设计）----
+// 稀有奖励果：只在苹果上出现（金苹果的语义自然），分值 x3。
+// 故意不做「坏果/炸弹」：康复语义下惩罚「接住」这个动作本身是有害的 ——
+// 患者做对了移动、做对了反应，却因为碰到坏东西被扣分，训练会变成惊吓训练。
+// 也没有把 goldenChance 放进治疗师面板：奖励节奏是游戏手感，不是训练参数。
+const GOLDEN_CHANCE = 0.06
+const GOLDEN_MUL = 3
+
+// ---- 果子雨（v3 重设计）----
+// 每隔一段时间来一波 3 连快果，给一局制造节奏高峰。
+// 只缩短生成间隔，不动 maxFruits 上限 —— 名额满了会自然顺延，不会挤爆场面。
+const WAVE_EVERY_SEC = 22
+const WAVE_COUNT = 3
+const WAVE_GAP_SEC = 0.42
+
 // r 同时被渲染层（画多大）和引擎（横向碰撞容差）使用，改这里两边一起变，保证「看到的就是判定的」
 const FRUIT_TYPES = [
   { id: 'apple', name: '苹果', scoreKey: 'scoreApple', weight: 26, r: 28 },
@@ -57,6 +72,18 @@ class FruitSpawner {
     this.rng = mulberry32(this.seed)
     this.timer = 0.9 // 开局第一个水果稍等一下，让玩家先看清场地
     this.serial = 0
+    // 果子雨状态：clock 是生成器自己的游戏时钟（只在 tick 里推进，暂停时自然停走）
+    this.clock = 0
+    this.waveAt = WAVE_EVERY_SEC
+    this.waveLeft = 0
+    this._waveFlag = false // 本帧刚开波，引擎取走后清掉（给 UI 弹提示）
+  }
+
+  /** 引擎每帧调一次：是否刚开了一波果子雨（取走即清） */
+  takeWaveFlag() {
+    const v = this._waveFlag
+    this._waveFlag = false
+    return v
   }
 
   _pickType() {
@@ -163,6 +190,7 @@ class FruitSpawner {
     // 难度爬升是连续函数，不会出现突然的速度跳变
     const ramp = 1 + rampPct * progress
 
+    this.clock += dt
     this.timer -= dt
     if (this.timer > 0) return out
 
@@ -171,10 +199,27 @@ class FruitSpawner {
       return out
     }
 
+    // ---- 果子雨：到点开波，波内连续快发 ----
+    let nextGap = interval * (0.85 + this.rng() * 0.3) / ramp
+    if (this.waveLeft > 0) {
+      this.waveLeft -= 1
+      nextGap = Math.max(0.3, WAVE_GAP_SEC / ramp)
+    } else if (this.clock >= this.waveAt && progress > 0.08) {
+      // 开局前 8% 不开波：患者还没进入状态，先给平稳节奏
+      this.waveAt = this.clock + WAVE_EVERY_SEC
+      if (WAVE_COUNT > 1) {
+        this.waveLeft = WAVE_COUNT - 1
+        this._waveFlag = true
+      }
+      nextGap = Math.max(0.3, WAVE_GAP_SEC / ramp)
+    }
+
     // 自然浮动 ±15%，但仍然围绕配置的平均间隔
-    this.timer = Math.max(0.35, interval * (0.85 + this.rng() * 0.3) / ramp)
+    this.timer = Math.max(0.35, nextGap)
 
     const type = this._pickType()
+    // 黄金果掷骰固定消耗一次 rng：无论结果如何都消耗，序列仍然可复现
+    const golden = type.id === 'apple' && this.rng() < GOLDEN_CHANCE
     const x = this._pickX(fruits, {
       x: c.basketX,
       half: c.basketHalf
@@ -183,6 +228,7 @@ class FruitSpawner {
     out.push({
       id: 'f' + this.serial,
       type: type.id,
+      golden: !!golden,
       x: x,
       y: -0.03,
       vy: baseSpeed * (0.92 + this.rng() * 0.18) * ramp,
@@ -212,5 +258,9 @@ module.exports = {
   scoreOf,
   mulberry32,
   MIN_X_GAP,
-  NEAR_TOP
+  NEAR_TOP,
+  GOLDEN_CHANCE,
+  GOLDEN_MUL,
+  WAVE_EVERY_SEC,
+  WAVE_COUNT
 }

@@ -1,17 +1,22 @@
 // ============================================================================
-// games/wire/safety.js —— 保险绳状态机
+// games/wire/safety.js —— 越界与引导（原「保险绳」，2026-11-01 改语义）
 // ----------------------------------------------------------------------------
 // 状态：IDLE → WARN → ENGAGED → RECOVERING → IDLE
 //
-// 关键规则（对应需求「保险绳机制」）：
-//  · 偏移超过警戒阈值 → WARN，只提示，不判负、不停游戏。
-//  · 继续增大到触发阈值 → ENGAGED：绳索介入、把角色轻拉回中线、平衡不再恶化，
-//    但**不会**结束本局，也**不会**清空本局得分。
-//  · 回到解除阈值以下并保持 ropeHoldMs → RECOVERING → IDLE，退出后进入冷却，
-//    冷却期内的抖动不会立刻再次触发（避免边界反复触发）。
-//  · 保险绳关闭时本机不介入，越界规则交由引擎按 failRule 处理。
+// 【为什么改】原来绳索介入时会**自动把患者拉回中线**：`getSuppression()`
+// 把控制量乘 (1 - ropePull × 张力)，第 2 档 ropePull = 0.6 —— 患者身体偏到
+// 1.0，游戏只按 0.4 算。等于「游戏替你站稳」。康复训练里这是最不该做的：
+// 患者学不到「自己把重心找回来」这件事本身。
 //
-// 阈值使用的是「归一化偏移量」load ∈ [0,1]，不是角度、不是厘米。
+// 现在绳索**不再碰控制量**，它只做三件事：
+//   1. 判断失衡等级（失衡 / 越界），给引擎决定「要不要停下来」；
+//   2. 给出**引导方向**（该往哪边压回去），渲染层据此画方向光带与角色倾斜；
+//   3. 记录次数与时长（治疗师要看的指标）。
+//
+// 也就是说：**回正是患者自己做出来的，游戏只负责让他知道往哪边、并且在他
+// 没做到的时候不再假装走得很顺。**
+//
+// 阈值使用「归一化偏移量」load ∈ [0,1]，不是角度、不是厘米。
 // ============================================================================
 
 const SAFETY_STATE = {
@@ -19,6 +24,13 @@ const SAFETY_STATE = {
   WARN: 'WARN',
   ENGAGED: 'ENGAGED',
   RECOVERING: 'RECOVERING'
+}
+
+// 失衡等级：0 正常 / 1 失衡（还能走，但变慢）/ 2 越界（几乎停住）
+const LEVEL = { OK: 0, WARN: 1, OVER: 2 }
+
+function clamp(v, lo, hi) {
+  return v < lo ? lo : (v > hi ? hi : v)
 }
 
 class SafetyRope {
@@ -31,9 +43,14 @@ class SafetyRope {
     this.state = SAFETY_STATE.IDLE
     this.enabled = true
     this.tension = 0 // 0~1：绳索绷紧程度（渲染用）
-    this.triggers = 0 // 本局触发次数
-    this.engagedSec = 0 // 绳索介入累计时长
+    this.triggers = 0 // 本局越界次数
+    this.engagedSec = 0 // 越界累计时长
     this.longestEngage = 0
+    this.warnSec = 0 // 失衡累计时长
+    this.level = LEVEL.OK
+    this.guideDir = 0 // -1 往左压 / 1 往右压 / 0 不用引导
+    this.guideAxis = '' // 'x' 左右（有光带） / 'y' 前后（只有语音） / '' 无
+    this.guideStrength = 0 // 0~1：引导强度（光带亮度、语音频次）
     this._engagedStart = 0
     this._holdStart = 0
     this._lastEndAt = 0
@@ -49,19 +66,21 @@ class SafetyRope {
     return this.state === SAFETY_STATE.WARN || this.state === SAFETY_STATE.ENGAGED
   }
 
+  /** 该往哪边压：nx > 0（偏右）→ 要往左压 → -1 */
   getStateLabel() {
     if (!this.enabled) return '已关闭'
-    if (this.state === SAFETY_STATE.ENGAGED) return '已介入'
-    if (this.state === SAFETY_STATE.RECOVERING) return '正在解除'
-    if (this.state === SAFETY_STATE.WARN) return '待命（需回正）'
+    if (this.state === SAFETY_STATE.ENGAGED) return '越界：请回正'
+    if (this.state === SAFETY_STATE.RECOVERING) return '正在回正'
+    if (this.state === SAFETY_STATE.WARN) return '失衡：请回正'
     return '待命'
   }
 
   /** HUD 用的短文案 */
   getShortLabel() {
     if (!this.enabled) return '关闭'
-    if (this.state === SAFETY_STATE.ENGAGED) return '已介入'
-    if (this.state === SAFETY_STATE.RECOVERING) return '解除中'
+    if (this.state === SAFETY_STATE.ENGAGED) return '越界'
+    if (this.state === SAFETY_STATE.RECOVERING) return '回正中'
+    if (this.state === SAFETY_STATE.WARN) return '失衡'
     return '待命'
   }
 
@@ -70,13 +89,19 @@ class SafetyRope {
   }
 
   /**
-   * @param {number} dt 秒
-   * @param {number} load 原始归一化偏移（0~1），用未经过回拉抑制的值
+   * @param {object} o
+   *   dt    秒
+   *   load  归一化偏移量 0~1（原始值，不经过任何抑制）
+   *   nx    带符号的左右偏移 -1~1（用来算引导方向）
+   *   ny    前后偏移
    */
-  update(dt, load) {
+  update(o) {
+    const opts = o || {}
     const cfg = this.cfg
     const now = Date.now()
-    const step = Math.max(0, Math.min(0.1, Number(dt) || 0))
+    const step = Math.max(0, Math.min(0.1, Number(opts.dt) || 0))
+    const nx = Number(opts.nx) || 0
+    const ny = Number(opts.ny) || 0
     this.events = []
 
     this.enabled = !!cfg.get('ropeEnabled')
@@ -85,18 +110,41 @@ class SafetyRope {
     const release = Math.min(trigger - 0.02, Number(cfg.get('ropeRelease')) || 0.52)
     const holdMs = Number(cfg.get('ropeHoldMs')) || 600
     const cooldown = Number(cfg.get('ropeCooldownMs')) || 1500
-    const v = Math.max(0, Math.min(1, Number(load) || 0))
+    const v = clamp(Number(opts.load) || 0, 0, 1)
+
+    // ---- 引导方向：怎么歪的就反着压回去 ----
+    // 前后和左右哪个更大就先说哪个；都在死区里就不给方向。
+    //
+    // **左右才有光带，前后只用语音**。理由是很具体的：一道横向光带能直接
+    // 表示「重心往这边移」，而前后失衡（往前栽/往后仰）用同样的光带画出来
+    // 只能横着指，读起来是错的；竖着画又会和钢丝、绳索抢同一条轴线。
+    // 前后失衡在康复里的处置本来就是口令（「收腹」「重心往后」），所以交给语音。
+    const ax = Math.abs(nx)
+    const ay = Math.abs(ny)
+    this.guideAxis = ''
+    if (v < 0.22) {
+      this.guideDir = 0
+    } else if (ax >= ay) {
+      this.guideDir = nx > 0 ? -1 : 1
+      this.guideAxis = 'x'
+    } else {
+      this.guideDir = 0
+      this.guideAxis = 'y'
+    }
+    const pull = clamp(Number(cfg.get('ropePull')) || 0.6, 0, 1)
+    this.guideStrength = this.guideDir === 0 ? 0 : clamp(pull * (0.35 + 0.65 * (v / Math.max(0.01, trigger))), 0, 1)
 
     if (!this.enabled) {
-      // 关闭时只保留失衡提示，不介入
+      // 关闭「越界停住」时只保留失衡提示，不介入也不减速
       if (this.state !== SAFETY_STATE.IDLE) {
         this.state = SAFETY_STATE.IDLE
         this._push('rope:off')
       }
+      this.level = v >= warn ? LEVEL.WARN : LEVEL.OK
       this.tension += (0 - this.tension) * Math.min(1, step * 4)
       if (v >= warn && !this._warned) {
         this._warned = true
-        this._push('warn', { load: v })
+        this._push('warn', { load: v, dir: this.guideDir })
       } else if (v < warn * 0.9 && this._warned) {
         this._warned = false
         this._push('warnEnd')
@@ -112,7 +160,7 @@ class SafetyRope {
           this.state = SAFETY_STATE.WARN
           if (!this._warned) {
             this._warned = true
-            this._push('warn', { load: v })
+            this._push('warn', { load: v, dir: this.guideDir })
           }
         }
         break
@@ -138,7 +186,7 @@ class SafetyRope {
 
       case SAFETY_STATE.RECOVERING:
         if (v >= trigger) {
-          // 刚回正又冲出去：直接回到介入态，不重复计数（同一次失衡）
+          // 刚回正又冲出去：算同一次越界，不重复计数
           this.state = SAFETY_STATE.ENGAGED
           if (!this._engagedStart) this._engagedStart = now
         } else if (v <= release && now - this._holdStart >= holdMs) {
@@ -156,30 +204,29 @@ class SafetyRope {
         this.state = SAFETY_STATE.IDLE
     }
 
-    // 张力：介入时快速绷紧，解除后缓慢松弛
+    if (this.state === SAFETY_STATE.WARN || this.state === SAFETY_STATE.ENGAGED) {
+      this.warnSec += step
+    }
+
+    this.level = this.state === SAFETY_STATE.ENGAGED ? LEVEL.OVER
+      : (this.state === SAFETY_STATE.WARN || this.state === SAFETY_STATE.RECOVERING ? LEVEL.WARN : LEVEL.OK)
+
+    // 张力：越界时快速绷紧，其它情况缓慢松弛
     const target = this.state === SAFETY_STATE.ENGAGED ? 1 : (this.state === SAFETY_STATE.RECOVERING ? 0.45 : 0)
     const rate = target > this.tension ? 5.5 : 2.2
     this.tension += (target - this.tension) * Math.min(1, step * rate)
-    this.tension = Math.max(0, Math.min(1, this.tension))
+    this.tension = clamp(this.tension, 0, 1)
 
     return this
   }
 
   _engage(now, load) {
-    // 直接冲到触发阈值时也要补一次「失衡」事件，统计才完整
-    if (!this._warned) this._push('warn', { load: load })
+    if (!this._warned) this._push('warn', { load: load, dir: this.guideDir })
     this.state = SAFETY_STATE.ENGAGED
     this.triggers += 1
     this._engagedStart = now
     this._warned = true
-    this._push('rope:in', { load: load, count: this.triggers })
-  }
-
-  /** 介入时对控制量的抑制比例（0~1）：由回拉强度与当前张力决定 */
-  getSuppression() {
-    if (this.state !== SAFETY_STATE.ENGAGED) return 0
-    const pull = Math.max(0, Math.min(1, Number(this.cfg.get('ropePull')) || 0.6))
-    return pull * (0.55 + 0.45 * this.tension)
+    this._push('rope:in', { load: load, count: this.triggers, dir: this.guideDir })
   }
 
   snapshot() {
@@ -189,11 +236,16 @@ class SafetyRope {
       label: enabled ? this.getStateLabel() : '已关闭',
       short: enabled ? this.getShortLabel() : '关闭',
       enabled: enabled,
+      level: this.level,
+      guideDir: this.guideDir,
+      guideAxis: this.guideAxis,
+      guideStrength: Math.round(this.guideStrength * 100) / 100,
       triggers: this.triggers,
       engagedSec: Math.round(this.engagedSec * 10) / 10,
+      warnSec: Math.round(this.warnSec * 10) / 10,
       tension: Math.round(this.tension * 100) / 100
     }
   }
 }
 
-module.exports = { SafetyRope, SAFETY_STATE }
+module.exports = { SafetyRope, SAFETY_STATE, LEVEL }

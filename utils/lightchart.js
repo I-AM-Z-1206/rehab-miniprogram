@@ -17,12 +17,14 @@
 //   sc.stats()  → { n, meanR, meanP, sdR, sdP, spreadR, spreadP, maxShake }
 // ============================================================================
 
-const AXIS_COLOR = '#eef0f3'
-const LABEL_COLOR = '#9aa0a6'
-const FONT = '10px sans-serif'
+// 刻度标签原来是 #9aa0a6（白底 2.7:1）+ 10px —— 患者看不清「100 / 70 / 40」这三个数，
+// 图表就等于只有形状没有刻度。改成和全站说明文字同一个墨色 + 11px。
+const AXIS_COLOR = '#e6eaef'
+const LABEL_COLOR = '#5d646e'
+const FONT = '11px sans-serif'
 const TEAL = '#0f9c8c'
 const TEAL_DEEP = '#0b7a6d'
-const GRAY_SOFT = '#c3c7cd'
+const GRAY_SOFT = '#a8aeb8'
 
 class LineChart {
   /**
@@ -278,18 +280,25 @@ function scatterStats(points) {
 
 class ScatterChart {
   /**
-   * Roll / Pitch 二维分布图。
+   * 二维姿态分布图（点入参 { r, p }，r 画在横轴、p 画在纵轴）。
    * 两轴共用同一个「px / 度」比例 —— 这是刻意的：康复上看的就是
    * 「哪个方向晃得多」，一旦各自独立缩放，两个方向的抖动就不可比了。
    *
+   * r / p 只是「横轴量 / 纵轴量」，不绑定 Roll/Pitch：具体哪个轴放哪个角，
+   * 由调用方决定（标定页要求横轴 Pitch、纵轴 Roll，见 pages/calibrate）。
+   *
    * @param {Object} canvas Canvas 2D 节点
-   * @param {Object} options { unit, minSpan（最小视窗跨度，度）, maxPoints（抽稀上限） }
+   * @param {Object} options { unit, minSpan（最小视窗跨度，度）, maxPoints（抽稀上限）,
+   *                           xLabel（横轴名）, yLabel（纵轴名） }
    */
   constructor(canvas, options) {
     const o = options || {}
     this.canvas = canvas
     this.ctx = canvas && canvas.getContext ? canvas.getContext('2d') : null
     this.unit = o.unit || '°'
+    // 轴名画在画布两角：左上 = 纵轴，右上 = 横轴
+    this.xLabel = o.xLabel || 'Roll'
+    this.yLabel = o.yLabel || 'Pitch'
     this.minSpan = typeof o.minSpan === 'number' ? o.minSpan : 2
     this.maxPoints = typeof o.maxPoints === 'number' ? o.maxPoints : 600
     this.padding = o.padding || { left: 40, right: 10, top: 12, bottom: 18 }
@@ -489,9 +498,11 @@ class ScatterChart {
       ctx.textAlign = 'left'
       ctx.textBaseline = 'top'
       ctx.fillStyle = GRAY_SOFT
-      ctx.fillText('Pitch ' + this.unit, 2, 0)
+      // 左上标纵轴、右上标横轴：不要把名字写死成 Roll/Pitch，
+      // 轴怎么摆由调用方决定（标定页是横轴 Pitch、纵轴 Roll）。
+      ctx.fillText(this.yLabel + ' ' + this.unit, 2, 0)
       ctx.textAlign = 'right'
-      ctx.fillText('Roll ' + this.unit, w - 2, 0)
+      ctx.fillText(this.xLabel + ' ' + this.unit, w - 2, 0)
     }
   }
 }

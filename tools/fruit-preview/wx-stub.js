@@ -31,6 +31,11 @@ export function installWx() {
       c.height = height
       return c
     },
+    // 预渲染精灵加载：包一层 window.Image（file:// 下同目录 PNG 可加载）
+    createImage: () => {
+      const img = new Image()
+      return img
+    },
     vibrateShort: () => {},
     setInnerAudioOption: () => {},
     createInnerAudioContext: () => ({

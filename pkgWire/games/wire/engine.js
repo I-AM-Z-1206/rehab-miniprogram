@@ -12,7 +12,9 @@
 //   load      归一化偏移（0~1，来自 utils/motion.js）
 //   balance   平衡值（1 = 完全稳定，0 = 即将失稳）
 //   偏移越大、持续越久 → balance 下降越快；回到有效区域 → 按 recoveryRate 回升
-//   保险绳介入时抑制控制量，balance 不再继续恶化
+//   **balance 直接就是前进速度系数**：站得稳全速、晃就慢、掉到 0 就停住。
+//   保险绳（越界）不碰控制量 —— 它只把速度压到 12% 并强提示，
+//   回正必须由患者自己完成。
 //
 // 时间口径：所有计时都用 Date.now 的真实间隔 dt 累加，不按帧数计数；
 // 暂停、传感器中断期间不累加训练时长。
@@ -257,7 +259,7 @@ class WireEngine {
     const total = this.score.total
     const snap = this.score.snapshot()
     const traj = this.motion.getTrajectory()
-    const trackLength = Number(this.cfg.get('trackLength')) || 40
+    const trackLength = Number(this.cfg.get('trackLength')) || 100
     const durationSec = Number(this.cfg.get('durationSec')) || 90
 
     // 参考分：按当前配置「全程 + 全程稳定」的理论值，仅用于游戏评级
@@ -281,6 +283,11 @@ class WireEngine {
         sensitivity: this.cfg.get('sensitivity'),
         deadzoneDeg: this.cfg.get('deadzoneDeg')
       },
+      // 规则版本：2026-11-01 起 v2。
+      // v1 = 保险绳会自动把患者拉回中线 + 速度有 35% 下限 + 40 米/90 秒。
+      // v2 = 拔掉自动回正（平衡值直接当速度、掉到 0 就停住）+ 里程按真实步速。
+      // **v1 与 v2 的里程、速度、分数都不可直接对比。**
+      rulesVersion: 'v2',
       score: total,
       breakdown: snap,
       durationSec: round(this.elapsedSec, 1),
@@ -295,6 +302,9 @@ class WireEngine {
       offSec: round(this.offSec, 1),
       ropeTriggers: this.safety.triggers,
       ropeEngagedSec: round(this.safety.engagedSec, 1),
+      warnSec: round(this.safety.warnSec, 1),
+      // 平均前进速度：治疗师判断「这一局到底走起来没有」的唯一直接指标
+      avgSpeed: this.elapsedSec > 0.5 ? round(this.distance / this.elapsedSec, 2) : 0,
       pathLength: traj.pathLength,
       avgRate: traj.avgRate,
       sway: traj.sway,
@@ -448,31 +458,34 @@ class WireEngine {
     const ny = this.motion.ny
     const load = this.motion.load
 
-    // ---- 保险绳状态机（用原始 load，保证迟滞判断不被抑制值影响） ----
-    this.safety.update(step, load)
+    // ---- 越界 / 引导状态机 ----
+    // 2026-11-01：绳索**不再压制控制量**。原来 getSuppression() 会把
+    // 患者偏移乘 (1 - ropePull×张力)，等于游戏替他站稳 —— 患者学不到
+    // 「自己把重心找回来」。现在只判断等级、给引导方向，回正由患者完成。
+    this.safety.update({ dt: step, load: load, nx: nx, ny: ny })
     const ropeEvents = this.safety.events
     for (let i = 0; i < ropeEvents.length; i++) {
       const ev = ropeEvents[i]
       if (ev.type === 'warn') {
         this.offCount += 1
         this._offActive = true
-        this._emit('warn', { dir: this.motion.dir, load: load })
+        this._emit('warn', { dir: this.motion.dir, load: load, guide: ev.dir || 0 })
       } else if (ev.type === 'warnEnd') {
         this._offActive = false
         this._emit('warnEnd')
       } else if (ev.type === 'rope:in') {
         const penalty = Number(cfg.get('penaltyScore')) || 0
-        if (penalty > 0) this.score.penaltyBy(penalty, '保险绳介入')
-        this._emit('rope:in', { count: this.safety.triggers, dir: this.motion.dir })
+        if (penalty > 0) this.score.penaltyBy(penalty, '越界')
+        this._emit('rope:in', { count: this.safety.triggers, dir: this.motion.dir, guide: ev.dir || 0 })
       } else if (ev.type === 'rope:out') {
         this._emit('rope:out')
       }
     }
     if (this._offActive) this.offSec += step
 
-    const suppression = this.safety.getSuppression()
-    const effNx = nx * (1 - suppression)
-    const effNy = ny * (1 - suppression * 0.5)
+    // 控制量原样进入平衡模型 —— 没有任何「帮你拉回来」的抑制
+    const effNx = nx
+    const effNy = ny
     const effLoad = Math.max(Math.abs(effNx), Math.abs(effNy) * 0.75)
 
     // ---- 平衡模型 ----
@@ -489,18 +502,22 @@ class WireEngine {
       const hold = 1 + Math.min(1, this.offSec / 6) * 0.35 // 偏移持续越久越难恢复
       this.balance -= push * hold * step
     }
-    // 保险绳介入：托底，不再继续恶化
-    if (this.safety.engaged) this.balance = Math.max(this.balance, 0.22)
+    // 不再托底：跌到 0 就是跌到 0。唯一的出路是患者真的回正
+    // （回正后 effLoad 落到舒适区，balance 按 recoveryRate 回升）。
     this.balance = clamp(this.balance, 0, 1)
 
     // ---- 稳定判定（用于计分与提示） ----
     this.stable = effLoad < warn * 0.82 && this.balance > 0.55
 
     // ---- 前进 ----
-    const baseSpeed = Number(cfg.get('forwardSpeed')) || 0.5
-    let speedFactor = 0.35 + 0.65 * this.balance
-    if (this.safety.engaged) speedFactor *= 0.5
-    if (this.balance < 0.18) speedFactor *= 0.35
+    // **平衡值就是速度系数**：站得稳就全速，晃就慢，掉到 0 就停住。
+    // 原来那条 `0.35 + 0.65*balance`（下限 35%）加上越界托底 0.22，
+    // 意味着患者怎么晃都还能走 —— 这正是「失衡不疼」的来源。
+    const baseSpeed = Number(cfg.get('forwardSpeed')) || 1.2
+    let speedFactor = this.balance
+    // 越界：几乎停住，但仍然保留一点点（完全 0 会让画面看着像卡死，
+    // 12% 的速度配合绳索绷紧的姿态，读起来是「在硬撑」而不是「死机」）
+    if (this.safety.engaged) speedFactor *= 0.12
     const forward = clamp(1 + effNy * 0.22, 0.62, 1.32)
     this.speed = baseSpeed * speedFactor * forward
 
@@ -544,7 +561,7 @@ class WireEngine {
     this.lean += (targetLean - this.lean) * alpha
 
     // 进度与结束条件
-    const trackLength = Number(cfg.get('trackLength')) || 40
+    const trackLength = Number(cfg.get('trackLength')) || 100
     const durationSec = Number(cfg.get('durationSec')) || 90
     this.progress = clamp(this.distance / trackLength, 0, 1)
 
@@ -572,7 +589,7 @@ class WireEngine {
   getViewModel() {
     const cfg = this.cfg
     const durationSec = Number(cfg.get('durationSec')) || 90
-    const trackLength = Number(cfg.get('trackLength')) || 40
+    const trackLength = Number(cfg.get('trackLength')) || 100
     const timeLeft = Math.max(0, durationSec - this.elapsedSec)
     return {
       state: this.state,

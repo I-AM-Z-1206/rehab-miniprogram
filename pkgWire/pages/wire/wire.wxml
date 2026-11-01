@@ -10,9 +10,11 @@
     bindtouchcancel="onTouchCancel"
   ></canvas>
 
-  <!-- 首帧兜底：画布初始化完成前显示，避免白屏 -->
+  <!-- 首帧兜底：画布初始化完成前显示，避免白屏。
+       bootMsg 在初始化失败时会被换成具体原因（拿不到节点 / 尺寸为 0 / 渲染器抛错），
+       不再只是干等「正在准备场地…」—— 那行字等多久都不会变。 -->
   <view class="boot" wx:if="{{!canvasReady}}">
     <view class="boot-dot"></view>
-    <text class="boot-text">正在准备场地…</text>
+    <text class="boot-text">{{bootMsg || '正在准备场地…'}}</text>
   </view>
 </view>

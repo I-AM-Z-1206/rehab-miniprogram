@@ -11,7 +11,6 @@ let welcomed = false
 Page({
   data: {
     bleLinked: false, // 蓝牙是否已连接（全局单例，任何页面连上都生效）
-    bleLinkedName: '',
     // 训练前的三步：连接 → 标定 → 训练。
     // 零点标定原来被我放在「工具」区，那是错的：传感器每次佩戴位置不同，
     // 不标定所有判定都会偏，它不是可选项，是必经的一步。
@@ -52,13 +51,10 @@ Page({
   // 读取全局蓝牙单例状态：一次连上，不退出小程序就一直保持
   refreshBle() {
     let linked = false
-    let name = ''
     try {
-      const ble = WitBle.getShared()
-      linked = !!ble.connectedId
-      name = linked ? 'WT9011DCL' : ''
+      linked = !!WitBle.getShared().connectedId
     } catch (e) { /* 忽略 */ }
-    this.setData({ bleLinked: linked, bleLinkedName: name })
+    this.setData({ bleLinked: linked })
   },
 
   /**

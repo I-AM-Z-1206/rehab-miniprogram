@@ -21,14 +21,14 @@ function describeRhythm(record) {
     ['BPM', String(record.bpm || '-')],
     ['难度', '第 ' + (record.difficulty || '-') + ' 档'],
     ['得分', String(record.score || 0)],
-    ['判定次数', 'PERFECT ' + (record.perfect || 0) + ' / GREAT ' + (record.great || 0) +
-      ' / GOOD ' + (record.good || 0) + ' / MISS ' + (record.miss || 0)],
+    ['完成判定', '稳住了 ' + (record.perfect || 0) + ' / 很稳 ' + (record.great || 0) +
+      ' / 完成了 ' + (record.good || 0) + ' / 未完成 ' + (record.unsolved || 0)],
     ['最高连击', '×' + (record.comboMax || 0)],
     ['左 / 中 / 右命中', (record.leftHitCount || 0) + ' / ' + (record.centerHitCount || 0) +
       ' / ' + (record.rightHitCount || 0)],
-    ['节奏准确率', fmtPct(record.rhythmAccuracy)],
-    ['方向准确率', fmtPct(record.directionAccuracy)],
-    ['综合命中率', fmtPct(record.overallHitRate)],
+    ['稳定度', fmtPct(record.stabilityRate)],
+    ['左右均衡', fmtPct(record.balanceRate)],
+    ['平均节奏', record.paceSec ? record.paceSec + ' 秒 / 个' : '--'],
     ['训练时长', (record.durationSec || 0) + ' 秒'],
     ['音画补偿', (record.syncOffsetMs || 0) + ' ms'],
     ['数据来源', record.dataSource === 'simulation' ? '模拟数据' : '真实传感器']

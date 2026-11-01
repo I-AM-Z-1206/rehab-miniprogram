@@ -1,10 +1,14 @@
 /**games.wxss —— 游戏中心
  *
  * 和首页同一套语言：纯白底、1rpx 细线、不堆卡片、不用阴影。
- * 原来这里是「横幅 + 分区标题 + 卡片列表」，五款游戏权重完全相同，
- * 而玩家来这一页只做一件事 —— 挑一个开始。
  *
- * 字号偏大：使用者多为中老年患者。
+ * 这一版修的是「层级倒了」：
+ *   分组标题「静态保持」原来是 28rpx/600，条目「射击」是 32rpx —— 标题比内容还小，
+ *   于是两组游戏看起来像五条并列的项，分组失去意义。
+ *   现在标签小、灰、带字距（26rpx/600/ink-3），条目大、黑（34rpx/ink-1），
+ *   层级靠字号差 8rpx + 墨色差两级建立，不靠加粗堆叠。
+ *
+ * 顺带去掉「›」字符：它在 34rpx 下又细又淡，且和「我的」页的图标箭头是两种语言。
  */
 
 /* Skyline 下页面骨架：scroll-view 依赖 page 的 flex 布局撑开高度 */
@@ -16,7 +20,7 @@ page {
 }
 
 .page {
-  padding: 8rpx 40rpx 180rpx;
+  padding: 8rpx var(--pad-x) 180rpx;
 }
 
 /* ---------- 顶部一句 ---------- */
@@ -26,50 +30,56 @@ page {
 
 .lead-title {
   display: block;
-  font-size: 40rpx;
-  font-weight: 600;
-  color: #1a1f26;
+  font-size: var(--fs-h1);
+  font-weight: 700;
+  color: var(--ink-1);
   letter-spacing: -0.5rpx;
 }
 
 .lead-desc {
   display: block;
-  margin-top: 10rpx;
-  font-size: 25rpx;
+  margin-top: 12rpx;
+  font-size: var(--fs-body-s);
   line-height: 1.5;
-  color: #949aa3;
+  color: var(--ink-3);
 }
 
 /* ---------- 分组 ---------- */
 .group {
-  padding: 44rpx 0 14rpx;
+  padding: 48rpx 0 12rpx;
+  border-bottom: 1rpx solid var(--line);
+  display: flex;
+  flex-direction: column;
 }
 
 .group-gap {
-  padding-top: 52rpx;
+  padding-top: 56rpx;
 }
 
 .group-title {
   display: block;
-  font-size: 28rpx;
+  font-size: var(--fs-note);
   font-weight: 600;
-  color: #1a1f26;
+  color: var(--ink-3);
+  letter-spacing: 1rpx;
 }
 
 .group-hint {
   display: block;
   margin-top: 8rpx;
-  font-size: 24rpx;
-  color: #a8aeb8;
+  font-size: var(--fs-note);
+  color: var(--ink-3);
 }
 
 /* ---------- 游戏行 ---------- */
+/* 点击区 ≥ 104rpx（52px），远高于 44px 的可用性下限 —— 中老年手指落点没那么准 */
 .row {
   display: flex;
   flex-direction: row;
   align-items: center;
+  min-height: 112rpx;
   padding: 26rpx 4rpx;
-  border-bottom: 1rpx solid #eceff3;
+  border-bottom: 1rpx solid var(--line-soft);
   transition: opacity 0.12s ease;
 }
 
@@ -77,41 +87,46 @@ page {
   opacity: 0.55;
 }
 
+/* 48rpx(24px) 的图标配 34rpx 的标题，图标偏小、行看起来左重右轻，提到 56rpx */
 .row-icon {
-  width: 48rpx;
-  height: 48rpx;
+  width: 56rpx;
+  height: 56rpx;
   margin-right: 24rpx;
+  flex-shrink: 0;
 }
 
 .row-main {
   flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .row-title {
   display: block;
-  font-size: 32rpx;
-  color: #1a1f26;
+  font-size: var(--fs-h2);
+  color: var(--ink-1);
 }
 
 .row-desc {
   display: block;
   margin-top: 6rpx;
-  font-size: 24rpx;
+  font-size: var(--fs-note);
   line-height: 1.5;
-  color: #949aa3;
+  color: var(--ink-3);
 }
 
 .row-go {
-  padding-left: 16rpx;
-  font-size: 34rpx;
-  color: #c8ccd4;
+  width: 32rpx;
+  height: 32rpx;
+  margin-left: 16rpx;
+  flex-shrink: 0;
 }
 
 /* ---------- 底部 ---------- */
 .tip {
   display: block;
   margin-top: 44rpx;
-  font-size: 23rpx;
+  font-size: var(--fs-note);
   line-height: 1.75;
-  color: #a8aeb8;
+  color: var(--ink-3);
 }

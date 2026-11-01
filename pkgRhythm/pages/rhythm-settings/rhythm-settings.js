@@ -2,22 +2,26 @@
 // 所有参数写入 utils/rhythm-config.js（独立存储键 rhythm_cfg_v1），改动立即生效。
 const { getStore, SCHEMA, GROUPS, PRESETS, validate } = require('../../../utils/rhythm-config.js')
 const { SONGS, songById } = require('../../../utils/rhythm-songs.js')
-const records = require('../../utils/rhythm-record.js')
 
 const AXIS_LABEL = { pitch: 'Pitch 轴', roll: 'Roll 轴' }
 
-// 音符数估算：间隔已经是毫秒，直接用时长除，不再绕 BPM 换算
+// 音符数估算（门控口径）：一个完整周期 = 飞行 + 保持 + 喘息，
+// 患者自己磨蹭的时间不算在内 —— 所以这是「做得顺的话大概几个」。
 function estimateNotes(cfg, durSec) {
-  const gap = Math.max(620, Number(cfg.get('noteGapMs')) || 1100)
-  const prep = Number(cfg.get('prepMs')) || 2400
-  return Math.max(1, Math.round(Math.max(0, durSec * 1000 - prep) / gap))
+  const approach = Number(cfg.get('approachMs')) || 1700
+  const gap = Number(cfg.get('gapMs')) || 0
+  const hold = Number(cfg.get('holdMs')) || 400
+  const cycle = Math.max(1200, approach + gap + hold)
+  const prep = Number(cfg.get('prepMs')) || 2000
+  return Math.max(1, Math.round(Math.max(0, durSec * 1000 - prep) / cycle))
 }
 
 function fmt(key, value) {
   const meta = SCHEMA[key]
   if (!meta) return String(value)
   if (meta.type === 'bool') return value ? '开' : '关'
-  if (key === 'songId') return songById(value).name + ' · ' + songById(value).bpm + ' BPM'
+  if (key === 'songId') return songById(value).name
+  if (key === 'backgroundId') return ({ dawn: '清晨逆光', dusk: '暮色蓝调', moon: '月夜银' })[value] || value
   if (key === 'axisX' || key === 'axisY') return AXIS_LABEL[value] || value
   if (key === 'difficulty') return '第 ' + value + ' 档'
   const num = typeof value === 'number' ? Math.round(value * 100) / 100 : value
@@ -34,9 +38,6 @@ Page({
     songs: [],
     errors: [],
     warnings: [],
-    uploadUrl: '',
-    uploadToken: '',
-    uploadState: '未配置',
     syncOffsetMs: 0,
     notePreview: ''
   },
@@ -78,7 +79,6 @@ Page({
     }).filter((g) => g.items.length > 0)
 
     const v = validate(cfg.all())
-    const upload = records.getUploadConfig()
     const dur = Number(cfg.get('durationSec')) || 90
     this.setData({
       groups: groups,
@@ -92,7 +92,8 @@ Page({
       songs: SONGS.map((s) => ({
         songId: s.songId,
         name: s.name,
-        desc: s.bpm + ' BPM · ' + s.loopBars + ' 小节循环 · ' + s.tag,
+        // BPM 不再决定节奏（门控驱动），这里描述的是「命中时听到的音色」
+        desc: s.sub + ' · ' + s.tag + '音色',
         active: s.songId === cfg.get('songId')
       })),
       // 五档对比：让治疗师一眼看出差别（只读，改参数请用下面的滑块）
@@ -101,19 +102,17 @@ Page({
         return {
           lv: lv,
           active: lv === cfg.get('difficulty'),
-          step: p.noteGapMs + 'ms',
-          window: '±' + p.goodMs + 'ms',
+          step: p.holdMs + 'ms',
+          window: p.gapMs + 'ms',
           fly: (p.approachMs / 1000).toFixed(1) + ' 秒',
           duration: p.durationSec + ' 秒'
         }
       }),
       errors: v.errors,
       warnings: v.warnings,
-      uploadUrl: upload.url || '',
-      uploadState: upload.url ? (upload.enabled ? '已配置' : '已填写但未启用') : '未配置',
       syncOffsetMs: Number(cfg.get('syncOffsetMs')) || 0,
-      // 音符数按毫秒直接算：间隔不再经过 BPM 换算，换曲子这个数字不变
-      notePreview: '本局约 ' + estimateNotes(cfg, dur) + ' 个音符'
+      // 门控下这是「做得顺的话大概几个」，实际由患者速度决定
+      notePreview: '节奏顺的话本局约 ' + estimateNotes(cfg, dur) + ' 个音符，做不到的会一直等'
     })
   },
 
@@ -209,30 +208,6 @@ Page({
         wx.showToast({ title: '已恢复默认', icon: 'success' })
       }
     })
-  },
-
-  // ---------------------------------------------------------------- 上报配置
-  onUrlInput(e) {
-    this.setData({ uploadUrl: e.detail.value })
-  },
-
-  onTokenInput(e) {
-    this.setData({ uploadToken: e.detail.value })
-  },
-
-  onSaveUpload() {
-    const url = (this.data.uploadUrl || '').trim()
-    if (url && !/^https:\/\//i.test(url)) {
-      wx.showModal({
-        title: '地址格式提示',
-        content: '上报地址必须是 https 开头的接口地址。小程序不允许请求 http 明文接口。',
-        showCancel: false
-      })
-      return
-    }
-    records.setUploadConfig({ url: url, token: this.data.uploadToken || '', enabled: !!url })
-    this.syncAll()
-    wx.showToast({ title: url ? '已保存' : '已清空', icon: 'none' })
   },
 
   // ---------------------------------------------------------------- 校验

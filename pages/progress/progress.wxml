@@ -5,11 +5,11 @@
   <view class="page">
 
     <!-- 结论在前：患者要知道的是「我在变好」，不是记住 68% 这个绝对值。
-         原来这里是「大数字 + 小标签 + 辅助统计」的指标卡，那是模板，
-         不是信息结构 —— 数字被供起来，反而看不出它想说什么。 -->
+         但 headline 在无数据时是一句话（「还没有训练数据」），不是数字 ——
+         tone 为 none 时切到 is-text，把 76rpx 让给真正的数字。 -->
     <view class="head">
       <view class="head-line">
-        <text class="head-num">{{headline}}</text>
+        <text class="head-num {{tone === 'none' ? 'is-text' : ''}}">{{headline}}</text>
         <text class="head-arrow {{tone}}" wx:if="{{arrow}}">{{arrow}}</text>
       </view>
       <text class="head-say">{{detailText}}</text>
@@ -57,7 +57,8 @@
       <text class="total-item">分钟</text>
     </view>
 
-    <view class="cta" bindtap="goGames">继续训练</view>
+    <!-- 一次都没练过时说「继续训练」是错的 —— 没有可继续的东西 -->
+    <view class="cta" bindtap="goGames" aria-role="button" aria-label="{{totalCount > 0 ? '继续训练，去挑一个游戏' : '开始第一次训练，去挑一个游戏'}}">{{totalCount > 0 ? '继续训练' : '开始第一次训练'}}</view>
     <text class="foot">稳定率 = 身体待在目标范围内的时长占比，不是游戏分数。难度调高时暂时下降是正常的。</text>
 
   </view>

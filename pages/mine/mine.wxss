@@ -1,58 +1,134 @@
-/**mine.wxss**/
+/** mine.wxss —— 我的
+ *
+ * 和首页/游戏页/进步页同一套语言：纯白底、1rpx 细线、不放卡片、不用渐变、不用阴影。
+ * 这一页原来唯一的信息（昵称）被包在 112rpx 的渐变圆角块里，而三层设置项各自套白卡片
+ * 压在灰底上 —— 切 tab 时底色从白变灰，观感直接断裂。
+ *
+ * 现在层级只靠三件事建立：字号、字重、墨色深浅。
+ */
+
 page {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: #f5f6fa;
+  background-color: #ffffff;
 }
 
-/* ---------- 个人资料 ---------- */
-.profile {
+.page {
+  padding: 8rpx var(--pad-x) 180rpx;
+}
+
+/* ---------- 身份 ---------- */
+.me {
   display: flex;
   flex-direction: row;
   align-items: center;
-  background: linear-gradient(135deg, #0e9484 0%, #19b5a3 100%);
-  border-radius: 32rpx;
-  padding: 36rpx 32rpx;
-  margin-bottom: 24rpx;
-  color: #fff;
-  box-shadow: 0 12rpx 28rpx rgba(15, 156, 140, 0.22);
+  padding: 40rpx 0 44rpx;
 }
 
-.profile-avatar {
-  width: 112rpx;
-  height: 112rpx;
+.me-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.me-name {
+  font-size: var(--fs-h1);
+  font-weight: 700;
+  color: var(--ink-1);
+  letter-spacing: -0.5rpx;
+}
+
+.me-sub {
+  margin-top: 10rpx;
+  font-size: var(--fs-note);
+  color: var(--ink-3);
+}
+
+/* 头像不做渐变底：浅青单色 + 线性图标，和全站的青色用法一致 */
+.me-avatar {
+  width: 96rpx;
+  height: 96rpx;
   border-radius: 50%;
-  margin-right: 28rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: rgba(255, 255, 255, 0.22);
-  border: 2rpx solid rgba(255, 255, 255, 0.35);
+  background-color: var(--teal-wash);
+  flex-shrink: 0;
 }
 
-.profile-info {
+/* ---------- 分区标题 ---------- */
+/* 26rpx / 600 / 次级墨色：比条目标题小但不发虚，中老年也读得清 */
+.sec {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 36rpx 0 4rpx;
+  border-top: 1rpx solid var(--line);
+}
+
+.sec-title {
+  font-size: var(--fs-note);
+  font-weight: 600;
+  color: var(--ink-3);
+  letter-spacing: 1rpx;
+}
+
+/* ---------- 列表行 ---------- */
+/* padding 32rpx 上下 + 内容 88rpx 起，点击区远大于 44px 的可用性下限 */
+.row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  min-height: 104rpx;
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid var(--line-soft);
+  transition: opacity 0.12s ease;
+}
+
+.row:active {
+  opacity: 0.55;
+}
+
+/* 图标 40rpx：不再套 72rpx 的浅色方块底座 —— 那层底是装饰，不承担任何信息 */
+.row-ico {
+  width: 40rpx;
+  height: 40rpx;
+  margin-right: 24rpx;
+  flex-shrink: 0;
+}
+
+.row-main {
   flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
-.profile-name {
-  font-size: 36rpx;
-  font-weight: 700;
+.row-title {
+  font-size: var(--fs-body);
+  color: var(--ink-1);
 }
 
-.profile-sub {
-  margin-top: 8rpx;
-  font-size: 24rpx;
-  opacity: 0.9;
+.row-desc {
+  margin-top: 6rpx;
+  font-size: var(--fs-note);
+  line-height: 1.5;
+  color: var(--ink-3);
 }
 
-.profile-btn {
-  padding: 10rpx 26rpx;
-  border-radius: 999rpx;
-  font-size: 24rpx;
-  background-color: rgba(255, 255, 255, 0.24);
+.row-value {
+  margin-left: 12rpx;
+  font-size: var(--fs-body-s);
+  color: var(--ink-4);
+  max-width: 260rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.profile-btn:active {
-  opacity: 0.8;
+.row-go {
+  width: 32rpx;
+  height: 32rpx;
+  margin-left: 12rpx;
+  flex-shrink: 0;
 }

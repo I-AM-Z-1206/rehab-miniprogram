@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>空态对照（首次使用 / 这周没练）</title>
+<style>
+  :root {
+    --ink-1: #171a1f; --ink-2: #3d434c; --ink-3: #5d646e; --ink-4: #858c96;
+    --line: #e6eaef; --line-soft: #f1f4f7;
+    --teal: #0f9c8c; --teal-ink: #0a7d70; --teal-wash: #eef8f6;
+    --pad-x: 20px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: #dfe3e8; font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    display: flex; gap: 18px; padding: 18px; align-items: flex-start;
+  }
+  .phone { width: 375px; height: 700px; background: #fff; overflow: hidden; display: flex; flex-direction: column; position: relative; }
+  .cap { position: absolute; left: 0; top: -16px; font-size: 11px; color: #6b7280; letter-spacing: 1px; }
+  .nav { height: 44px; flex: none; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 700; color: var(--ink-1); }
+  .body { flex: 1; padding: 0 var(--pad-x); }
+  .tip { font-size: 13px; line-height: 1.75; color: var(--ink-3); display: block; margin-top: 18px; }
+
+  .device { display: flex; align-items: center; padding: 17px 0 15px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #ccd2da; margin-right: 8px; }
+  .device-name { flex: 1; font-size: 13px; color: var(--ink-3); letter-spacing: 0.25px; }
+  .device-state { font-size: 13px; color: var(--ink-3); }
+  .device-go { width: 16px; height: 16px; margin-left: 4px; }
+
+  .primary { padding: 20px 17px; border-radius: 12px; background: var(--teal); }
+  .primary-title { font-size: 19px; font-weight: 600; color: #fff; }
+  .primary-sub { display: block; margin-top: 6px; font-size: 14px; line-height: 1.5; color: rgba(255,255,255,0.86); }
+  .step { display: flex; align-items: center; padding: 15px 2px; border-bottom: 1px solid var(--line); }
+  .step-no { width: 22px; font-size: 13px; font-weight: 600; color: var(--ink-4); }
+  .step-name { font-size: 15px; color: var(--ink-2); flex: 1; }
+  .step-desc { font-size: 13px; color: var(--ink-3); }
+
+  .prog { margin-top: 0; padding: 16px 2px 19px; border-bottom: 1px solid var(--line); }
+  /* 空态：句子用 is-text，不是 32px 粗体 */
+  .prog-num { font-size: 32px; font-weight: 700; color: var(--ink-1); letter-spacing: -0.5px; }
+  .prog-num.is-text { font-size: 20px; font-weight: 600; line-height: 1.35; letter-spacing: 0; display: block; }
+  .prog-say { display: block; margin-top: 5px; font-size: 15px; line-height: 1.55; color: var(--ink-2); }
+  .week { display: flex; margin-top: 13px; }
+  .wk { display: flex; flex-direction: column; align-items: center; margin-right: 13px; }
+  .wk-dot { width: 13px; height: 13px; border-radius: 50%; background: var(--line-soft); border: 1px solid var(--line); }
+  .wk-label { margin-top: 4px; font-size: 12px; color: var(--ink-3); }
+  .prog-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 9px; }
+  .prog-meta { font-size: 13px; color: var(--ink-3); }
+  .link-go { display: flex; align-items: center; }
+  .link-go .txt { font-size: 13px; font-weight: 600; color: var(--teal-ink); }
+  .link-go img { width: 16px; height: 16px; }
+
+  .head { padding: 15px 0 17px; }
+  .head-num { font-size: 38px; font-weight: 700; color: var(--ink-1); letter-spacing: -0.75px; }
+  .head-num.is-text { font-size: 22px; font-weight: 600; line-height: 1.35; letter-spacing: -0.25px; display: block; }
+  .head-say { display: block; margin-top: 6px; font-size: 15px; line-height: 1.6; color: var(--ink-2); }
+  .blk { padding: 16px 0; border-top: 1px solid var(--line); }
+  .blk-t { font-size: 13px; font-weight: 600; color: var(--ink-3); letter-spacing: 0.25px; margin-bottom: 5px; }
+  .note { font-size: 13px; line-height: 1.7; color: var(--ink-3); }
+  .total { padding: 16px 0; border-top: 1px solid var(--line); font-size: 14px; color: var(--ink-2); }
+  .total b { font-size: 20px; font-weight: 700; color: var(--ink-1); }
+  .cta { margin-top: 24px; height: 50px; line-height: 50px; border-radius: 12px; text-align: center; background: var(--teal); color: #fff; font-size: 17px; font-weight: 600; }
+
+  .tabbar { flex: none; height: 54px; display: flex; background: #fff; border-radius: 14px 14px 0 0; box-shadow: 0 -4px 14px rgba(15,40,70,0.10); }
+  .tb { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .tb-ico { width: 30px; height: 30px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+  .tb-ico.on { background: rgba(15,156,140,0.12); }
+  .tb img { width: 22px; height: 22px; }
+  .tb-t { margin-top: 2px; font-size: 12px; color: var(--ink-3); }
+  .tb-t.on { color: var(--teal-ink); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<!-- 首页：首次使用 -->
+<div class="phone">
+  <div class="cap">首页 · 首次使用（空态）</div>
+  <div class="nav">首页</div>
+  <div class="body">
+    <div class="device">
+      <div class="dot"></div>
+      <span class="device-name">蓝牙传感器</span>
+      <span class="device-state">未连接</span>
+      <img class="device-go" src="../../assets/icons/chevron-right-light.png" />
+    </div>
+    <div class="primary">
+      <div class="primary-title">连接蓝牙传感器</div>
+      <span class="primary-sub">打开传感器电源，蓝灯快闪后点这里</span>
+    </div>
+    <div class="step"><span class="step-no">2</span><span class="step-name">零点标定</span><span class="step-desc">连接之后</span></div>
+    <div class="step"><span class="step-no">3</span><span class="step-name">开始训练</span><span class="step-desc">完成上面两步后</span></div>
+
+    <div class="prog">
+      <span class="prog-num is-text">还没有训练数据</span>
+      <span class="prog-say">完成任意一局训练，这里就会开始记录你的变化</span>
+      <div class="week">
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">一</div></div>
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">二</div></div>
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">三</div></div>
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">四</div></div>
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">五</div></div>
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">六</div></div>
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">日</div></div>
+      </div>
+    </div>
+
+    <span class="tip">传感器开机后蓝灯快闪。绑在胸前。每次摘下再戴上都要重新标定 —— 佩戴角度变了，旧零点就不准了。</span>
+  </div>
+  <div class="tabbar">
+    <div class="tb"><div class="tb-ico on"><img src="../../assets/icons/house-teal.png" /></div><div class="tb-t on">首页</div></div>
+    <div class="tb"><div class="tb-ico"><img src="../../assets/icons/gamepad-2-gray.png" /></div><div class="tb-t">游戏</div></div>
+    <div class="tb"><div class="tb-ico"><img src="../../assets/icons/user-round-gray.png" /></div><div class="tb-t">我的</div></div>
+  </div>
+</div>
+
+<!-- 首页：这周没练 -->
+<div class="phone">
+  <div class="cap">首页 · 这周还没练</div>
+  <div class="nav">首页</div>
+  <div class="body">
+    <div class="device">
+      <div class="dot" style="background:#0f9c8c"></div>
+      <span class="device-name">蓝牙传感器</span>
+      <span class="device-state" style="color:#0a7d70;font-weight:600">已连接 · 本次已标定</span>
+      <img class="device-go" src="../../assets/icons/chevron-right-light.png" />
+    </div>
+    <div class="primary">
+      <div class="primary-title">开始训练</div>
+      <span class="primary-sub">选择今天的训练项目</span>
+    </div>
+    <div class="step" style="justify-content:space-between">
+      <span class="step-desc">本次连接已标定</span>
+      <div class="link-go"><span class="txt">重新标定</span><img src="../../assets/icons/chevron-right-light.png" /></div>
+    </div>
+
+    <div class="prog">
+      <span class="prog-num is-text">这周还没开始</span>
+      <span class="prog-say">上次训练是 3 天前，今天练一局？</span>
+      <div class="week">
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">一</div></div>
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">二</div></div>
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">三</div></div>
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">四</div></div>
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">五</div></div>
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">六</div></div>
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">日</div></div>
+      </div>
+      <div class="prog-foot">
+        <span class="prog-meta">累计 12 次</span>
+        <div class="link-go"><span class="txt">查看进步</span><img src="../../assets/icons/chevron-right-light.png" /></div>
+      </div>
+    </div>
+
+    <span class="tip">传感器开机后蓝灯快闪。绑在胸前。每次摘下再戴上都要重新标定 —— 佩戴角度变了，旧零点就不准了。</span>
+  </div>
+  <div class="tabbar">
+    <div class="tb"><div class="tb-ico on"><img src="../../assets/icons/house-teal.png" /></div><div class="tb-t on">首页</div></div>
+    <div class="tb"><div class="tb-ico"><img src="../../assets/icons/gamepad-2-gray.png" /></div><div class="tb-t">游戏</div></div>
+    <div class="tb"><div class="tb-ico"><img src="../../assets/icons/user-round-gray.png" /></div><div class="tb-t">我的</div></div>
+  </div>
+</div>
+
+<!-- 进步页：空态 -->
+<div class="phone">
+  <div class="cap">我的进步 · 空态</div>
+  <div class="nav">‹&nbsp;&nbsp;我的进步</div>
+  <div class="body">
+    <div class="head">
+      <span class="head-num is-text">还没有训练数据</span>
+      <span class="head-say">完成任意一局训练，这里就会开始记录你的变化</span>
+    </div>
+
+    <div class="blk" style="display:flex;align-items:flex-end;">
+      <div class="week" style="margin-top:0;flex:1;">
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">一</div></div>
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">二</div></div>
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">三</div></div>
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">四</div></div>
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">五</div></div>
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">六</div></div>
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">日</div></div>
+      </div>
+      <span class="prog-meta" style="padding-bottom:2px;">0 / 7 天</span>
+    </div>
+
+    <div class="blk">
+      <div class="blk-t">稳定率走势</div>
+      <span class="note">再练几次就能看到走势。少于 3 次不画线 —— 一两次的波动容易被当成趋势。</span>
+    </div>
+
+    <div class="blk">
+      <div class="blk-t">各项训练</div>
+      <span class="note">还没有训练记录。完成一局任意训练，这里就会开始统计。</span>
+    </div>
+
+    <div class="total"><b>0</b> 次训练 · <b>0</b> 分钟</div>
+    <div class="cta">开始第一次训练</div>
+    <span class="tip">稳定率 = 身体待在目标范围内的时长占比，不是游戏分数。难度调高时暂时下降是正常的。</span>
+  </div>
+</div>
+
+</body>
+</html>

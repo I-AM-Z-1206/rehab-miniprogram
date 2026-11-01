@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+body{margin:0;background:#1a2332;display:flex;justify-content:center;align-items:center;min-height:100vh}
+#stage{width:390px;height:700px;border-radius:24px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+</style></head><body>
+<canvas id="stage" width="780" height="1400"></canvas>
+<script>
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+ctx.scale(2, 2);
+
+const img = new Image();
+img.onload = () => { console.log('img loaded:', img.width, img.height); start(); };
+img.onerror = (e) => { console.log('img error:', e); };
+img.src = '../../pkgWire/assets/wire/fox-walk-190.png';
+
+let t = 0;
+let walkPhase = 0;
+
+function start() {
+  requestAnimationFrame(loop);
+}
+
+function loop() {
+  const dt = 1/60;
+  t += dt;
+  walkPhase += dt * 3;
+  drawScene();
+  requestAnimationFrame(loop);
+}
+
+function drawScene() {
+  // 云海背景
+  const sky = ctx.createLinearGradient(0, 0, 0, 700);
+  sky.addColorStop(0, '#8FA2B4');
+  sky.addColorStop(0.4, '#6C7B93');
+  sky.addColorStop(1, '#4A5872');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, 390, 700);
+
+  // 太阳
+  const sun = ctx.createRadialGradient(195, 280, 10, 195, 280, 120);
+  sun.addColorStop(0, 'rgba(255,220,170,0.5)');
+  sun.addColorStop(1, 'rgba(255,220,170,0)');
+  ctx.fillStyle = sun;
+  ctx.fillRect(0, 130, 390, 300);
+
+  // 云海
+  for (let i = 0; i < 8; i++) {
+    const y = 350 + i * 40;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    for (let x = 0; x <= 390; x += 20) {
+      ctx.lineTo(x, y + Math.sin(x * 0.01 + i + t * 0.2) * 8);
+    }
+    ctx.lineWidth = 20;
+    ctx.strokeStyle = i % 2 ? 'rgba(226,236,242,0.15)' : 'rgba(232,240,246,0.1)';
+    ctx.stroke();
+  }
+
+  // 钢丝
+  const wireY = 480;
+  ctx.beginPath();
+  ctx.moveTo(0, wireY);
+  ctx.lineTo(390, wireY);
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(40,50,60,0.6)';
+  ctx.stroke();
+
+  // 狐狸位置
+  const foxX = 195 + Math.sin(t * 0.9) * 15;
+  const frameW = Math.floor(img.width / 5);
+  const frameH = img.height;
+  const fi = Math.floor(walkPhase) % 5;
+  const bobY = -Math.abs(Math.sin(walkPhase * Math.PI)) * 3;
+
+  // 影子
+  ctx.save();
+  ctx.globalAlpha = 0.2;
+  ctx.beginPath();
+  ctx.ellipse(foxX, wireY + 3, 20, 4, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#000';
+  ctx.fill();
+  ctx.restore();
+
+  // 画狐狸
+  ctx.save();
+  ctx.translate(foxX, wireY + bobY + 2);
+  ctx.rotate(Math.sin(t * 0.9) * 0.02);
+  const sw = 120;
+  const sh = sw * (frameH / frameW);
+  ctx.drawImage(img, fi * frameW, 0, frameW, frameH, -sw/2, -sh, sw, sh);
+  ctx.restore();
+}
+</script>
+</body></html>

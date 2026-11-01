@@ -2,8 +2,10 @@
 -- server/schema.sql —— 家用版后端目标库表（SQLite 方言）
 -- ----------------------------------------------------------------------------
 -- 目标环境：Ubuntu 24.04 / 2 核 / 1.7GB 内存 / Node 24（已实测原生支持 node:sqlite，无需任何标志）
--- 用途：P3 的目标结构。现阶段跑 JSON 文件，这份 schema 当"设计契约"用；
---       换库时执行：sqlite3 data/rehab.db < server/schema.sql
+-- 用途：**当前正式结构**。server/app.js 启动时检测 schema_meta 表是否存在，
+--       不存在就执行本文件建表（见 server/db.js）。手工重建：
+--       sqlite3 data/rehab.db < server/schema.sql
+--       （旧的 JSON 文件存储 server/store.js 已是 LEGACY，不再使用。）
 --
 -- 三组核心：
 --   身份    app_user    —— 能登录的人（患者、治疗师），openid 是根

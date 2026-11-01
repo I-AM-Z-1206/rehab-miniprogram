@@ -1,8 +1,76 @@
-/**app.wxss —— 全局基础样式 + 通用 UI 类（ui- 前缀，供各页面复用）**/
+/**app.wxss —— 设计令牌 + 跨页共用的少量基础类
+ *
+ * 这一层解决的是「改不干净」的问题：
+ * 改版前同一个灰在项目里有 5 个值（#8b8f9a / #8b9099 / #8b9198 / #999 / #a1a1aa），
+ * 同一个青有 5 个值（#0f9c8c / #0e9484 / #19b5a3 / #0b7a6a / #0d8b7d），
+ * 琥珀有 3 个值，其中一个（#e8845a）已经偏红 —— 而项目自己的规则是「康复场景不用红」。
+ * 每改一次主色要动十几处，还总有一两处漏在外面。现在颜色、字号、线、间距只在这里定义。
+ *
+ * 两条是硬约束，不是审美偏好：
+ *   1. 使用者多为中老年患者，在家里用。正文字号下限 26rpx（13px），不再出现 20-23rpx 的正文。
+ *      改版前全项目有 200 多处 ≤24rpx，10px 的标签对 65 岁用户等于不可读。
+ *   2. 白底上的辅助文字对比度要够。原来的 #a8aeb8 只有 2.2:1、#b3b9c2 只有 2.0:1，
+ *      远低于 4.5:1。所以文字用的青和琥珀各有一个加深版本（--teal-ink / --amber-ink），
+ *      原色只用于填充和图形（图标、圆点、色块）。
+ *
+ * Skyline 已验证支持 CSS 变量（安卓 8.0.35+ / iOS 8.0.38+）。
+ * 注意：自定义组件（navigation-bar、custom-tab-bar）样式隔离，取不到 page 上的变量，
+ * 组件内部的 wxss 需要自己再声明一份需要的令牌。
+ */
 
 page {
+  /* ---- 墨色：4 级，括号内是白底对比度 ----
+   * 用法规则（比数值更重要）：
+   *   ink-1/2/3 都可以承载要读的文字；ink-4 只能用于「重复信息、单位、版本号」
+   *   这类不需要阅读的角标。要弱化一段话，靠字号和字重，不要靠把颜色调浅 ——
+   *   浅到 3.4:1 以下，弱化就变成了删除。 */
+  --ink-1: #171a1f;      /* 16.1:1  结论、标题 */
+  --ink-2: #3d434c;      /*  9.3:1  正文 */
+  --ink-3: #5d646e;      /*  6.0:1  辅助正文、说明（正文下限） */
+  --ink-4: #858c96;      /*  3.4:1  仅角标：单位、版本号、重复值 */
+
+  /* ---- 线 ---- */
+  --line: #e6eaef;
+  --line-soft: #f1f4f7;
+
+  /* ---- 青：填充与文字分开 ---- */
+  --teal: #0f9c8c;       /*  填充、图形 3.4:1 */
+  --teal-ink: #0a7d70;   /*  文字 5.0:1 ✓ */
+  --teal-press: #0b8073;
+  --teal-wash: #eef8f6;
+
+  /* ---- 琥珀：表示「注意」，永远不表示错误 ---- */
+  --amber: #c8871f;
+  --amber-ink: #8f5d0e;  /*  5.4:1 ✓ */
+  --amber-wash: #fdf5e8;
+
+  /* ---- 字号刻度：7 级，够用且不会失控 ---- */
+  --fs-display: 76rpx;   /* 38px  一屏只有一个 */
+  --fs-h1: 44rpx;        /* 22px  页面主张 */
+  --fs-h2: 34rpx;        /* 17px  条目标题 */
+  --fs-body: 30rpx;      /* 15px  正文 */
+  --fs-body-s: 28rpx;    /* 14px  次要正文 */
+  --fs-note: 26rpx;      /* 13px  说明，下限 */
+  --fs-micro: 24rpx;     /* 12px  仅单位、角标 */
+
+  /* ---- 间距：8 的倍数，页面左右边距统一 40rpx ---- */
+  --pad-x: 40rpx;
+  --gap-1: 8rpx;
+  --gap-2: 16rpx;
+  --gap-3: 24rpx;
+  --gap-4: 36rpx;
+  --gap-5: 56rpx;
+
+  /* ---- 圆角 ---- */
+  --r-sm: 12rpx;
+  --r-md: 20rpx;
+  --r-lg: 24rpx;
+
+  /* 灰底是给分包那 14 个页面留的：它们还是「灰底 + 白卡片」的旧结构，
+     卡片靠底色衬托才有边界。主包 6 个页面各自显式声明了白底，
+     所以这里保持灰不会传染到主包。要整体换语言，得连分包一起改。 */
   background-color: #f5f6fa;
-  color: #1f2329;
+  color: var(--ink-1);
   font-size: 28rpx;
 }
 
@@ -13,221 +81,93 @@ page {
 }
 
 .ui-body {
-  /* 底部留 104rpx 给自定义 tabBar，避免最后一块内容被盖住 */
-  padding: 24rpx 24rpx 144rpx;
+  /* 底部留 104rpx 给自定义 tabBar */
+  padding: 24rpx var(--pad-x) 144rpx;
 }
 
-/* ---------- 卡片 / 分区 ---------- */
-.ui-card {
-  background-color: #fff;
-  border-radius: 28rpx;
-  padding: 8rpx 28rpx;
-  margin-bottom: 24rpx;
-  box-shadow: 0 8rpx 28rpx rgba(15, 40, 70, 0.06);
+/* ---------- 说明文字：全站一个规格 ---------- */
+.ui-tip {
+  display: block;
+  margin-top: var(--gap-4);
+  font-size: var(--fs-note);
+  line-height: 1.75;
+  color: var(--ink-3);
+}
+
+/* ---------- 治疗师调整区的患者提示 ----------
+ * 分包 5 个设置页共用。那几页里是「容差 / 稳时 / 判定半径 / 接口地址 / 访问令牌」，
+ * 全是治疗师和管理员的字段，但患者从游戏页点「设置」就能进来。
+ * 不做角色门禁（会挡住用一个账号演示全流程的送审），改成先说清楚这一屏是给谁看的。
+ * 底色比分包页的 #f5f6fa 略深一档，在灰底上能立住但不刺眼。 */
+.pro-hint {
+  display: flex;
+  flex-direction: column;
+  margin: 24rpx 0 10rpx;
+  padding: 24rpx 26rpx;
+  border-radius: var(--r-sm);
+  background-color: #eef1f4;
+  border-left: 6rpx solid #c3cad3;
+}
+
+.pro-hint-title {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.pro-hint-body {
+  margin-top: 8rpx;
+  font-size: 26rpx;
+  line-height: 1.6;
+  color: var(--ink-3);
+}
+
+/* ---------- 设置页：数据上报配置的折叠头 ----------
+ * 「接口地址 / 访问令牌」是管理员字段，默认收起。
+ * 折叠头和参数区用同一套灰，避免患者把它当成一个需要填的表单。 */
+.upl-fold {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin: 10rpx 0;
+  padding: 26rpx;
+  background-color: #ffffff;
+  border-radius: var(--r-sm);
   border: 1rpx solid #f0f2f5;
 }
 
-.ui-sec {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  margin: 12rpx 8rpx 20rpx;
-  font-size: 28rpx;
-  font-weight: 700;
-  color: #1f2329;
+.upl-fold:active {
+  opacity: 0.7;
 }
 
-.ui-sec-line {
-  flex: 1;
-  height: 1rpx;
-  background-color: #e9eaee;
-  margin-left: 16rpx;
-}
-
-.ui-divider {
-  height: 1rpx;
-  background-color: #f2f3f5;
-}
-
-/* ---------- 顶部横幅 ---------- */
-.ui-banner {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  border-radius: 28rpx;
-  padding: 24rpx 28rpx;
-  margin-bottom: 24rpx;
-  background: linear-gradient(135deg, #eef6ff 0%, #eaf7f4 100%);
-}
-
-.ui-banner-icon {
-  font-size: 44rpx;
-  margin-right: 20rpx;
-}
-
-.ui-banner-title {
-  font-size: 28rpx;
+.upl-fold-text {
+  font-size: 26rpx;
   font-weight: 600;
-  color: #1f2329;
+  color: var(--ink-3);
 }
 
-.ui-banner-desc {
-  margin-top: 6rpx;
-  font-size: 23rpx;
-  color: #7a7f8a;
+.upl-tag {
+  margin-left: auto;
+  font-size: 24rpx;
+  color: var(--ink-4);
 }
 
-/* ---------- 数据总览 ---------- */
-.ui-stats {
-  display: flex;
-  flex-direction: row;
-  background-color: #fff;
-  border-radius: 24rpx;
-  padding: 28rpx 0;
-  margin-bottom: 24rpx;
-  box-shadow: 0 6rpx 20rpx rgba(17, 24, 39, 0.05);
-}
-
-.ui-stat {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.ui-stat-num {
-  font-size: 40rpx;
-  font-weight: 700;
-  color: #1f2329;
-}
-
-.ui-stat-label {
-  margin-top: 6rpx;
-  font-size: 22rpx;
-  color: #8b8f9a;
-}
-
-/* ---------- 列表行 ---------- */
-.ui-row {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  padding: 26rpx 0;
-  border-bottom: 1rpx solid #f2f3f5;
-}
-
-.ui-row-last {
-  border-bottom-color: transparent;
-}
-
-.ui-row-icon {
-  width: 72rpx;
-  height: 72rpx;
-  border-radius: 22rpx;
-  margin-right: 24rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: #eaf6f3;
-  flex-shrink: 0;
-}
-
-.ui-row-main {
-  flex: 1;
-}
-
-.ui-row-title {
-  font-size: 29rpx;
+.upl-tag.ok {
+  color: var(--teal-ink);
   font-weight: 600;
-  color: #1f2329;
 }
 
-.ui-row-desc {
-  margin-top: 6rpx;
-  font-size: 23rpx;
-  color: #8b8f9a;
+.upl-arrow {
+  width: 12rpx;
+  height: 12rpx;
+  margin-left: 14rpx;
+  border-right: 3rpx solid #9aa6b2;
+  border-bottom: 3rpx solid #9aa6b2;
+  transform: rotate(45deg);
 }
 
-.ui-row-value {
-  margin-left: 12rpx;
-  font-size: 25rpx;
-  color: #a6abb4;
-}
-
-/* ---------- 功能大卡 ---------- */
-.ui-feature {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  background-color: #fff;
-  border-radius: 24rpx;
-  padding: 32rpx 28rpx;
-  margin-bottom: 24rpx;
-  box-shadow: 0 6rpx 20rpx rgba(17, 24, 39, 0.05);
-}
-
-.ui-feature-icon {
-  width: 96rpx;
-  height: 96rpx;
-  border-radius: 26rpx;
-  margin-right: 24rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 44rpx;
-}
-
-.ui-feature-main {
-  flex: 1;
-}
-
-.ui-feature-title {
-  font-size: 31rpx;
-  font-weight: 700;
-  color: #1f2329;
-}
-
-.ui-feature-desc {
-  margin-top: 8rpx;
-  font-size: 23rpx;
-  line-height: 1.6;
-  color: #8b8f9a;
-}
-
-/* ---------- 步骤 ---------- */
-.ui-step {
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  padding: 16rpx 0;
-}
-
-.ui-step-no {
-  width: 40rpx;
-  height: 40rpx;
-  line-height: 40rpx;
-  text-align: center;
-  border-radius: 50%;
-  margin-right: 16rpx;
-  font-size: 22rpx;
-  font-weight: 700;
-  color: #fff;
-  background-color: #0f9c8c;
-}
-
-.ui-step-text {
-  flex: 1;
-  font-size: 25rpx;
-  line-height: 40rpx;
-  color: #55595f;
-}
-
-/* ---------- 说明文字 ---------- */
-.ui-tip {
-  margin: 8rpx 12rpx 0;
-  font-size: 23rpx;
-  line-height: 1.8;
-  color: #9aa0a6;
+.upl-arrow.up {
+  transform: rotate(-135deg);
 }
 
 /* ---------- 线性图标（Lucide，见 assets/icons/CREDITS.md） ---------- */
@@ -254,12 +194,4 @@ page {
 .ico-lg {
   width: 52rpx;
   height: 52rpx;
-}
-
-/* 列表行右侧箭头（替代文字 ›，更锐利） */
-.ui-row-arrow-ico {
-  width: 32rpx;
-  height: 32rpx;
-  margin-left: 12rpx;
-  flex-shrink: 0;
 }

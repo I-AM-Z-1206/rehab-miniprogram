@@ -67,6 +67,13 @@
   </view>
 
   <!-- 参数分组 -->
+  <!-- 治疗师调整区：患者从游戏页点「设置」就能走到这里，
+       看到「容差 / 稳时 / 判定半径」不知道该不该动。先一句话说清楚。 -->
+  <view class="pro-hint">
+    <text class="pro-hint-title">下面这些是治疗师调的参数</text>
+    <text class="pro-hint-body">不用改。想调难度，用上面的档位就够了；确定要微调，再往下看。</text>
+  </view>
+
   <view class="card" wx:for="{{groups}}" wx:key="name" wx:for-item="group">
     <view class="card-head">
       <text class="card-title">{{group.name}}</text>
@@ -113,39 +120,10 @@
     </view>
   </view>
 
-  <!-- 数据上报 -->
-  <view class="card">
-    <view class="card-head">
-      <text class="card-title">训练数据上报</text>
-      <text class="tag {{uploadState === '已配置' ? 'ok' : ''}}">{{uploadState}}</text>
-    </view>
-    <text class="card-tip">
-      接口地址与令牌由管理员填写，不写死在代码里。未配置时记录只保存在本机；
-      模拟数据不会上报。
-    </text>
-    <view class="field">
-      <text class="field-label">接口地址（https）</text>
-      <input
-        class="field-input"
-        value="{{uploadUrl}}"
-        placeholder="https://example.com/api/training/fruit"
-        bindinput="onUrlInput"
-      />
-    </view>
-    <view class="field">
-      <text class="field-label">访问令牌（可选）</text>
-      <input
-        class="field-input"
-        value="{{uploadToken}}"
-        password="{{true}}"
-        placeholder="仅保存在本机"
-        bindinput="onTokenInput"
-      />
-    </view>
-    <view class="btn-row">
-      <view class="btn primary" bindtap="onSaveUpload">保存上报配置</view>
-    </view>
-  </view>
+  <!-- 这里原来有一块「训练数据上报 / 接口地址 / 访问令牌」表单。
+       上报早已改成登录后静默上传（utils/api.js 统一管地址与 token），
+       setUploadConfig 是空实现 —— 患者填了也不会生效，文案还写着
+       「未配置时记录只保存在本机」，与真实行为相反。整块删除。 -->
 
   <!-- 操作 -->
   <view class="btn-row wide">

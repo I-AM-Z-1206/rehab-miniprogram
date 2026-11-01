@@ -1,7 +1,6 @@
 // fruit-settings.js —— 接水果：治疗师训练参数设置
 // 所有参数写入 utils/fruit-config.js（独立存储键 fruit_cfg_v1），改动立即生效。
 const { getStore, SCHEMA, GROUPS, PRESETS, validate } = require('../../../utils/fruit-config.js')
-const records = require('../../utils/fruit-record.js')
 
 const AXIS_LABEL = { pitch: 'Pitch 轴', roll: 'Roll 轴' }
 
@@ -25,10 +24,7 @@ Page({
     presets: [],
     presetRows: [],
     errors: [],
-    warnings: [],
-    uploadUrl: '',
-    uploadToken: '',
-    uploadState: '未配置'
+    warnings: []
   },
 
   onLoad() {
@@ -68,7 +64,6 @@ Page({
     }).filter((g) => g.items.length > 0)
 
     const v = validate(cfg.all())
-    const upload = records.getUploadConfig()
     this.setData({
       groups: groups,
       difficulty: cfg.get('difficulty'),
@@ -93,9 +88,7 @@ Page({
         }
       }),
       errors: v.errors,
-      warnings: v.warnings,
-      uploadUrl: upload.url || '',
-      uploadState: upload.url ? (upload.enabled ? '已配置' : '已填写但未启用') : '未配置'
+      warnings: v.warnings
     })
   },
 
@@ -180,30 +173,6 @@ Page({
         wx.showToast({ title: '已恢复默认', icon: 'success' })
       }
     })
-  },
-
-  // ---------------------------------------------------------------- 上报配置
-  onUrlInput(e) {
-    this.setData({ uploadUrl: e.detail.value })
-  },
-
-  onTokenInput(e) {
-    this.setData({ uploadToken: e.detail.value })
-  },
-
-  onSaveUpload() {
-    const url = (this.data.uploadUrl || '').trim()
-    if (url && !/^https:\/\//i.test(url)) {
-      wx.showModal({
-        title: '地址格式提示',
-        content: '上报地址必须是 https 开头的接口地址。小程序不允许请求 http 明文接口。',
-        showCancel: false
-      })
-      return
-    }
-    records.setUploadConfig({ url: url, token: this.data.uploadToken || '', enabled: !!url })
-    this.syncAll()
-    wx.showToast({ title: url ? '已保存' : '已清空', icon: 'none' })
   },
 
   // ---------------------------------------------------------------- 校验

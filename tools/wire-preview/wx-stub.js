@@ -31,6 +31,18 @@ export function installWx() {
       c.height = height
       return c
     },
+    // 角色已是纯矢量（character.js），wx.createImage 目前没有调用方。
+    // 保留这个 stub：其他游戏（接水果）哪天换真贴图时，预览页还要靠它
+    // 把包内绝对路径 /pkgWire/... 重写成浏览器可加载的相对路径。
+    createImage: () => {
+      const im = new Image()
+      const desc = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src')
+      Object.defineProperty(im, 'src', {
+        set(v) { desc.set.call(im, String(v).replace(/^\//, '../../')) },
+        get() { return desc.get.call(im) }
+      })
+      return im
+    },
     vibrateShort: () => {},
     setInnerAudioOption: () => {},
     createInnerAudioContext: () => ({

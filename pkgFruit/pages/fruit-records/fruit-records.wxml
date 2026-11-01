@@ -36,7 +36,7 @@
   <!-- 上报状态 -->
   <view class="banner {{uploadReady ? 'ok' : ''}}">
     <text class="banner-title">{{uploadReady ? '上报接口已配置' : '上报接口未配置'}}</text>
-    <text class="banner-desc">{{uploadReady ? '记录可逐条或批量发送到训练平台' : '记录只保存在本机，管理员可在训练设置中填写接口地址'}}</text>
+    <text class="banner-desc">{{uploadReady ? '记录可逐条或批量发送到训练平台' : '暂未同步到云端：登录账号并联网后自动补传'}}</text>
   </view>
 
   <view class="actions" wx:if="{{list.length}}">

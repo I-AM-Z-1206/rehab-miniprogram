@@ -29,31 +29,66 @@ page {
   display: flex;
   flex-direction: row;
   align-items: center;
-  padding: 32rpx 0 30rpx;
+  padding: 34rpx 0 30rpx;
 }
 
+.device:active {
+  opacity: 0.55;
+}
+
+/* 12rpx 的点在灰底上几乎看不见，14rpx 才够当状态指示 */
 .dot {
-  width: 12rpx;
-  height: 12rpx;
+  width: 14rpx;
+  height: 14rpx;
   border-radius: 50%;
-  background-color: #d3d7de;
-  margin-right: 14rpx;
+  background-color: #ccd2da;
+  margin-right: 16rpx;
+  flex-shrink: 0;
 }
 
 .dot.on {
-  background-color: #0f9c8c;
+  background-color: var(--teal);
 }
 
+/* 原来 24rpx（12px）+ #8b9099（3.4:1）：这是患者每次进门第一眼要确认的信息，
+   不该是全页最弱的一行。26rpx + ink-3（6.0:1）。 */
 .device-name {
   flex: 1;
-  font-size: 24rpx;
-  color: #8b9099;
+  font-size: var(--fs-note);
+  color: var(--ink-3);
   letter-spacing: 0.5rpx;
 }
 
 .device-state {
-  font-size: 24rpx;
-  color: #8b9099;
+  font-size: var(--fs-note);
+  color: var(--ink-3);
+}
+
+.device-state.on {
+  color: var(--teal-ink);
+  font-weight: 600;
+}
+
+/* 右侧箭头：说明这一行可以点 */
+.device-go {
+  width: 32rpx;
+  height: 32rpx;
+  margin-left: 8rpx;
+  flex-shrink: 0;
+}
+
+/* 文字 + 箭头的最小组合，全页共用，避免再手打「›」字符 */
+.link-go {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.go-ico {
+  width: 32rpx;
+  height: 32rpx;
+  margin-left: 4rpx;
+  flex-shrink: 0;
 }
 
 /* ---------- 主操作（整页唯一的实心块） ---------- */
@@ -80,16 +115,16 @@ page {
 .primary-sub {
   display: block;
   margin-top: 12rpx;
-  font-size: 25rpx;
+  font-size: var(--fs-body-s);
   line-height: 1.5;
-  color: rgba(255, 255, 255, 0.82);
+  color: rgba(255, 255, 255, 0.86);
 }
 
 /* ---------- 我的进步 ---------- */
 .prog {
-  margin-top: 10rpx;
-  padding: 44rpx 4rpx 38rpx;
-  border-bottom: 1rpx solid #eceff3;
+  margin-top: 0;
+  padding: 32rpx 4rpx 38rpx;
+  border-bottom: 1rpx solid var(--line);
   transition: opacity 0.12s ease;
 }
 
@@ -106,8 +141,17 @@ page {
 .prog-num {
   font-size: 64rpx;
   font-weight: 700;
-  color: #1a1f26;
+  color: var(--ink-1);
   letter-spacing: -1rpx;
+}
+
+/* 没有数据时这里显示的是句子不是数字（「还没有训练数据」「这周还没开始」），
+   按 64rpx/700 渲染会变成一堵墙，还可能撞到右边缘。降到 40rpx/600。 */
+.prog-num.is-text {
+  font-size: 40rpx;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0;
 }
 
 .prog-arrow {
@@ -116,16 +160,16 @@ page {
   font-weight: 700;
 }
 
-.prog-arrow.up { color: #0f9c8c; }
-.prog-arrow.down { color: #c47b1f; }
-.prog-arrow.flat { color: #a8aeb8; }
+.prog-arrow.up { color: var(--teal-ink); }
+.prog-arrow.down { color: var(--amber-ink); }
+.prog-arrow.flat { color: var(--ink-4); }
 
 .prog-say {
   display: block;
   margin-top: 10rpx;
-  font-size: 29rpx;
+  font-size: var(--fs-body);
   line-height: 1.55;
-  color: #4a515c;
+  color: var(--ink-2);
 }
 
 .prog-foot {
@@ -137,60 +181,24 @@ page {
 }
 
 .prog-meta {
-  font-size: 24rpx;
-  color: #949aa3;
+  font-size: var(--fs-note);
+  color: var(--ink-3);
 }
 
 .prog-go {
-  font-size: 25rpx;
+  font-size: var(--fs-note);
   font-weight: 600;
-  color: #0f9c8c;
-}
-
-/* ---------- 工具 ---------- */
-.tool {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  padding: 38rpx 4rpx;
-  border-bottom: 1rpx solid #eceff3;
-  transition: opacity 0.12s ease;
-}
-
-.tool:active {
-  opacity: 0.6;
-}
-
-.tool-main {
-  flex: 1;
-}
-
-.tool-name {
-  display: block;
-  font-size: 30rpx;
-  color: #1a1f26;
-}
-
-.tool-desc {
-  display: block;
-  margin-top: 6rpx;
-  font-size: 24rpx;
-  color: #949aa3;
-}
-
-.tool-go {
-  font-size: 34rpx;
-  color: #c8ccd4;
-  padding-left: 16rpx;
+  color: var(--teal-ink);
 }
 
 /* ---------- 说明 ---------- */
+/* 23rpx(11.5px) + #a8aeb8 只有 2.2:1，等于没写。26rpx + ink-3 是说明文字的下限。 */
 .tip {
   display: block;
-  margin-top: 36rpx;
-  font-size: 23rpx;
+  margin-top: var(--gap-4);
+  font-size: var(--fs-note);
   line-height: 1.75;
-  color: #a8aeb8;
+  color: var(--ink-3);
 }
 
 /* ---------- 本周打卡（首页只给节奏感，细节在「我的进步」里） ---------- */
@@ -211,14 +219,14 @@ page {
   width: 26rpx;
   height: 26rpx;
   border-radius: 50%;
-  background-color: #f2f4f7;
-  border: 2rpx solid #e6eaf0;
+  background-color: var(--line-soft);
+  border: 2rpx solid var(--line);
   box-sizing: border-box;
 }
 
 .wk.on .wk-dot {
-  background-color: #0f9c8c;
-  border-color: #0f9c8c;
+  background-color: var(--teal);
+  border-color: var(--teal);
 }
 
 .wk.today .wk-dot {
@@ -227,12 +235,13 @@ page {
 
 .wk-label {
   margin-top: 8rpx;
-  font-size: 22rpx;
-  color: #b3b9c2;
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
 }
 
 .wk.on .wk-label {
-  color: #0f9c8c;
+  color: var(--teal-ink);
+  font-weight: 600;
 }
 
 /* ---------- 步骤号 ---------- */
@@ -244,62 +253,67 @@ page {
 
 .primary-no {
   margin-right: 14rpx;
-  font-size: 24rpx;
+  font-size: var(--fs-note);
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.66);
+  color: rgba(255, 255, 255, 0.72);
 }
 
-/* ---------- 未完成 / 已完成的步骤行 ---------- */
+/* ---------- 未完成 / 已完成的步骤行 ----------
+   层级反了要纠正：原来是「已完成」#8b9099、「待完成」#b3b9c2（2.0:1），
+   也就是下一个该做的步骤比做完的还淡。已完成的才该退到后面。 */
 .step {
   display: flex;
   flex-direction: row;
   align-items: center;
   padding: 30rpx 4rpx;
-  border-bottom: 1rpx solid #eceff3;
+  border-bottom: 1rpx solid var(--line);
 }
 
 .step-no {
   width: 44rpx;
-  font-size: 24rpx;
+  font-size: var(--fs-note);
   font-weight: 600;
-  color: #c8ccd4;
+  color: var(--ink-4);
 }
 
 .step-check {
   width: 44rpx;
-  font-size: 26rpx;
+  font-size: var(--fs-body-s);
   font-weight: 700;
-  color: #0f9c8c;
+  color: var(--teal-ink);
 }
 
 .step-main {
   flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .step-name {
   display: block;
-  font-size: 30rpx;
-  color: #1a1f26;
+  font-size: var(--fs-body);
+  color: var(--ink-1);
 }
 
 .step.pending .step-name {
-  color: #b3b9c2;
+  color: var(--ink-2);
 }
 
 .step.done .step-name {
-  color: #8b9099;
+  color: var(--ink-3);
 }
 
+/* 13px 的说明文字不能落在 3.4:1 的灰上。弱化靠字号，不靠把对比度压到读不清。 */
 .step-desc {
   display: block;
   margin-top: 4rpx;
-  font-size: 24rpx;
-  color: #c0c5cd;
+  font-size: var(--fs-note);
+  color: var(--ink-3);
 }
 
 .step-go {
-  font-size: 24rpx;
-  color: #0f9c8c;
+  font-size: var(--fs-note);
+  color: var(--teal-ink);
   padding-left: 16rpx;
 }
 
@@ -309,17 +323,21 @@ page {
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  padding: 22rpx 4rpx;
-  border-bottom: 1rpx solid #eceff3;
+  padding: 24rpx 4rpx;
+  border-bottom: 1rpx solid var(--line);
+}
+
+.ready:active {
+  opacity: 0.55;
 }
 
 .ready-text {
-  font-size: 24rpx;
-  color: #949aa3;
+  font-size: var(--fs-note);
+  color: var(--ink-3);
 }
 
 .ready-go {
-  font-size: 24rpx;
+  font-size: var(--fs-note);
   font-weight: 600;
-  color: #0f9c8c;
+  color: var(--teal-ink);
 }

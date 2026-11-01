@@ -1,5 +1,6 @@
 // calibrate.js —— 零点标定页：姿态虚拟零点（roll / pitch 两个全局偏移量）
-//               静止 5 秒取平均作为零点，配 Roll / Pitch 实时曲线 + 二维分布图
+//               静止 5 秒取平均作为零点，配 Roll / Pitch 实时曲线 +
+//               二维分布图（横轴 Pitch 已按游戏操作方向取反，纵轴 Roll）
 //               注：加速度零点标定已按需求移除（只保留姿态零点）
 const WitBle = require('../../utils/witble.js')
 const speaker = require('../../utils/speaker.js')
@@ -50,10 +51,10 @@ Page({
     rawRoll: '--',
     rawPitch: '--',
 
-    // 二维分布（Roll / Pitch 采样点云）
+    // 二维分布（采样点云）：横轴 Pitch（已取反 = 游戏操作方向）、纵轴 Roll
     zeroCount: 0,
-    zeroSpanR: '--',
-    zeroSpanP: '--',
+    zeroSpanX: '--',
+    zeroSpanY: '--',
     zeroSd: '--',
     zeroQuality: '', // '' | good | warn
     zeroQualityText: '',
@@ -211,8 +212,8 @@ Page({
       zeroCalibrating: true,
       zeroRemain: total,
       zeroCount: 0,
-      zeroSpanR: '--',
-      zeroSpanP: '--',
+      zeroSpanX: '--',
+      zeroSpanY: '--',
       zeroSd: '--',
       zeroQuality: '',
       zeroQualityText: ''
@@ -310,7 +311,18 @@ Page({
     // minSpan 2° → 0.8°：视窗跨度固定是对的（稳和晃要能对比），
     // 但 2° 太大 —— 站得稳的人抖动只有 0.01~0.1°，在 2.6° 的窗口里
     // 缩成一个十字，看着像「没数据」。0.8° 下 0.3° 的晃动能占到小半屏。
-    return this.createScatter('chartZero', { unit: '°', minSpan: 0.8 })
+    // 横轴 Pitch（左右）、纵轴 Roll（前后）：与页面上方的读数顺序一致。
+    // **横轴取反**：三个游戏的左右方向都是 −pitch（wire/fruit 的 invertX
+    // 默认开 = 角色跟随身体），而传感器原始 pitch 正值对应身体向左。
+    // 直接画 +pitch 的话，身体向左倾、点往右跑 —— 与身体和游戏都镜像
+    // （2026-11-01 用户实测反馈「左右是反的」）。这里取反后：
+    // 身体往左倾 → 点往左移，与游戏里角色的方向一致。
+    return this.createScatter('chartZero', {
+      unit: '°',
+      minSpan: 0.8,
+      xLabel: 'Pitch',
+      yLabel: 'Roll'
+    })
       .then((c) => {
         this.zeroChart = c
         this.lastScatterAt = 0
@@ -402,10 +414,15 @@ Page({
     if (this.pitchChart) this.pitchChart.setData(times, [ps])
   },
 
-  // ---------- 二维分布（Roll / Pitch 点云 + 抖动范围） ----------
+  // ---------- 二维分布（横轴 Pitch / 纵轴 Roll 点云 + 抖动范围） ----------
   /**
    * 把标定中的原始采样喂给散点图。相比「画完再给结果」，这里每 100ms 重绘一次，
    * 患者能看到点云逐渐长出来 —— 他自己的稳定性是可见的，不是标定完才知道。
+   *
+   * 横轴放 Pitch、纵轴放 Roll（与上方读数、图上角标一致）。
+   * 散点图内部 r = 横轴量、p = 纵轴量，所以这里要反过来喂。
+   * **横轴喂 −pitch**：与游戏操作方向一致（见 initZeroChart 里的说明）。
+   * 极差 / 标准差这类统计量对取反不敏感，spreadR 仍是 Pitch 的极差。
    */
   pushZeroScatter() {
     if (!this.zeroChart || !this.zeroSamples) return
@@ -417,7 +434,7 @@ Page({
     for (let i = 0; i < this.zeroSamples.length; i++) {
       const s = this.zeroSamples[i]
       if (s && typeof s.roll === 'number' && typeof s.pitch === 'number') {
-        pts.push({ r: s.roll, p: s.pitch })
+        pts.push({ r: -s.pitch, p: s.roll })
       }
     }
     this.zeroChart.setData(pts)
@@ -437,8 +454,9 @@ Page({
 
     this.setData({
       zeroCount: st.n,
-      zeroSpanR: st.spreadR.toFixed(2),
-      zeroSpanP: st.spreadP.toFixed(2),
+      // spreadR 现在是横轴（Pitch）的极差，spreadP 是纵轴（Roll）的
+      zeroSpanX: st.spreadR.toFixed(2),
+      zeroSpanY: st.spreadP.toFixed(2),
       zeroSd: sd.toFixed(2),
       zeroQuality: quality,
       zeroQualityText: qualityText

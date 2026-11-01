@@ -48,7 +48,9 @@ Page({
     this._timers = []
   },
   data: {
-    canvasReady: false
+    canvasReady: false,
+    // 初始化失败时换成具体原因。留空 = 显示默认的「正在准备场地…」
+    bootMsg: ''
   },
 
   // ---------------------------------------------------------------- 生命周期
@@ -76,6 +78,8 @@ Page({
     this.attachBle()
     if (this.canvas && this.engine && !this.raf) this.startLoop()
     if (this.ble && this.ble.connectedId) this.ensureRate()
+    // 启动时网络不通的话，离线队列要等到下次进来才补传；这里给一次机会。
+    records.flushPending().catch(function () { /* 忽略 */ })
   },
 
   onHide() {
@@ -122,31 +126,68 @@ Page({
         const info = res && res[0]
         if (!info || !info.node || !info.width || !info.height) {
           that.retry += 1
-          if (that.retry < 20) that._later(() => that.initCanvas(), 100)
+          if (that.retry < 20) {
+            that._later(() => that.initCanvas(), 100)
+          } else {
+            // 2 秒拿不到画布就不再重试。原来这里直接 return，页面永远停在
+            // 「正在准备场地…」—— 那行字等一辈子都不会变，用户只能干等，
+            // 治疗师也分不清是画布没拿到、还是代码已经崩了。
+            // 把**实际拿到的是什么**报出来，三种情况的修法完全不同：
+            //   查询无结果   → wxml 里没有这个 id，或页面根本没渲染
+            //   有结果没 node → 基础库过低，不支持 fields({ node: true })
+            //   有 node 但尺寸 0 → 样式没生效，canvas 被压成 0 高
+            that.bootFail(!info ? '查询无结果（页面可能未渲染）'
+              : !info.node ? '未取到画布节点（基础库过低？）'
+                : '画布尺寸为 0（' + (info.width || 0) + '×' + (info.height || 0) + '，样式未生效）')
+          }
           return
         }
-        const canvas = info.node
-        const dpr = that.getDpr()
-        that.canvas = canvas
-        that.rect = { left: info.left || 0, top: info.top || 0, width: info.width, height: info.height }
-        canvas.width = Math.round(info.width * dpr)
-        canvas.height = Math.round(info.height * dpr)
+        // 下面任何一步抛错，canvasReady 都设不上，boot 层就会一直盖着 ——
+        // 原本这里是裸奔的，一次异常就变成永久白屏。包起来并说出来。
+        try {
+          const canvas = info.node
+          const dpr = that.getDpr()
+          that.canvas = canvas
+          that.rect = { left: info.left || 0, top: info.top || 0, width: info.width, height: info.height }
+          canvas.width = Math.round(info.width * dpr)
+          canvas.height = Math.round(info.height * dpr)
 
-        const ctx = canvas.getContext('2d')
-        const engine = new WireEngine({ cfg: that.cfg })
-        that.engine = engine
-        that.renderer = new WireRenderer({
-          canvas: canvas,
-          ctx: ctx,
-          engine: engine,
-          cfg: that.cfg
-        })
-        that.renderer.resize(info.width, info.height, dpr)
+          const ctx = canvas.getContext('2d')
+          const engine = new WireEngine({ cfg: that.cfg })
+          that.engine = engine
+          that.renderer = new WireRenderer({
+            canvas: canvas,
+            ctx: ctx,
+            engine: engine,
+            cfg: that.cfg
+          })
+          that.renderer.resize(info.width, info.height, dpr)
 
-        if (that.audio) that.audio.init()
-        that.setData({ canvasReady: true })
-        that.startLoop()
+          if (that.audio) that.audio.init()
+          that.setData({ canvasReady: true })
+          that.startLoop()
+        } catch (e) {
+          // 回到干净状态，让下次进页面还能重来（不然 this.engine 残留会卡住 initCanvas）
+          that.engine = null
+          that.renderer = null
+          that.canvas = null
+          that.bootFail('渲染器启动失败：' + ((e && e.message) || e))
+          console.error('[wire] initCanvas error', e)
+        }
       })
+  },
+
+  /**
+   * 初始化失败：把原因摆到画面上，同时落进 app 的错误日志。
+   * 宁可让患者看到一行技术文案，也不要给一个永远转不出来的空画面。
+   */
+  bootFail(msg) {
+    console.error('[wire] ' + msg)
+    try { this.setData({ bootMsg: msg }) } catch (e) { /* 页面可能已卸载 */ }
+    try {
+      const app = getApp()
+      if (app && app.logError) app.logError('wire-boot', msg + ' @ ' + (this.route || ''))
+    } catch (e) { /* 忽略 */ }
   },
 
   fitCanvas() {
@@ -251,25 +292,30 @@ Page({
       if (ev.type === 'state') {
         this.onStateChange(ev.state)
       } else if (ev.type === 'warn') {
-        this.sfx('miss')
+        // 失衡：提示**方向**，不是提示「你错了」。
+        // 原来这里是红字「已接近失衡」+ miss 音效 —— 患者知道出事了，
+        // 但不知道该往哪动；而且红色在康复场景里是失误语言。
+        this.sfx('wobble')
         this.buzz()
-        this.hint('已接近失衡 · 慢慢回正', '#DF5540', 900)
+        this.hint(this._guideText(ev.guide), '#8FB8CE', 1100)
       } else if (ev.type === 'rope:in') {
-        this.sfx('miss')
+        // 越界：绳索绷到头了。**不再说「已帮你扶稳」** —— 现在没有自动扶正，
+        // 回正要患者自己做，话必须这么说，否则他会等游戏来救。
+        this.sfx('edge')
         this.buzz('heavy')
-        this.hint('保险绳已介入，已帮你扶稳', '#9A6414', 400)
+        this.hint('已越界 · ' + this._guideText(ev.guide) + '（自己回正才能继续走）', '#B8792E', 900)
       } else if (ev.type === 'rope:out') {
         this.sfx('combo')
-        this.hint('已恢复平衡，继续前进', '#0A7E72', 600)
+        this.hint('回正了，继续走', '#0A7E72', 800)
       } else if (ev.type === 'critical') {
-        this.hint('重心不稳，请放慢动作', '#E39A32', 700)
+        this.hint('重心不稳，请放慢动作', '#B8792E', 900)
       } else if (ev.type === 'goal') {
         this.sfx('hit')
         this.buzz('heavy')
       } else if (ev.type === 'penalty') {
-        this.hint('已越界，本局不前进', '#DF5540', 700)
+        this.hint('已越界，本局不前进', '#B8792E', 800)
       } else if (ev.type === 'fail') {
-        this.hint('越界，本局结束', '#DF5540', 800)
+        this.hint('越界，本局结束', '#B8792E', 900)
       } else if (ev.type === 'sensor:lost') {
         this.buzz('heavy')
       } else if (ev.type === 'sensor:resume') {
@@ -355,29 +401,6 @@ Page({
     return rec
   },
 
-  /** 隐私确认：逐项展示将发送的内容与用途，用户同意后才发 */
-  askUpload(recordId, rec) {
-    const rows = records.describePayload(rec)
-    const preview = rows.slice(0, 6).map((r) => r[0] + '：' + r[1]).join('\n')
-    wx.showModal({
-      title: '发送本局训练记录？',
-      content: '将发送以下内容到训练平台，用于训练进度对比：\n' + preview +
-        '\n…（共 ' + rows.length + ' 项，不含姓名、证件号、联系方式）\n\n可随时在「训练记录」中重试或删除。',
-      confirmText: '同意发送',
-      cancelText: '仅存本机',
-      success: (res) => {
-        if (!res.confirm) return
-        records.upload(recordId, { consent: true }).then((r) => {
-          if (r.ok) {
-            wx.showToast({ title: '已上传', icon: 'success' })
-          } else {
-            wx.showToast({ title: '上传失败：' + (r.error || '请稍后重试'), icon: 'none', duration: 2200 })
-          }
-        })
-      }
-    })
-  },
-
   // ---------------------------------------------------------------- 反馈
   hint(text, color, gapMs) {
     if (!this.renderer) return
@@ -387,6 +410,18 @@ Page({
     if (this.lastHintAt[key] && now - this.lastHintAt[key] < gap) return
     this.lastHintAt[key] = now
     this.renderer.showHint(text, color)
+  },
+
+  /**
+   * 引导文案：把 guideDir 翻成人话。
+   * 0 表示前后失衡（没有横向光带），这时只说「把重心收回来」——
+   * 前后方向的光带读不出来，硬说「往前」反而会让人往前栽。
+   */
+  _guideText(dir) {
+    const d = Number(dir) || 0
+    if (d < 0) return '往左压一点'
+    if (d > 0) return '往右压一点'
+    return '把重心收回中间'
   },
 
   sfx(name) {
@@ -449,6 +484,15 @@ Page({
   dispatch(id) {
     const engine = this.engine
     if (!engine) return
+
+    // 角色：纯外观，立即生效并记住。介绍页里那个小人会当场换掉。
+    if (id.indexOf('char:') === 0) {
+      const cid = id.slice(5)
+      this.cfg.set('characterId', cid, 'page')
+      const NAME = { fox: '小狐狸', rabbit: '小兔子', panda: '小熊猫' }
+      this.hint('角色：' + (NAME[cid] || cid), '#0A7E72', 0)
+      return
+    }
 
     switch (id) {
       // ---- 介绍页 ----

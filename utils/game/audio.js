@@ -35,10 +35,18 @@ const PROFILES = {
       hit: 'fruit_catch.mp3',
       combo: 'fruit_combo.mp3',
       miss: 'fruit_miss.mp3',
-      ui: 'fruit_ui.mp3'
+      ui: 'fruit_ui.mp3',
+      // 走钢丝专用两个（2026-11-01）：失衡低鸣 / 绳索绷紧。
+      // 保留 wav 不转 mp3：本机没有 lameenc，而这俩各不到 10KB，
+      // 8kHz 单声道对「低频 + 摩擦」这种素材完全够用。
+      // 「回正成功」不新增音效，直接复用 combo（上行双音）。
+      wobble: 'wire_wobble.wav',
+      edge: 'wire_edge.wav'
     },
-    pool: { catch: 2, hit: 2, combo: 1, miss: 1, ui: 1 },
-    gap: { default: 40, catch: 40, hit: 40, combo: 120, miss: 120 },
+    // 音频句柄是有限资源（旧基础库上限 10 个，超了创建失败且不报错），
+    // 所以新增的只用 1 个池，总数 7 音效 + 1 BGM 仍在安全线内。
+    pool: { catch: 2, hit: 2, combo: 1, miss: 1, ui: 1, wobble: 1, edge: 1 },
+    gap: { default: 40, catch: 40, hit: 40, combo: 120, miss: 120, wobble: 900, edge: 700 },
     bgm: 'garden_loop.mp3'
   }
 }

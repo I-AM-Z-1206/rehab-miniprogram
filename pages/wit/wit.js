@@ -22,7 +22,15 @@ Page({
     rawRoll: '--', rawPitch: '--', // °（传感器原始角度，保留 2 位小数）
     battery: '--',
     batVolt: '',
-    temp: '--'
+    temp: '--',
+    // 技术数据（加速度/角速度/原始角度/温度）默认收起：
+    // 患者看这一页只关心「连上了吗、姿势是多少」，这些是排查用的，不该占首屏
+    showDetail: false
+  },
+
+  // ---------- 折叠技术数据 ----------
+  toggleDetail() {
+    this.setData({ showDetail: !this.data.showDetail })
   },
 
   onLoad() {

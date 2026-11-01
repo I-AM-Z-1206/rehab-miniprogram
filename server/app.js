@@ -35,8 +35,13 @@ if (!SECRET) {
   SECRET = 'dev-only-secret-change-me'
   console.warn('[warn] 未设置 SESSION_SECRET，正在使用开发默认值，不要用于生产')
 }
-if (DEV_LOGIN && IS_PROD) {
-  console.warn('[warn] DEV_LOGIN=1 在生产环境下生效，任何人都能伪造登录！请立刻关闭')
+// DEV_LOGIN 在生产等于「任何人都能伪造任意患者/治疗师身份」。
+// 只打警告不够 —— 一定会有人在日志里漏看这一行，所以直接拒绝启动。
+// 真要临时联调，必须显式设 ALLOW_DEV_LOGIN_IN_PROD=1，让这个决定是刻意做出来的。
+if (DEV_LOGIN && IS_PROD && process.env.ALLOW_DEV_LOGIN_IN_PROD !== '1') {
+  console.error('[fatal] 生产环境不允许 DEV_LOGIN=1：任何人都能伪造患者/治疗师身份。')
+  console.error('[fatal] 请配置 WX_APPID / WX_SECRET；或显式设 ALLOW_DEV_LOGIN_IN_PROD=1 并承担风险。')
+  process.exit(1)
 }
 
 const app = Fastify({

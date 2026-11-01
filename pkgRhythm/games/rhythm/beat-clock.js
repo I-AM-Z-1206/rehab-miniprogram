@@ -77,6 +77,16 @@ class BeatClock {
       this.mode = 'silent'
       return null
     }
+    // 命中推进旋律模式：**不放循环曲**。音乐由 melody.js 按命中驱动，
+    // 这里如果还播一首循环背景乐，等于两套音乐同时响，而且背景乐有拍点，
+    // 患者会本能地去跟它 —— 又回到「跟不上就是错」的老问题。
+    // 此时 BeatClock 退化成一个纯单调时钟（门控模式不依赖音频对齐）。
+    let melodyOn = false
+    try { melodyOn = !!(this.cfg && this.cfg.get && this.cfg.get('melodyOn')) } catch (e) { melodyOn = false }
+    if (melodyOn) {
+      this.mode = 'silent'
+      return null
+    }
     try {
       const a = wx.createInnerAudioContext()
       a.src = this.song.file

@@ -1,96 +1,128 @@
-<!--wit.wxml-->
+<!--wit.wxml —— 蓝牙传感器
+    改版原因：这一页原来把「加速度 X/Y/Z、角速度 X/Y/Z、原始角度、温度」全平铺在首屏，
+    上面还压着五张白卡片 —— 患者打开只想确认「连上了吗、姿势对不对」，却要先翻过两屏仪表盘。
+    现在：连接状态和姿态角在上面，调试数据收进折叠区（默认收起）。-->
 <navigation-bar title="蓝牙传感器" back="{{true}}" color="black" background="#FFF"></navigation-bar>
 <scroll-view class="scrollarea" scroll-y type="list">
-  <view class="page-body">
+  <view class="page">
 
-    <!-- 状态卡 -->
-    <view class="card status-card">
-      <view class="status-row">
-        <view class="status-dot {{status === 'connected' ? 'on' : (status === 'scanning' ? 'scan' : '')}}"></view>
-        <view class="status-text">{{statusText}}</view>
-        <view class="flex-spacer"></view>
-        <view class="packet-count">{{packets}} 帧</view>
+    <!-- ============ 连接 ============ -->
+    <view class="bar">
+      <view class="dot {{status === 'connected' ? 'on' : (status === 'scanning' || status === 'connecting' ? 'scan' : '')}}"></view>
+      <text class="bar-text">{{statusText}}</text>
+    </view>
+
+    <view class="btn-row">
+      <view
+        class="btn {{status === 'scanning' ? 'btn-stop' : ''}}"
+        bindtap="{{status === 'scanning' ? 'onStopScan' : 'startScan'}}"
+        aria-role="button"
+        aria-label="{{status === 'scanning' ? '停止扫描' : '扫描设备'}}"
+      >
+        {{status === 'scanning' ? '停止扫描' : '扫描设备'}}
       </view>
+      <view class="btn btn-outline {{status !== 'connected' ? 'btn-off' : ''}}" bindtap="onDisconnectTap" aria-role="button" aria-label="断开连接">断开</view>
+    </view>
 
-      <view class="btn-row">
-        <view
-          class="btn {{status === 'scanning' ? 'btn-stop' : ''}}"
-          bindtap="{{status === 'scanning' ? 'onStopScan' : 'startScan'}}"
-        >
-          {{status === 'scanning' ? '停止扫描' : '扫描设备'}}
+    <!-- 附近设备：只在扫描中或已找到设备时出现 -->
+    <block wx:if="{{status === 'scanning' || (devices.length > 0 && status !== 'connected')}}">
+      <view class="sec">
+        <text class="sec-title">附近的设备</text>
+        <text class="sec-hint">WT9011DCL 排在前面</text>
+      </view>
+      <view class="dev" wx:for="{{devices}}" wx:key="deviceId" data-id="{{item.deviceId}}" bindtap="onPickDevice" aria-role="button" aria-label="连接设备 {{item.name || '未命名设备'}}">
+        <view class="dev-l">
+          <text class="dev-name">{{item.name || '未命名设备'}}</text>
+          <text class="dev-id">{{item.deviceId}}</text>
         </view>
-        <view class="btn btn-outline {{status !== 'connected' ? 'btn-disabled' : ''}}" bindtap="onDisconnectTap">断开</view>
+        <text class="dev-rssi">{{item.rssi}} dBm</text>
+        <text class="dev-go">连接</text>
+      </view>
+      <text class="hint" wx:if="{{devices.length === 0}}">正在搜索… 确认传感器已开机（蓝灯快闪）</text>
+    </block>
+
+    <!-- ============ 姿态角：这一页真正要看的三个数 ============ -->
+    <view class="sec">
+      <text class="sec-title">当前姿态</text>
+      <text class="sec-hint">已减去零点</text>
+    </view>
+
+    <view class="angles">
+      <view class="ang">
+        <text class="ang-num mono">{{roll}}<text class="ang-unit">°</text></text>
+        <text class="ang-label">前后倾</text>
+      </view>
+      <view class="ang-sep"></view>
+      <view class="ang">
+        <text class="ang-num mono">{{pitch}}<text class="ang-unit">°</text></text>
+        <text class="ang-label">左右倾</text>
+      </view>
+      <view class="ang-sep"></view>
+      <view class="ang">
+        <text class="ang-num mono">{{yaw}}<text class="ang-unit">°</text></text>
+        <text class="ang-label">转向</text>
       </view>
     </view>
 
-    <!-- 设备列表 -->
-    <view class="card" wx:if="{{status === 'scanning' || (devices.length > 0 && status !== 'connected')}}">
-      <view class="card-title">附近设备（WitMotion 置顶）</view>
-      <view class="dev-item" wx:for="{{devices}}" wx:key="deviceId" data-id="{{item.deviceId}}" bindtap="onPickDevice">
-        <view class="dev-info">
-          <view class="dev-name">{{item.name || '未命名设备'}}</view>
-          <view class="dev-id">{{item.deviceId}}</view>
-        </view>
-        <view class="dev-rssi">{{item.rssi}} dBm</view>
-        <view class="dev-connect">连接</view>
-      </view>
-      <view class="empty-tip" wx:if="{{devices.length === 0}}">正在搜索…请确认传感器已开机（蓝灯闪烁）</view>
+    <!-- ============ 电量 ============ -->
+    <view class="bat">
+      <image class="bat-ico" src="/assets/icons/battery-gray.png" mode="aspectFit" />
+      <text class="bat-label">电量</text>
+      <text class="bat-num mono">{{battery}}{{battery === '--' ? '' : '%'}}</text>
+      <text class="bat-volt" wx:if="{{batVolt}}">{{batVolt}} V</text>
+      <view class="spacer"></view>
+      <view class="bat-btn" bindtap="onQueryBattery" aria-role="button" aria-label="读取传感器电量">读取</view>
     </view>
 
-    <!-- 实时数据 -->
-    <view class="card">
-      <view class="card-title">加速度（g）</view>
-      <view class="val-grid">
-        <view class="val-cell"><view class="val-axis">X</view><view class="val-num mono">{{ax}}</view></view>
-        <view class="val-cell"><view class="val-axis">Y</view><view class="val-num mono">{{ay}}</view></view>
-        <view class="val-cell"><view class="val-axis">Z</view><view class="val-num mono">{{az}}</view></view>
-      </view>
+    <!-- ============ 技术数据：默认收起 ============
+         采集用的是加速度和角速度，但「2.361 g」对患者没有任何决策价值；
+         留在这里给调试和排查用，不占首屏。 -->
+    <view class="fold" bindtap="toggleDetail" aria-role="button" aria-label="{{showDetail ? '收起技术数据' : '展开技术数据'}}">
+      <text class="fold-text">{{showDetail ? '收起技术数据' : '看技术数据'}}</text>
+      <view class="fold-arrow {{showDetail ? 'up' : ''}}"></view>
     </view>
 
-    <view class="card">
-      <view class="card-title">角速度（°/s）</view>
-      <view class="val-grid">
-        <view class="val-cell"><view class="val-axis">X</view><view class="val-num mono">{{wx}}</view></view>
-        <view class="val-cell"><view class="val-axis">Y</view><view class="val-num mono">{{wy}}</view></view>
-        <view class="val-cell"><view class="val-axis">Z</view><view class="val-num mono">{{wz}}</view></view>
-      </view>
-    </view>
-
-    <view class="card">
-      <view class="card-title">姿态角（°）Roll / Pitch / Yaw · 已叠加零点</view>
-      <view class="val-grid">
-        <view class="val-cell"><view class="val-axis">X</view><view class="val-num mono">{{roll}}</view></view>
-        <view class="val-cell"><view class="val-axis">Y</view><view class="val-num mono">{{pitch}}</view></view>
-        <view class="val-cell"><view class="val-axis">Z</view><view class="val-num mono">{{yaw}}</view></view>
-      </view>
-      <view class="raw-line">传感器原始值：Roll {{rawRoll}}° · Pitch {{rawPitch}}°（可在「零点标定」页重新标定）</view>
-    </view>
-
-    <!-- 电量 / 温度 -->
-    <view class="card">
-      <view class="card-title">传感器状态</view>
-      <view class="stat-row">
-        <view class="stat-item">
-          <image class="stat-ico" src="/assets/icons/battery-gray.png" mode="aspectFit" />
-          <text class="stat-label">电量</text>
-          <text class="mono">{{battery}}%</text>
-          <text class="bat-volt" wx:if="{{batVolt}}">（{{batVolt}}V）</text>
-        </view>
-        <view class="stat-item">
-          <image class="stat-ico" src="/assets/icons/thermometer-gray.png" mode="aspectFit" />
-          <text class="stat-label">温度</text>
-          <text class="mono">{{temp}}℃</text>
+    <view wx:if="{{showDetail}}" class="detail">
+      <view class="d-sec">
+        <text class="d-title">加速度（g）</text>
+        <view class="vals">
+          <view class="val"><text class="val-axis">X</text><text class="val-num mono">{{ax}}</text></view>
+          <view class="val"><text class="val-axis">Y</text><text class="val-num mono">{{ay}}</text></view>
+          <view class="val"><text class="val-axis">Z</text><text class="val-num mono">{{az}}</text></view>
         </view>
       </view>
-      <view class="btn-row">
-        <view class="btn btn-sub" bindtap="onQueryBattery">读电量</view>
-        <view class="btn btn-sub" bindtap="onQueryTemp">读温度</view>
+
+      <view class="d-sec">
+        <text class="d-title">角速度（°/s）</text>
+        <view class="vals">
+          <view class="val"><text class="val-axis">X</text><text class="val-num mono">{{wx}}</text></view>
+          <view class="val"><text class="val-axis">Y</text><text class="val-num mono">{{wy}}</text></view>
+          <view class="val"><text class="val-axis">Z</text><text class="val-num mono">{{wz}}</text></view>
+        </view>
+      </view>
+
+      <view class="d-sec">
+        <view class="d-row">
+          <text class="d-k">传感器原始值</text>
+          <text class="d-v mono">Roll {{rawRoll}}° · Pitch {{rawPitch}}°</text>
+        </view>
+        <view class="d-row">
+          <text class="d-k">温度</text>
+          <text class="d-v mono">{{temp}} ℃</text>
+        </view>
+        <view class="d-row">
+          <text class="d-k">本次已收</text>
+          <text class="d-v mono">{{packets}} 帧</text>
+        </view>
+        <view class="d-row">
+          <text class="d-k">零点</text>
+          <text class="d-v">在「零点标定」页重新标定</text>
+        </view>
+        <view class="d-btn" bindtap="onQueryTemp" aria-role="button" aria-label="读取传感器温度">读取温度</view>
       </view>
     </view>
 
-    <view class="help-tip">
-      使用说明：传感器开机后蓝灯快闪为广播状态；点击「扫描设备」，选择 WT9011DCL 连接。默认上传加速度+角速度+角度组合帧（0x55 0x61）；电量和温度需点击按钮查询。Android 真机需授予定位权限，iOS 需允许蓝牙使用。模拟器不支持 BLE，请用真机运行。
-    </view>
+    <text class="note">传感器开机后蓝灯快闪。扫不到设备时：确认手机蓝牙已开、传感器有电、安卓还需允许定位权限。模拟器不支持蓝牙，要用真机。</text>
 
   </view>
 </scroll-view>

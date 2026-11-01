@@ -199,9 +199,75 @@ def build_garden():
 
 
 def main():
+
     os.makedirs(OUT_DIR, exist_ok=True)
     build_sfx()
     build_garden()
+    build_wire()
+
+
+# ============================================================================
+# 走钢丝：失衡与越界的两个提示音（2026-11-01）
+# ----------------------------------------------------------------------------
+# 为什么只用两个音 —— 音频句柄是有限资源（旧基础库对 InnerAudioContext 有数量
+# 上限，历史上是 10 个，超了会创建失败且不报错，表现成「整体没声音」）。
+# casual 这一套已经有 5 个音效 + 1 个 BGM，最多再挤 2 个：
+#   wire_wobble  失衡（轻微不稳的低鸣，两个频率差 12Hz 产生慢拍频 —— 那点
+#                「晃」的感觉就是拍频来的，比加颤音自然）
+#   wire_edge    越界 / 绳索绷到头（更低、更短、带一点摩擦感）
+# 「回正成功」不新增，直接复用 combo（上行双音）—— 语义正好是「起来了」。
+# ============================================================================
+
+
+def beat_rumble(buf, start, dur, gain, f1=196.0, f2=208.0, tau=0.28):
+    """两个相近频率叠加 → 慢拍频 → 读成「轻微晃动」，不是「报警」。"""
+    n = int(dur * SR)
+    for i in range(n):
+        idx = start + i
+        if idx >= len(buf):
+            break
+        t = i / SR
+        a = decay(t, 0.02, tau) * gain
+        v = math.sin(2 * math.pi * f1 * t) * 0.6 + math.sin(2 * math.pi * f2 * t) * 0.4
+        # 极轻的二次谐波，让低音在小喇叭上也听得见
+        v += math.sin(2 * math.pi * f1 * 2 * t) * 0.12
+        buf[idx] += v * a
+
+
+def rope_creak(buf, start, dur, gain, rng):
+    """绳索绷紧：低频坠 + 一点高频摩擦噪声（带通近似）。"""
+    n = int(dur * SR)
+    prev = 0.0
+    for i in range(n):
+        idx = start + i
+        if idx >= len(buf):
+            break
+        t = i / SR
+        a = decay(t, 0.006, 0.11) * gain
+        f = 150 - 60 * min(1.0, t / dur)          # 下坠
+        low = math.sin(2 * math.pi * f * t) * 0.8
+        # 一阶差分噪声 = 廉价高通，得到「沙」的摩擦感
+        w = rng.uniform(-1, 1)
+        hi = (w - prev) * 0.35
+        prev = w
+        buf[idx] += (low + hi * math.exp(-t / 0.09)) * a
+
+
+def build_wire():
+    rng = random.Random(20261101)
+
+    buf = [0.0] * int(0.62 * SR)
+    beat_rumble(buf, 0, 0.60, 0.55)
+    write_wav('wire_wobble.wav', buf, 0.62)
+
+    buf = [0.0] * int(0.46 * SR)
+    rope_creak(buf, 0, 0.44, 0.62, rng)
+    beat_rumble(buf, 0, 0.40, 0.30, 124.0, 130.0, 0.16)
+    write_wav('wire_edge.wav', buf, 0.66)
+
+
+if __name__ == '__main__':
+    main()
 
 
 if __name__ == '__main__':

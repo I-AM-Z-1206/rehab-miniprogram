@@ -28,6 +28,12 @@ const SUITES = [
   { file: 'tools/audio-headless-test.js', name: '音频/公共' },
   { file: 'tools/lightchart-test.js', name: '图表' },
   { file: 'tools/record-isolation-test.js', name: '记录隔离' },
+  { file: 'tools/progress-test.js', name: '进步视图' },
+  { file: 'tools/fruit-metrics-test.js', name: '接水果指标' },
+  { file: 'tools/shoot-record-test.js', name: '射击记录' },
+  { file: 'tools/rhythm-playability-test.js', name: '节奏可玩性' },
+  { file: 'tools/device-ready-test.js', name: '设备就绪' },
+  { file: 'tools/schema-check.js', name: '数据库结构' },
   { file: 'tools/server-smoke-test.js', name: '后端接口' },
   { file: 'tools/pack-size-check.js', name: '包体积' }
 ]

@@ -104,8 +104,36 @@ if (scenario === 'prepare') {
   const r = engine.startCountdown()
   if (r.ok) {
     simulate(3.4, autoInput)
-    simulateUntil(20, () => engine.score.combo >= 4)
+    // combo ≥ 5 篮子起金色呼吸光晕，所以要打到 5
+    simulateUntil(24, () => engine.score.combo >= 5)
   }
+} else if (scenario === 'dusk') {
+  // 短局快进到黄昏：验证天空时段推移（progress ≈ 0.8）
+  cfg.patch({ durationSec: 20 }, 'preview')
+  engine.refreshGeometry()
+  engine.prepare()
+  const r = engine.startCountdown()
+  if (r.ok) {
+    simulate(16, autoInput)
+  }
+  frozen = true
+} else if (scenario === 'golden') {
+  // 直接种三颗黄金果到空中：不靠 6% 概率撞运气
+  engine.prepare()
+  const r = engine.startCountdown()
+  if (r.ok) {
+    simulate(3.4, autoInput)
+    for (let gi = 0; gi < 3; gi++) {
+      engine.fruits.push(engine._makeFruit({
+        id: 'golden' + gi, type: 'apple', golden: true,
+        x: 0.32 + gi * 0.18, y: 0.1 + gi * 0.16,
+        vy: 0.24, rot: 0, vrot: 0.5,
+        swayAmp: 0.004, swayPhase: gi * 2, swaySpeed: 1.2
+      }))
+    }
+    simulate(0.9, autoInput)
+  }
+  frozen = true
 } else if (scenario === 'result') {
   cfg.patch({ durationSec: 40, spawnInterval: 1.1 }, 'preview')
   engine.refreshGeometry()

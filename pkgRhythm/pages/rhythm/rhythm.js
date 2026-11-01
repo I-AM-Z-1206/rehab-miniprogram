@@ -22,6 +22,7 @@ const { songById } = require('../../../utils/rhythm-songs.js')
 const { BeatClock } = require('../../games/rhythm/beat-clock.js')
 const { RhythmEngine } = require('../../games/rhythm/engine.js')
 const { RhythmRenderer } = require('../../games/rhythm/renderer.js')
+const { Melody } = require('../../games/rhythm/melody.js')
 const { AudioKit } = require('../../../utils/game/audio.js')
 const records = require('../../utils/rhythm-record.js')
 const { getNickname } = require('../../../utils/tab.js')
@@ -66,6 +67,9 @@ Page({
     this.rateApplied = false
     // 提示音用 casual 音效集：音乐由 BeatClock 播，音效不能再叠一首背景音乐
     this.audio = new AudioKit(this.cfg, 'casual')
+    // 命中推进旋律：每完成一个音符，旋律往前走一步。
+    // 它不是背景乐 —— 停下来，音乐就悬在那儿等患者。
+    this.melody = new Melody({ cfg: this.cfg })
     this.lastHintAt = {}
     this.lastBuzzAt = 0
     this.recordSaved = false
@@ -85,9 +89,12 @@ Page({
         this.clock.syncVolume()
         this.clock.setSong(this.engine.song)
       }
+      if (this.melody) this.melody.syncVolume()
     }
     if (this.canvas && this.engine && !this.raf) this.startLoop()
     if (this.ble && this.ble.connectedId) this.ensureRate()
+    // 分包里的记录库只有进过这个页面才会注册，启动时的 flushAll 覆盖不到它。
+    records.flushPending().catch(function () { /* 忽略 */ })
   },
 
   onHide() {
@@ -118,6 +125,10 @@ Page({
     if (this.audio) {
       this.audio.destroy()
       this.audio = null
+    }
+    if (this.melody) {
+      this.melody.destroy()
+      this.melody = null
     }
     this.engine = null
     this.renderer = null
@@ -270,9 +281,16 @@ Page({
       } else if (ev.type === 'hit') {
         this.sfx('hit')
         this.buzz('light')
-      } else if (ev.type === 'miss') {
-        this.sfx('miss')
-        if (ev.wrongSide) this.hint('方向反了：向' + (ev.side === 'left' ? '左' : '右') + '移动身体', '#FF6B81', 1400)
+      } else if (ev.type === 'tone') {
+        // 命中推进旋律：音高由「完成到第几个」决定
+        if (this.melody) this.melody.play(ev.step || 1)
+      } else if (ev.type === 'hint') {
+        // 逐级提示：第 3 级才出声。前两级是纯视觉（放大、点亮判定台），
+        // 语音留到最后 —— 一上来就念，患者会依赖它而不看画面。
+        if (ev.level >= 3) {
+          const s = ev.side === 'left' ? '往左一点' : (ev.side === 'right' ? '往右一点' : '回到中间')
+          this.say(s, 1600)
+        }
       } else if (ev.type === 'combo') {
         this.sfx('combo')
       } else if (ev.type === 'guide') {
@@ -283,7 +301,8 @@ Page({
       } else if (ev.type === 'sensor:resume') {
         this.hint('数据已恢复，继续训练', '#7BE3A8', 800)
       } else if (ev.type === 'music') {
-        if (ev.mode === 'silent') this.hint('无音乐：只能靠节拍点击与视觉判断', '#FFD479', 0)
+        // 'melody' = 命中推进旋律（正常）；'silent' = 音频不可用，视觉仍然完整可玩
+        if (ev.mode === 'silent') this.hint('音频不可用：音符仍然不会漏，靠视觉继续', '#FFD479', 0)
       } else if (ev.type === 'calibrate') {
         const ok = ev.result === 'ok' || ev.ok
         this.hint(ok ? (ev.simulated ? '模拟模式：无需标定' : '标定成功') : (ev.message || '标定失败，请重试'),
@@ -339,19 +358,26 @@ Page({
       greatCount: s.great,
       goodCount: s.good,
       missCount: s.miss,
+      unsolvedCount: s.unsolved || 0,
       perfect: s.perfect,
       great: s.great,
       good: s.good,
       miss: s.miss,
       hits: s.hits,
-      wrongDirectionCount: s.wrongDirectionCount,
+      // 门控下没有「方向错误」这个独立事件：方向不对就完不成，会一直等。
+      // 字段保留只为旧记录能对齐。
+      wrongDirectionCount: s.wrongDirectionCount || 0,
       comboMax: s.comboMax,
       leftHitCount: s.leftHitCount,
       centerHitCount: s.centerHitCount,
       rightHitCount: s.rightHitCount,
-      rhythmAccuracy: s.rhythmAccuracy,
-      directionAccuracy: s.directionAccuracy,
-      overallHitRate: s.overallHitRate,
+      // 门控口径（v3）：时间维度消失了，改成稳定度 / 左右均衡 / 平均节奏
+      judgeVersion: s.judgeVersion,
+      stabilityRate: s.stabilityRate,
+      balanceRate: s.balanceRate,
+      paceSec: s.paceSec,
+      avgReactionMs: s.avgReactionMs,
+      avgHoldMs: s.avgHoldMs,
       syncOffsetMs: s.syncOffsetMs,
       controlConfig: s.controlConfig,
       duration: s.durationSec,
@@ -378,29 +404,6 @@ Page({
     this.recordSaved = true
     this.savedRecord = rec
     return rec
-  },
-
-  /** 隐私确认：逐项展示将发送的内容与用途，用户同意后才发 */
-  askUpload(recordId, rec) {
-    const rows = records.describePayload(rec)
-    const preview = rows.slice(0, 6).map((r) => r[0] + '：' + r[1]).join('\n')
-    wx.showModal({
-      title: '发送本局训练记录？',
-      content: '将发送以下内容到训练平台，用于训练进度对比：\n' + preview +
-        '\n…（共 ' + rows.length + ' 项，不含姓名、证件号、联系方式）\n\n可随时在「训练记录」中重试或删除。',
-      confirmText: '同意发送',
-      cancelText: '仅存本机',
-      success: (res) => {
-        if (!res.confirm) return
-        records.upload(recordId, { consent: true }).then((r) => {
-          if (r.ok) {
-            wx.showToast({ title: '已上传', icon: 'success' })
-          } else {
-            wx.showToast({ title: '上传失败：' + (r.error || '请稍后重试'), icon: 'none', duration: 2200 })
-          }
-        })
-      }
-    })
   },
 
   // ---------------------------------------------------------------- 反馈
@@ -480,13 +483,23 @@ Page({
     const engine = this.engine
     if (!engine) return
 
-    // 曲目 / 难度
+    // 背景：患者自己在开始页点，立即生效并记住
+    if (id.indexOf('bg:') === 0) {
+      const bg = id.slice(3)
+      this.cfg.set('backgroundId', bg, 'page')
+      const label = ({ dawn: '清晨逆光', dusk: '暮色蓝调', moon: '月夜银' })[bg] || bg
+      this.hint('背景：' + label, '#B9F4FF', 0)
+      return
+    }
+
+    // 音色 / 难度
     if (id.indexOf('song:') === 0) {
       const songId = id.slice(5)
       this.cfg.set('songId', songId, 'page')
       engine.syncSong()
       if (this.clock) this.clock.setSong(engine.song)
-      this.hint('已选择《' + songById(songId).name + '》· ' + songById(songId).bpm + ' BPM', '#B9F4FF', 0)
+      if (this.melody) this.melody.syncVolume()
+      this.hint('已选择音色《' + songById(songId).name + '》', '#B9F4FF', 0)
       return
     }
     if (id.indexOf('lv:') === 0) {

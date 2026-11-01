@@ -73,6 +73,8 @@ Page({
     if (this.game) this.game.feedSensor(null)
     if (this.audio) this.audio.sync()
     if (this.game) this.game.render()
+    // 分包里的记录库只有进过这个页面才会注册，启动时的 flushAll 覆盖不到它。
+    records.flushPending().catch(function () { /* 忽略 */ })
   },
 
   onHide() {

@@ -65,6 +65,13 @@
   </view>
 
   <!-- 参数分组 -->
+  <!-- 治疗师调整区：患者从游戏页点「设置」就能走到这里，
+       看到「容差 / 稳时 / 判定半径」不知道该不该动。先一句话说清楚。 -->
+  <view class="pro-hint">
+    <text class="pro-hint-title">下面这些是治疗师调的参数</text>
+    <text class="pro-hint-body">不用改。想调难度，用上面的档位就够了；确定要微调，再往下看。</text>
+  </view>
+
   <view class="card" wx:for="{{groups}}" wx:key="name" wx:for-item="group">
     <view class="card-head">
       <text class="card-title">{{group.name}}</text>

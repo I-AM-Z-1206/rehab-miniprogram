@@ -33,7 +33,7 @@ page {
 }
 
 .hero-kicker {
-  font-size: 22rpx;
+  font-size: 24rpx;
   color: #7a8fa1;
 }
 
@@ -46,7 +46,7 @@ page {
 
 .hero-desc {
   margin-top: 8rpx;
-  font-size: 22rpx;
+  font-size: 24rpx;
   color: #7a8fa1;
 }
 
@@ -97,7 +97,7 @@ page {
 }
 
 .alert-title {
-  font-size: 25rpx;
+  font-size: 26rpx;
   font-weight: 700;
   color: #b8492f;
 }
@@ -108,7 +108,7 @@ page {
 
 .alert-line {
   margin-top: 6rpx;
-  font-size: 23rpx;
+  font-size: 24rpx;
   line-height: 1.7;
   color: #8a5b52;
 }
@@ -142,14 +142,14 @@ page {
 }
 
 .card-sub {
-  font-size: 21rpx;
+  font-size: 24rpx;
   color: #9aa6b2;
 }
 
 .card-tip {
   display: block;
   margin: 6rpx 0 14rpx;
-  font-size: 22rpx;
+  font-size: 24rpx;
   line-height: 1.7;
   color: #9aa0a6;
 }
@@ -157,7 +157,7 @@ page {
 .tag {
   padding: 6rpx 16rpx;
   border-radius: 100rpx;
-  font-size: 20rpx;
+  font-size: 24rpx;
   color: #8b8f9a;
   background: #f2f4f6;
 }
@@ -209,7 +209,7 @@ page {
 
 .preset-name {
   margin-top: 4rpx;
-  font-size: 19rpx;
+  font-size: 24rpx;
   color: #9aa6b2;
 }
 
@@ -259,7 +259,7 @@ page {
 .item-tip {
   display: block;
   margin-top: 4rpx;
-  font-size: 21rpx;
+  font-size: 24rpx;
   line-height: 1.65;
   color: #a3aab2;
 }
@@ -277,7 +277,7 @@ page {
   flex: 1;
   padding: 14rpx 8rpx;
   text-align: center;
-  font-size: 23rpx;
+  font-size: 24rpx;
   color: #7a8fa1;
   border-radius: 13rpx;
 }
@@ -287,26 +287,6 @@ page {
   font-weight: 700;
   background: #fff;
   box-shadow: 0 4rpx 12rpx rgba(15, 40, 70, 0.07);
-}
-
-/* ---------------- 输入 ---------------- */
-.field {
-  margin-top: 10rpx;
-}
-
-.field-label {
-  font-size: 22rpx;
-  color: #7a8fa1;
-}
-
-.field-input {
-  margin-top: 10rpx;
-  padding: 20rpx 22rpx;
-  font-size: 24rpx;
-  color: #13293a;
-  border-radius: 18rpx;
-  background: #f7f9fa;
-  border: 1rpx solid #eef1f4;
 }
 
 /* ---------------- 按钮 ---------------- */
@@ -357,7 +337,7 @@ page {
 }
 
 .foot-line {
-  font-size: 20rpx;
+  font-size: 24rpx;
   line-height: 1.8;
   color: #b0b6bd;
   text-align: center;

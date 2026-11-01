@@ -14,13 +14,13 @@
       <view class="dot {{status === 'connected' ? 'on' : (status === 'scanning' ? 'scan' : '')}}"></view>
       <text class="bar-text">{{statusText}}</text>
       <view class="spacer"></view>
-      <view class="link {{status === 'scanning' ? 'link-stop' : ''}}" bindtap="{{status === 'scanning' ? 'onStopScan' : 'startScan'}}">
+      <view class="link {{status === 'scanning' ? 'link-stop' : ''}}" bindtap="{{status === 'scanning' ? 'onStopScan' : 'startScan'}}" aria-role="button" aria-label="{{status === 'scanning' ? '停止扫描' : '重新扫描设备'}}">
         {{status === 'scanning' ? '停止' : '重新扫描'}}
       </view>
     </view>
 
     <view wx:if="{{status === 'scanning' || (devices.length > 0 && status !== 'connected')}}">
-      <view class="dev" wx:for="{{devices}}" wx:key="deviceId" data-id="{{item.deviceId}}" bindtap="onPickDevice">
+      <view class="dev" wx:for="{{devices}}" wx:key="deviceId" data-id="{{item.deviceId}}" bindtap="onPickDevice" aria-role="button" aria-label="连接设备 {{item.name || '未命名设备'}}">
         <view class="dev-l">
           <view class="dev-name">{{item.name || '未命名设备'}}</view>
           <view class="dev-id">{{item.deviceId}}</view>
@@ -64,8 +64,8 @@
       <view class="zero-head">
         <text class="zero-title">标定时的姿态分布</text>
         <text class="zero-hint" wx:if="{{zeroCalibrating}}">正在采集，保持静止</text>
-        <text class="zero-hint" wx:elif="{{zeroCount}}">横轴 Roll，纵轴 Pitch</text>
-        <text class="zero-hint" wx:else>按下面的按钮，这里会显示这 3 秒的晃动</text>
+        <text class="zero-hint" wx:elif="{{zeroCount}}">横轴 Pitch · 方向与游戏一致（往左倾点往左）</text>
+        <text class="zero-hint" wx:else>按下面的按钮，这里会显示这 5 秒的晃动</text>
       </view>
       <view class="chart chart-zero"><canvas type="2d" id="chartZero" class="cv"></canvas></view>
       <view class="legend">
@@ -75,8 +75,8 @@
       </view>
       <view class="stats">
         <view class="st"><view class="st-n">{{zeroCount}}</view><view class="st-l">采样点</view></view>
-        <view class="st"><view class="st-n">{{zeroSpanR}}°</view><view class="st-l">前后抖动</view></view>
-        <view class="st"><view class="st-n">{{zeroSpanP}}°</view><view class="st-l">左右抖动</view></view>
+        <view class="st"><view class="st-n">{{zeroSpanX}}°</view><view class="st-l">左右抖动</view></view>
+        <view class="st"><view class="st-n">{{zeroSpanY}}°</view><view class="st-l">前后抖动</view></view>
         <view class="st"><view class="st-n {{zeroQuality === 'warn' ? 'warn' : 'ok'}}">{{zeroSd}}°</view><view class="st-l">标准差</view></view>
       </view>
     </view>
@@ -95,10 +95,10 @@
     </view>
 
     <view wx:else class="acts">
-      <view class="btn-primary {{status === 'connected' ? '' : 'disabled'}}" bindtap="onZeroCalibrate">
+      <view class="btn-primary {{status === 'connected' ? '' : 'disabled'}}" bindtap="onZeroCalibrate" aria-role="button" aria-label="{{zeroSet ? '重新标定零点，站直不动后点击' : '标定零点，站直不动后点击'}}">
         {{zeroSet ? '重新标定零点' : '标定零点'}}
       </view>
-      <view wx:if="{{zeroSet}}" class="btn-plain" bindtap="onZeroClear">清除零点，恢复原始角度</view>
+      <view wx:if="{{zeroSet}}" class="btn-plain" bindtap="onZeroClear" aria-role="button" aria-label="清除零点，恢复原始角度">清除零点，恢复原始角度</view>
       <view wx:if="{{status !== 'connected'}}" class="hint">需要先连接传感器</view>
     </view>
 
@@ -120,7 +120,7 @@
 
     <!-- 技术细节：默认展开。图表区用 wx:if 而不是 hidden，
          收起时彻底销毁 canvas 省内存，展开时由 toggleDetail 重建 -->
-    <view class="fold" bindtap="toggleDetail">
+    <view class="fold" bindtap="toggleDetail" aria-role="button" aria-label="{{showDetail ? '收起实时曲线' : '展开 Roll 与 Pitch 实时曲线'}}">
       <text>{{showDetail ? '收起' : 'Roll / Pitch 实时曲线'}}</text>
       <view class="fold-arrow {{showDetail ? 'up' : ''}}"></view>
     </view>

@@ -1,3 +1,11 @@
+/** custom-tab-bar/index.wxss
+ *
+ * 底栏是全局可见的一块，字号必须和页面拉开距离的同时自己读得清：
+ * 原来是 20rpx（10px），四个字以下的标签在 10px 时对中老年基本不可辨认。
+ * 现在 24rpx（12px），图标 44rpx，选中态用加深青（原 #0f9c8c 在白底只有 3.4:1）。
+ *
+ * 自定义组件取不到 app.wxss 里 page 上的令牌（样式隔离），这里自己声明一份。
+ */
 .tab-bar {
   /* Skyline 自定义 tabBar 必需：否则点击不生效 / 位置错位 */
   pointer-events: auto;
@@ -5,6 +13,11 @@
   left: 0;
   right: 0;
   bottom: 0;
+
+  --ink-3: #5d646e;
+  --teal: #0f9c8c;
+  --teal-ink: #0a7d70;
+
   display: flex;
   flex-direction: row;
   background-color: #ffffff;
@@ -13,18 +26,9 @@
   box-shadow: 0 -8rpx 28rpx rgba(15, 40, 70, 0.10);
 }
 
-.tab-bar-border {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 1rpx;
-  background-color: #ececf0;
-}
-
 .tab-item {
   flex: 1;
-  height: 104rpx;
+  height: 108rpx;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -40,23 +44,26 @@
   justify-content: center;
 }
 
+/* 选中态只做两件事：浅青底 + 抬起 2rpx。不加圆点、不加下划线、不加指示条 —— 
+   三重提示等于没有提示 */
 .tab-icon-wrap.on {
   background-color: rgba(15, 156, 140, 0.12);
   transform: translateY(-2rpx);
 }
 
 .tab-icon {
-  width: 42rpx;
-  height: 42rpx;
+  width: 44rpx;
+  height: 44rpx;
 }
 
 .tab-text {
   margin-top: 4rpx;
-  font-size: 20rpx;
-  color: #8b8f9a;
+  font-size: 24rpx;
+  line-height: 1.2;
+  color: var(--ink-3);
 }
 
 .tab-text.on {
-  color: #0f9c8c;
+  color: var(--teal-ink);
   font-weight: 600;
 }

@@ -33,7 +33,7 @@ page {
 }
 
 .hero-kicker {
-  font-size: 22rpx;
+  font-size: 24rpx;
   color: #7a8fa1;
 }
 
@@ -46,7 +46,7 @@ page {
 
 .hero-desc {
   margin-top: 8rpx;
-  font-size: 22rpx;
+  font-size: 24rpx;
   color: #7a8fa1;
 }
 
@@ -97,7 +97,7 @@ page {
 }
 
 .alert-title {
-  font-size: 25rpx;
+  font-size: 26rpx;
   font-weight: 700;
   color: #b8492f;
 }
@@ -108,7 +108,7 @@ page {
 
 .alert-line {
   margin-top: 6rpx;
-  font-size: 23rpx;
+  font-size: 24rpx;
   line-height: 1.7;
   color: #8a5b52;
 }
@@ -142,14 +142,14 @@ page {
 }
 
 .card-sub {
-  font-size: 21rpx;
+  font-size: 24rpx;
   color: #9aa6b2;
 }
 
 .card-tip {
   display: block;
   margin: 6rpx 0 14rpx;
-  font-size: 22rpx;
+  font-size: 24rpx;
   line-height: 1.7;
   color: #9aa0a6;
 }
@@ -157,7 +157,7 @@ page {
 .tag {
   padding: 6rpx 16rpx;
   border-radius: 100rpx;
-  font-size: 20rpx;
+  font-size: 24rpx;
   color: #8b8f9a;
   background: #f2f4f6;
 }
@@ -209,7 +209,7 @@ page {
 
 .preset-name {
   margin-top: 4rpx;
-  font-size: 19rpx;
+  font-size: 24rpx;
   color: #9aa6b2;
 }
 
@@ -259,7 +259,7 @@ page {
 .item-tip {
   display: block;
   margin-top: 4rpx;
-  font-size: 21rpx;
+  font-size: 24rpx;
   line-height: 1.65;
   color: #a3aab2;
 }
@@ -277,7 +277,7 @@ page {
   flex: 1;
   padding: 14rpx 8rpx;
   text-align: center;
-  font-size: 23rpx;
+  font-size: 24rpx;
   color: #7a8fa1;
   border-radius: 13rpx;
 }
@@ -295,7 +295,7 @@ page {
 }
 
 .field-label {
-  font-size: 22rpx;
+  font-size: 24rpx;
   color: #7a8fa1;
 }
 
@@ -357,7 +357,7 @@ page {
 }
 
 .foot-line {
-  font-size: 20rpx;
+  font-size: 24rpx;
   line-height: 1.8;
   color: #b0b6bd;
   text-align: center;
@@ -392,7 +392,7 @@ page {
 .pc-lv {
   width: 44rpx;
   text-align: center;
-  font-size: 20rpx;
+  font-size: 24rpx;
   font-weight: 700;
   color: #7a8fa1;
 }
@@ -404,13 +404,13 @@ page {
 .pc {
   flex: 1;
   text-align: center;
-  font-size: 19rpx;
+  font-size: 22rpx;
   color: #55636e;
 }
 
 .ptable-row.head .pc {
   color: #9aa6b2;
-  font-size: 18rpx;
+  font-size: 22rpx;
 }
 
 
@@ -436,6 +436,6 @@ page {
 
 .kv-label {
   margin-top: 6rpx;
-  font-size: 20rpx;
+  font-size: 24rpx;
   color: #8b97a3;
 }

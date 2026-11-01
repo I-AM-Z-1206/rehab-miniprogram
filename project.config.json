@@ -79,6 +79,10 @@
       },
       {
         "type": "folder",
+        "value": "pkgFruit/assets/models"
+      },
+      {
+        "type": "folder",
         "value": "dist"
       },
       {

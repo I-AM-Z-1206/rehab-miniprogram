@@ -1,17 +1,26 @@
 // ============================================================================
 // tools/rhythm-headless-test.js —— 左右节奏训练「无头」自检（Node 运行，不进小程序包）
 // ----------------------------------------------------------------------------
-// 伪造一个「音频时钟」（FakeClock）+ Mock Canvas，让完整流程可以在 Node 里跑：
-//   1. 配置校验：判定窗口顺序、难度预设、恢复默认
-//   2. 谱面：同参数同种子完全一致、跨难度不同、同向连续间隔合法、外部 JSON 校验
-//   3. 判定：时间窗口边界、方向正确/错误、方向对但时间偏 → GREAT/GOOD
-//   4. 一次动作最多结算一个音符（防止"站着一直刷分"）
-//   5. 漏接：窗口关闭记 MISS，连击按配置归零
-//   6. 暂停：音乐时间、判定、连击全部冻结；恢复后继续
-//   7. 断线：进入 SENSOR_ERROR 后不判定、不加分、记录中断时长、不自动切模拟
-//   8. 计分：三个准确率的公式与「暂无数据」，分项之和 = 总分
-//   9. 渲染冒烟：六个界面 + 320×568 + 414×896 + 按钮热区
-//  10. 记录：防重复、模拟不上报、与走钢丝/接水果分库隔离
+// 伪造一个「时钟」（FakeClock）+ Mock Canvas，让完整流程可以在 Node 里跑。
+//
+// 【2026-11-01 模型变更：时间表 → 门控】
+//   旧模型：谱面排好每个音符的绝对时刻，过窗口就 MISS。断言全围绕「时间窗口」。
+//   新模型：场上只有一个音符，飞到判定线就**停在那里等**，完成之后才出下一个。
+//           于是「漏接」在物理上不可能发生，判定改成看「稳不稳」。
+//
+// 覆盖范围：
+//   1. 配置校验：门控参数范围、难度预设、背景、恢复默认
+//   2. 方向序列：确定性、左右均衡、中间比例、同向保持、非法输入
+//   3. 门控判定：空中 → 到线等待 → 稳住 → 保持 → 完成；抖动分级；永不 MISS
+//   4. 引擎：站桩一个也完不成左右、患者模型能全部完成、音符停在线不越过、
+//      场上只有一个音符、命中后才出下一个、逐级提示
+//   5. 时间到点：未完成只记「未完成」，不记漏接、不扣分、不断连击
+//   6. 暂停：音乐时间、判定、连击全部冻结
+//   7. 断线：SENSOR_ERROR 后不判定、不加分、记录中断时长
+//   8. 计分：稳定度 / 左右均衡 / 平均节奏，分项之和 = 总分
+//   9. 渲染冒烟：七个界面 + 三套背景 + 320×568 + 414×896 + 热区
+//  10. 记录：防重复、模拟不上报、与走钢丝/接水果分库隔离、隐私清单口径
+//  11. sideThreshold 真的参与方向判定
 //
 // 用法：node tools/rhythm-headless-test.js
 // ============================================================================
@@ -70,8 +79,8 @@ class FakeClock {
     this.t = 0
     this.state = 'idle'
     this.pausedAt = 0
-    this.isSilent = false
-    this.mode = 'audio'
+    this.isSilent = true
+    this.mode = 'silent'
     this.beatMs = 500
   }
 
@@ -81,49 +90,15 @@ class FakeClock {
     return this
   }
 
-  start() {
-    this.state = 'playing'
-    this.t = 0
-    return this
-  }
-
-  pause() {
-    if (this.state === 'playing') {
-      this.pausedAt = this.t
-      this.state = 'paused'
-    }
-    return this
-  }
-
-  resume() {
-    if (this.state === 'paused') this.state = 'playing'
-    return this
-  }
-
-  stop() {
-    this.state = 'idle'
-    this.t = 0
-    return this
-  }
-
-  nowMs() {
-    return this.state === 'paused' ? this.pausedAt : this.t
-  }
-
-  beatPhase() {
-    const m = ((this.t % this.beatMs) + this.beatMs) % this.beatMs
-    return m / this.beatMs
-  }
-
+  start() { this.state = 'playing'; this.t = 0; return this }
+  pause() { if (this.state === 'playing') { this.pausedAt = this.t; this.state = 'paused' } return this }
+  resume() { if (this.state === 'paused') this.state = 'playing'; return this }
+  stop() { this.state = 'idle'; this.t = 0; return this }
+  nowMs() { return this.state === 'paused' ? this.pausedAt : this.t }
+  beatPhase() { const m = ((this.t % this.beatMs) + this.beatMs) % this.beatMs; return m / this.beatMs }
   syncVolume() {}
-
   destroyAudio() {}
-
-  advance(ms) {
-    if (this.state !== 'playing') return this.t
-    this.t += ms
-    return this.t
-  }
+  advance(ms) { if (this.state !== 'playing') return this.t; this.t += ms; return this.t }
 }
 
 // ---------------------------------------------------------------- 断言
@@ -151,19 +126,21 @@ function near(a, b, tol, label) {
 }
 
 // ---------------------------------------------------------------- 依赖
-const { getStore, validate, PRESETS } = require('../utils/rhythm-config.js')
-const { buildChart, parseChart } = require('../pkgRhythm/games/rhythm/chart.js')
-const { songById, beatMs } = require('../utils/rhythm-songs.js')
-const { HitJudge } = require('../pkgRhythm/games/rhythm/hit-judge.js')
+const { getStore, validate, PRESETS, BACKGROUNDS, SCHEMA } = require('../utils/rhythm-config.js')
+const { buildSequence, buildChart, parseChart } = require('../pkgRhythm/games/rhythm/chart.js')
+const { songById } = require('../utils/rhythm-songs.js')
+const { GateJudge, VERDICT } = require('../pkgRhythm/games/rhythm/hit-judge.js')
 const { ScoreManager } = require('../pkgRhythm/games/rhythm/score.js')
 const { RhythmEngine } = require('../pkgRhythm/games/rhythm/engine.js')
 const { RhythmRenderer } = require('../pkgRhythm/games/rhythm/renderer.js')
+const { THEMES, THEME_IDS } = require('../pkgRhythm/games/rhythm/theme.js')
 const { MotionTracker } = require('../utils/motion.js')
 const rhythmRecords = require('../pkgRhythm/utils/rhythm-record.js')
 const wireRecords = require('../utils/training-record.js')
 const fruitRecords = require('../pkgFruit/utils/fruit-record.js')
 
 const DT = 1 / 60
+const TARGET = { left: -1, center: 0, right: 1 }
 
 function makeCfg(patch) {
   const cfg = getStore({ fresh: true })
@@ -203,335 +180,393 @@ function runCountdown(engine, maxMs) {
   return t
 }
 
-/** 让身体稳定到某一侧（推进若干帧，不推进音乐时间之外的事） */
-function holdSide(engine, clock, side, ms) {
-  engine.setSimTarget(side === 'left' ? -1 : (side === 'right' ? 1 : 0))
-  run(engine, clock, ms || 300)
+/**
+ * 患者模型跑完整一局
+ * @param {number} difficulty 档位
+ * @param {number} leadMs 提前量（0 = 完全不动）
+ * @param {number} shaky 抖动次数上限（1 = 每局抖几下，验证分级）
+ */
+function playGame(difficulty, leadMs, shaky) {
+  const cfg = makeCfg({ durationSec: 90, musicVolume: 0, melodyOn: false })
+  cfg.applyDifficulty(difficulty)
+  const clock = new FakeClock(songById(cfg.get('songId')))
+  const engine = new RhythmEngine({ cfg: cfg, clock: clock })
+  engine.setSimMode(true)
+  engine.prepare()
+  engine.startCountdown()
+  runCountdown(engine, 6000)
+  engine.beginPlay()
+
+  const shaken = {}
+  let maxNotesOnStage = 0
+  const crossed = []
+  let hitAt = null
+  let gapAfterHit = null
+  for (let f = 0; f < 95 * 60; f++) {
+    const now = clock.nowMs()
+    const p = engine.pending
+    if (p) {
+      const vmNotes = engine.visibleNotes(now)
+      maxNotesOnStage = Math.max(maxNotesOnStage, vmNotes.filter((n) => !n.judged).length)
+      for (let i = 0; i < vmNotes.length; i++) {
+        if (!vmNotes[i].judged && vmNotes[i].progress > 1.0001) crossed.push(vmNotes[i].progress)
+      }
+      if (leadMs > 0 && now >= p.targetTimeMs - leadMs) {
+        let dir = TARGET[p.targetSide]
+        // 抖动模型：每个音符只抖一次 —— 稳住之后突然往反方向走一下再回来。
+        // 每一次都会在判定里记一个 flap，于是该音符从「稳住了」掉到「很稳」。
+        if (shaky) {
+          if (shaken[p.noteId] === undefined && p.state === 'holding' && (p.heldMs || 0) > 60) {
+            shaken[p.noteId] = now + 380
+          }
+          const until = shaken[p.noteId]
+          if (until && now < until) dir = p.targetSide === 'left' ? 1 : -1
+        }
+        engine.motion.setSimTarget(dir, 0)
+      }
+    }
+    clock.advance(DT * 1000)
+    const before = engine.score.completed
+    engine.update(DT)
+    engine.drainEvents()
+    if (hitAt === null && engine.score.completed > before) {
+      hitAt = clock.nowMs()
+      gapAfterHit = engine.nextSpawnAt - hitAt
+    }
+    if (engine.state !== 'PLAYING') break
+  }
+  const s = engine.score.snapshot()
+  const sum = engine.summary
+  return {
+    done: s.completed, perfect: s.perfect, great: s.great, good: s.good,
+    unsolved: s.unsolved, left: s.leftHits, center: s.centerHits, right: s.rightHits,
+    stability: s.stabilityRate, balance: s.balanceRate,
+    maxNotesOnStage: maxNotesOnStage, crossed: crossed,
+    pace: sum ? sum.paceSec : null,
+    grade: sum ? sum.grade : '-',
+    gapAfterHit: gapAfterHit
+  }
 }
 
 // ============================================================================
-console.log('\n[1] 配置与校验')
+console.log('\n[1] 配置与校验（门控口径）')
 {
   const cfg = makeCfg()
-  ok(cfg.get('perfectMs') < cfg.get('greatMs') && cfg.get('greatMs') < cfg.get('goodMs'),
-    '默认窗口满足 PERFECT < GREAT < GOOD')
+  eq(cfg.get('backgroundId'), 'dawn', '默认背景是清晨逆光')
+  eq(cfg.get('melodyOn'), true, '默认开启命中推进旋律')
+  ok(SCHEMA.gapMs && SCHEMA.holdMs, '新增 gapMs / holdMs')
+  ok(!SCHEMA.noteGapMs && !SCHEMA.goodMs && !SCHEMA.restRate && !SCHEMA.snapToBeat,
+    '时间表时代的参数已删除（noteGapMs / goodMs / restRate / snapToBeat）')
+  eq(BACKGROUNDS.length, 3, '三个背景')
 
-  cfg.patch({ perfectMs: 100, greatMs: 90 }, 'test')
-  const v = validate(cfg.all())
-  ok(!v.ok && v.errors.join('').indexOf('窗口') >= 0, '窗口顺序错误会被拦截')
+  const bad = validate(Object.assign(cfg.all(), { backgroundId: 'zzz' }))
+  ok(!bad.ok && bad.errors.some((e) => e.indexOf('背景') >= 0), '非法背景被拦下')
+  const bad2 = validate(Object.assign(cfg.all(), { songId: 'nope' }))
+  ok(!bad2.ok, '非法音色被拦下')
 
-  cfg.reset()
-  cfg.applyDifficulty(1)
-  eq(cfg.get('noteGapMs'), PRESETS[1].noteGapMs, '第 1 档套用「音符间隔」预设')
+  const lock = validate(Object.assign(cfg.all(), { holdMs: 900 }))
+  ok(lock.warnings.some((w) => w.indexOf('保持要求') >= 0), '保持要求过高会提示')
+
+  for (let lv = 1; lv <= 5; lv++) {
+    const p = PRESETS[lv]
+    ok(p.gapMs !== undefined && p.holdMs !== undefined && p.approachMs !== undefined,
+      '第 ' + lv + ' 档预设齐全（喘息/保持/飞行）')
+  }
+  ok(PRESETS[1].gapMs > PRESETS[3].gapMs && PRESETS[3].gapMs > PRESETS[5].gapMs,
+    '档位越高喘息越短', [1, 3, 5].map((d) => PRESETS[d].gapMs).join(' > '))
+  ok(PRESETS[1].holdMs < PRESETS[3].holdMs && PRESETS[3].holdMs < PRESETS[5].holdMs,
+    '档位越高保持要求越久', [1, 3, 5].map((d) => PRESETS[d].holdMs).join(' < '))
+
   cfg.applyDifficulty(5)
-  eq(cfg.get('approachMs'), PRESETS[5].approachMs, '第 5 档套用「飞行时间」预设')
-
-  cfg.patch({ sideThreshold: 0.75, musicVolume: 0 }, 'test')
-  const w = validate(cfg.all())
-  ok(w.warnings.length >= 2, '阈值偏大 / 音量为 0 会给出提醒')
-
-  const before = cfg.get('noteStepBeats')
+  eq(cfg.get('holdMs'), PRESETS[5].holdMs, 'applyDifficulty 带上门控参数')
   cfg.reset()
-  ok(cfg.get('noteStepBeats') !== before || before === 1, '恢复默认生效')
+  eq(cfg.get('holdMs'), SCHEMA.holdMs.def, '恢复默认')
 }
 
-console.log('\n[2] 谱面（确定性 + 结构）')
+console.log('\n[2] 方向序列（不再有时间表）')
 {
-  const song = songById('dawn_walk')
-  const base = {
-    song: song,
-    durationSec: 30,
-    noteGapMs: 1000,
-    snapToBeat: false,
-    restRate: 0.15,
-    sameSideRate: 0.2,
-    centerRate: 0.3,
-    sameSideGapMs: 320,
-    prepMs: 2400,
-    difficulty: 3,
-    seed: 7
+  const A = buildSequence({ song: 'slow_wave', durationSec: 90, difficulty: 3, seed: 7, centerRate: 0.25, sameSideRate: 0.12 })
+  const B = buildSequence({ song: 'slow_wave', durationSec: 90, difficulty: 3, seed: 7, centerRate: 0.25, sameSideRate: 0.12 })
+  const C = buildSequence({ song: 'slow_wave', durationSec: 90, difficulty: 3, seed: 99, centerRate: 0.25, sameSideRate: 0.12 })
+  eq(JSON.stringify(A.notes.map((n) => n.targetSide)), JSON.stringify(B.notes.map((n) => n.targetSide)),
+    '同曲 / 同难度 / 同种子 → 序列完全一致')
+  ok(JSON.stringify(A.notes.map((n) => n.targetSide)) !== JSON.stringify(C.notes.map((n) => n.targetSide)),
+    '换种子 → 序列不同')
+  ok(A.notes.every((n) => n.targetTimeMs === 0), '序列里没有预定时间（时间由运行时给）')
+  eq(A.meta.mode, 'gate', 'meta.mode = gate')
+
+  const sides = A.notes.map((n) => n.targetSide)
+  ok(sides.indexOf('left') >= 0 && sides.indexOf('right') >= 0 && sides.indexOf('center') >= 0,
+    '三个方向都会出现')
+
+  // 左右均衡：中间音符之后不能恒取 left（旧 bug：左侧多 14~32%）
+  const noCenter = buildSequence({ song: 'slow_wave', durationSec: 60, centerRate: 0, sameSideRate: 0, seed: 3, difficulty: 3 })
+  const l = noCenter.notes.filter((n) => n.targetSide === 'left').length
+  const r = noCenter.notes.filter((n) => n.targetSide === 'right').length
+  ok(Math.abs(l - r) <= 1, '关掉中间/同向后左右严格交替', l + ' / ' + r)
+
+  const onlyCenter = buildSequence({ song: 'slow_wave', durationSec: 60, centerRate: 0, seed: 3, difficulty: 3 })
+  ok(onlyCenter.notes.filter((n) => n.targetSide === 'center').length === 0, 'centerRate=0 → 没有中间音符')
+
+  const noSame = buildSequence({ song: 'slow_wave', durationSec: 60, centerRate: 0, sameSideRate: 0, seed: 3, difficulty: 3 })
+  let sameCount = 0
+  for (let i = 1; i < noSame.notes.length; i++) {
+    if (noSame.notes[i].targetSide === noSame.notes[i - 1].targetSide) sameCount += 1
   }
-  const a = buildChart(base)
-  const b = buildChart(base)
-  eq(JSON.stringify(a.notes), JSON.stringify(b.notes), '同曲 / 同难度 / 同种子 → 谱面完全一致')
+  eq(sameCount, 0, 'sameSideRate=0 → 相邻不同向')
 
-  const c = buildChart(Object.assign({}, base, { seed: 8 }))
-  ok(JSON.stringify(a.notes) !== JSON.stringify(c.notes), '换种子 → 谱面不同')
-
-  const d = buildChart(Object.assign({}, base, { difficulty: 5, noteGapMs: 700, sameSideRate: 0.2 }))
-  ok(d.notes.length > a.notes.length, '高难度音符更多')
-
-  // 所有音符都在时长内、左右都有、时间递增
-  const beat = beatMs(song)
-  let inRange = true
-  let ordered = true
-  let left = 0
-  let center = 0
-  let right = 0
-  a.notes.forEach((n, i) => {
-    if (n.targetTimeMs > 30000 + song.offsetMs) inRange = false
-    if (i > 0 && n.targetTimeMs <= a.notes[i - 1].targetTimeMs) ordered = false
-    if (n.targetSide === 'left') left += 1
-    else if (n.targetSide === 'center') center += 1
-    else right += 1
-  })
-  ok(inRange, '音符都在训练时长内')
-  ok(ordered, '音符按时间递增排列')
-  ok(left > 0 && center > 0 && right > 0, '左 / 中 / 右三个方向都有音符')
-  ok(a.meta.centerCount === center, 'meta.centerCount 与实际一致')
-
-  // centerRate = 0 时退化为左右交替
-  const twoWay = buildChart(Object.assign({}, base, { centerRate: 0 }))
-  ok(twoWay.notes.every((n) => n.targetSide !== 'center'), 'centerRate=0 → 没有中间音符')
-
-  // 呼吸拍必须是「固定位置、单拍留空」：
-  // 曾经是随机留空，会连着空两三拍，手感就是"一堆音符之后半天没一个"
-  const gaps = []
-  for (let i = 1; i < a.notes.length; i++) gaps.push(a.notes[i].targetTimeMs - a.notes[i - 1].targetTimeMs)
-  // 呼吸不再是「跳过一个音符」（间隔翻倍 = 节奏断线），而是把间隔拉长 1.5 倍。
-  // 所以合法间隔只有两种：常态 gapMs，和呼吸的 gapMs × 1.5。
-  const stepMs = a.meta.gapMs
-  const odd = gaps.filter((g) => Math.abs(g - stepMs) > 60 && Math.abs(g - stepMs * 1.5) > 60)
-  ok(odd.length === 0, '音符间隔只有「常态」或「呼吸拉长的 1.5 倍」', odd.slice(0, 3).join(','))
-  let doubleRest = 0
-  for (let i = 1; i < gaps.length; i++) if (gaps[i] > stepMs * 1.2 && gaps[i - 1] > stepMs * 1.2) doubleRest += 1
-  ok(doubleRest === 0, '呼吸不会连着出现（节奏不断线）', String(doubleRest))
-  near(a.notes[0].targetTimeMs, base.prepMs + (song.offsetMs || 0), 2, '第一个音符落在预备时间之后')
-
-  // ── 本次改动的核心：训练强度与 BPM 彻底无关 ──
-  // 之前同一难度档在 66/90/110 BPM 下间隔是 909/666/545ms（差 1.67 倍），
-  // 换首曲子难度就变了。现在必须三首曲子给出完全一样的时间表。
-  const across = ['slow_wave', 'dawn_walk', 'heart_pulse'].map((id) => {
-    return buildChart(Object.assign({}, base, { song: id }))
-  })
-  const sameCount = across.every((c) => c.notes.length === across[0].notes.length)
-  ok(sameCount, '换曲子不改变音符数量（难度不再随 BPM 漂移）',
-    across.map((c) => c.notes.length).join('/'))
-  // 只比时间：方向序列仍按 songId 播种（同曲同种子才可复现），
-  // 换曲子本来就该换一套左右顺序，但「什么时候来音符」必须一模一样。
-  const timesOf = (c) => JSON.stringify(c.notes.map((n) => n.targetTimeMs))
-  ok(timesOf(across[0]) === timesOf(across[1]) && timesOf(across[1]) === timesOf(across[2]),
-  '换曲子音符时间表完全一致',
-  across.map((c) => c.notes.length + '个').join('/'))
-  ok(across[0].meta.bpm !== across[2].meta.bpm, '测试用的三首曲子 BPM 确实不同（上面的断言才有意义）')
-
-  // 物理下限：再怎么调都不能低于一次重心转移所需的时间
-  const tooFast = buildChart(Object.assign({}, base, { noteGapMs: 300 }))
-  const tfGaps = []
-  for (let i = 1; i < tooFast.notes.length; i++) {
-    tfGaps.push(tooFast.notes[i].targetTimeMs - tooFast.notes[i - 1].targetTimeMs)
+  const many = buildSequence({ song: 'slow_wave', durationSec: 60, centerRate: 0, sameSideRate: 0.5, seed: 5, difficulty: 3 })
+  let sameCount2 = 0
+  for (let i = 1; i < many.notes.length; i++) {
+    if (many.notes[i].targetSide === many.notes[i - 1].targetSide) sameCount2 += 1
   }
-  ok(Math.min.apply(null, tfGaps) >= 620, '间隔有 620ms 物理下限（低于此患者做不完一次转移）',
-    String(Math.min.apply(null, tfGaps)))
+  ok(sameCount2 > 0, 'sameSideRate>0 → 出现同向保持（练「不用动也稳住」）', String(sameCount2))
 
-  // 吸附模式下音符仍落在音乐网格上（半拍网格：步长可能是 1.5 拍这类附点值，
-  // 落在八分位同样是合法的音乐位置，只要求不出现"哪儿都不在"的时间点）
-  const snapped = buildChart(Object.assign({}, base, { snapToBeat: true, noteStepBeats: 1 }))
-  const offBeat = snapped.notes.filter((n) => {
-    const half = (n.targetTimeMs / beatMs(song)) * 2
-    return Math.abs(half - Math.round(half)) > 0.02
-  })
-  ok(offBeat.length === 0, '吸附模式下音符仍落在音乐网格上', String(offBeat.length))
-  // 且换曲子时吸附模式会给出不同间隔（这正是它存在的代价）
-  const snapSlow = buildChart(Object.assign({}, base, { snapToBeat: true, song: 'slow_wave' }))
-  ok(snapSlow.meta.gapMs !== snapped.meta.gapMs || snapSlow.notes.length !== snapped.notes.length,
-    '吸附模式下换曲子会改变节奏（所以默认关闭它）')
+  // 时长越长序列越长（够用即可，不追求精确）
+  const long = buildSequence({ song: 'slow_wave', durationSec: 300 })
+  const short = buildSequence({ song: 'slow_wave', durationSec: 30 })
+  ok(long.notes.length > short.notes.length, '训练时长越长，生成的序列越长')
+  ok(buildChart === buildSequence || typeof buildChart === 'function', 'buildChart 兼容别名仍在')
 
-  // 同向连续必须留够间隔（否则引擎的"一次动作一个音符"规则下打不出来）
-  let badGap = 0
-  for (let i = 1; i < a.notes.length; i++) {
-    if (a.notes[i].targetSide === a.notes[i - 1].targetSide) {
-      if (a.notes[i].targetTimeMs - a.notes[i - 1].targetTimeMs < 320 - 1) badGap += 1
-    }
-  }
-  eq(badGap, 0, '同向连续音符的间隔不小于 sameSideGapMs')
-
-  // 外部 JSON 谱面
-  const parsed = parseChart([
-    { noteId: 'x1', targetSide: 'left', beatIndex: 4, targetTimeMs: 1000 },
-    { noteId: 'x2', targetSide: 'up', targetTimeMs: 2000 }
-  ], song)
-  eq(parsed.notes.length, 1, '非法方向会被丢弃')
-  ok(parsed.errors.length === 1, '非法数据会给出错误说明')
-  const parsed2 = parseChart({ notes: [{ targetSide: 'right', beatIndex: 2 }], bpm: 120 })
-  eq(parsed2.notes[0].targetTimeMs, 1000, '缺少 targetTimeMs 时按 beatIndex × BPM 推算')
+  // 外部 JSON
+  const p1 = parseChart([{ targetSide: 'left' }, { targetSide: 'center' }, { targetSide: 'right' }])
+  eq(p1.errors.length, 0, '外部序列（只有方向）可以读')
+  eq(p1.notes.length, 3, '读出 3 条')
+  const p2 = parseChart([{ targetSide: 'up' }])
+  ok(p2.errors.length === 1, '非法方向被丢弃并说明')
+  const p3 = parseChart('nope')
+  ok(p3.errors.length === 1, '非法格式被拦住')
+  const p4 = parseChart([{ noteId: 'a', targetSide: 'left' }, { noteId: 'a', targetSide: 'right' }])
+  ok(p4.errors.some((e) => e.indexOf('重复') >= 0), 'noteId 重复会被拦下')
 }
 
-console.log('\n[3] 判定窗口与方向')
+console.log('\n[3] 门控判定：空中 → 等待 → 稳住 → 保持 → 完成（永不 MISS）')
 {
-  const cfg = makeCfg({ perfectMs: 50, greatMs: 100, goodMs: 150, stableMs: 0, sideThreshold: 0.35 })
-  const judge = new HitJudge(cfg)
-  const note = { targetSide: 'left', targetTimeMs: 1000 }
-
-  eq(judge.classify(0), 'perfect', '0ms → PERFECT')
-  eq(judge.classify(-50), 'perfect', '±50ms 边界仍是 PERFECT')
-  eq(judge.classify(51), 'great', '51ms → GREAT')
-  eq(judge.classify(120), 'good', '120ms → GOOD')
-  eq(judge.classify(151), null, '151ms 超出窗口')
-
-  // 判定在"音符到达判定线之后"进行：早了不算
-  const early = judge.evaluate(note, 900, { side: 'left', enterAt: 900, stableMs: 600, actionOk: true })
-  eq(early.verdict, 'pending', '音符还没到判定线 → 不判（提前站好不算准）')
-
-  const r1 = judge.evaluate(note, 1000, { side: 'left', enterAt: 1000, stableMs: 600, actionOk: true })
-  eq(r1.verdict, 'perfect', '方向对 + 正好在拍上进入 → PERFECT')
-  const r2 = judge.evaluate(note, 1000, { side: 'left', enterAt: 1090, stableMs: 600, actionOk: true })
-  eq(r2.verdict, 'great', '方向对 + 晚 90ms 进入 → GREAT')
-  const r2b = judge.evaluate(note, 1000, { side: 'left', enterAt: 700, stableMs: 600, actionOk: true })
-  eq(r2b.verdict, 'good', '提前站好（早 300ms）只算 GOOD，不算 PERFECT')
-  const r3 = judge.evaluate(note, 1000, { side: 'right', enterAt: 900, stableMs: 600, actionOk: true })
-  eq(r3.verdict, 'miss', '方向反了 → 直接 MISS')
-  ok(r3.wrongSide === true, '方向反了会标记 wrongSide')
-  const r4 = judge.evaluate(note, 1000, { side: 'left', enterAt: 990, stableMs: 600, actionOk: false })
-  eq(r4.verdict, 'pending', '动作未就绪时先不判（不白送分）')
-  const r4b = judge.evaluate(note, 1480, { side: 'left', enterAt: 990, stableMs: 600, actionOk: false })
-  eq(r4b.verdict, 'miss', '动作一直不可用，窗口关闭后记 MISS')
-  const r5 = judge.evaluate(note, 1000, { side: 'center', enterAt: 1000, stableMs: 600, actionOk: true })
-  eq(r5.verdict, 'pending', '站在中间不算命中')
-  const r5b = judge.evaluate(note, 1300, { side: 'center', enterAt: 1300, stableMs: 600, actionOk: true })
-  eq(r5b.verdict, 'miss', '一直在中间，窗口关闭记 MISS')
-  const r6 = judge.evaluate(note, 1400, { side: 'left', enterAt: 1400, stableMs: 600, actionOk: true })
-  eq(r6.verdict, 'miss', '窗口关闭后才进入 → MISS')
-
-  // 三车道：中间音符（要求回到中立位）
-  const cNote = { targetSide: 'center', targetTimeMs: 1000 }
-  const c1 = judge.evaluate(cNote, 1000, { side: 'center', enterAt: 1000, stableMs: 600, actionOk: true })
-  eq(c1.verdict, 'perfect', '中间音符 + 身体居中 → PERFECT')
-  const c2 = judge.evaluate(cNote, 1000, { side: 'left', enterAt: 900, stableMs: 600, actionOk: true })
-  eq(c2.verdict, 'pending', '中间音符、到线时还在回中的路上 → 先不判（不误伤）')
-  const c2b = judge.evaluate(cNote, 1060, { side: 'center', enterAt: 1060, stableMs: 600, actionOk: true })
-  eq(c2b.verdict, 'great', '窗口内回到中间 → 按迟到正常判 GREAT')
-  const c2c = judge.evaluate(cNote, 1200, { side: 'left', enterAt: 900, stableMs: 600, actionOk: true })
-  eq(c2c.verdict, 'miss', '窗口关闭仍偏在一侧 → 方向错误 MISS')
-  ok(c2c.wrongSide === true, '中间音符的 wrongSide 也会标记')
-  const c3 = judge.evaluate({ targetSide: 'left', targetTimeMs: 1000 }, 1000,
-    { side: 'center', enterAt: 1000, stableMs: 600, actionOk: true })
-  eq(c3.verdict, 'pending', '左右音符、站在中间 → 先不判（中性位置不罚）')
-}
-
-console.log('\n[4] 引擎：完整开始流程与节奏命中')
-{
-  const { cfg, clock, engine } = makeEngine({
-    durationSec: 20, noteStepBeats: 1, restRate: 0, sameSideRate: 0, centerRate: 0.3,
-    prepBeats: 4, perfectMs: 90, greatMs: 140, goodMs: 220, stableMs: 80,
-    approachMs: 1800, chartSeed: 3, syncOffsetMs: 0
+  const cfg = makeCfg({ stableMs: 120, holdMs: 400 })
+  const j = new GateJudge(cfg)
+  const note = { targetTimeMs: 1000, flaps: 0 }
+  const at = (now, side, enterAt, state) => j.step(note, {
+    now: now, side: side, expected: 'left', enterAt: enterAt || 0, state: state || 'waiting'
   })
-  const res = engine.startCountdown()
-  ok(res.ok, 'startCountdown 成功')
-  eq(engine.state, 'COUNTDOWN', '进入 COUNTDOWN')
-  eq(engine.notes.length, res.noteCount, '谱面已生成')
 
-  runCountdown(engine, 6000)
-  eq(engine.state, 'PLAYING', '预备拍结束 → PLAYING')
-  eq(clock.state, 'playing', '音乐时钟已启动')
+  eq(at(900, 'left', 800, 'approaching').state, 'approaching', '还没到判定线 → approaching（不判定）')
+  eq(at(1000, 'right', 990).state, 'waiting', '到线但方向不对 → waiting')
+  eq(at(1050, 'left', 1020, 'waiting').state, 'waiting', '方向对但只稳了 30ms → 还不行')
+  const hold1 = at(1300, 'left', 1000, 'waiting')
+  eq(hold1.state, 'holding', '稳够 120ms → 开始计保持')
+  eq(hold1.reactionMs, 120, '到位用时 = 稳住时刻 − 到线时刻')
+  const done = at(1600, 'left', 1000, 'holding')
+  eq(done.state, 'done', '保持满 400ms → 完成')
+  eq(done.verdict, VERDICT.PERFECT, '全程没离开 → PERFECT（稳住了）')
 
-  // 跟着谱面走：在目标前 200ms 把身体移到正确一侧（移到位的时刻≈目标时刻）
-  let idx = 0
-  let perfect = 0
-  let good = 0
-  let hits = 0
-  for (let i = 0; i < 4000 && engine.state === 'PLAYING'; i++) {
-    const n = engine.notes[idx]
-    if (n && clock.t >= n.targetTimeMs - 160) {
-      engine.setSimTarget(n.targetSide === 'left' ? -1 : (n.targetSide === 'right' ? 1 : 0))
-    }
-    clock.advance(DT * 1000)
-    engine.update(DT)
-    engine.drainEvents()
-    if (n && n.judged) {
-      hits += 1
-      if (n.verdict === 'perfect') perfect += 1
-      if (n.verdict === 'perfect' || n.verdict === 'great') good += 1
-      idx += 1
-    }
+  // 提前站好不该被惩罚
+  const early = at(1400, 'left', 700, 'waiting')
+  eq(early.state, 'done', '提前站好：稳定时刻落在到线之前，按到线起算，照常完成')
+  eq(early.reactionMs, 0, '提前站好的到位用时记 0，不记负数')
+
+  // 抖动分级
+  const flapped = j.step({ targetTimeMs: 1000, flaps: 0 },
+    { now: 1500, side: 'right', expected: 'left', enterAt: 1450, state: 'holding' })
+  eq(flapped.state, 'waiting', '保持中途离开 → 回到 waiting')
+  eq(flapped.flaps, 1, '记一次抖动')
+  eq(j.quality(0), VERDICT.PERFECT, '0 次抖动 = 稳住了')
+  eq(j.quality(2), VERDICT.GREAT, '1~2 次抖动 = 很稳')
+  eq(j.quality(3), VERDICT.GOOD, '3 次以上 = 完成了')
+
+  // 逐级提示：3s / 6s / 10s
+  eq(j.step(note, { now: 1000 + 2000, side: 'right', expected: 'left', enterAt: 900 }).hintLevel, 0, '干等 2 秒还不提示')
+  eq(j.step(note, { now: 1000 + 3200, side: 'right', expected: 'left', enterAt: 900 }).hintLevel, 1, '3 秒 → 第 1 级（放大发亮）')
+  eq(j.step(note, { now: 1000 + 6500, side: 'right', expected: 'left', enterAt: 900 }).hintLevel, 2, '6 秒 → 第 2 级（点亮该侧）')
+  eq(j.step(note, { now: 1000 + 12000, side: 'right', expected: 'left', enterAt: 900 }).hintLevel, 3, '10 秒 → 第 3 级（语音）')
+
+  // 无论等多久都不会给出 MISS
+  let everMiss = false
+  for (let t = 1000; t < 60000; t += 250) {
+    const r = j.step(note, { now: t, side: 'right', expected: 'left', enterAt: 900 })
+    if (r.verdict === VERDICT.MISS) everMiss = true
   }
-  ok(hits >= 8, '自动跟拍命中了至少 8 个音符（实际 ' + hits + '）')
-  ok(engine.score.centerHits > 0, '自动跟拍也能命中中间音符（实际 ' + engine.score.centerHits + '）')
-  ok(perfect >= hits * 0.4, '不少判定落在 PERFECT（' + perfect + '/' + hits + '）')
-  ok(good >= hits * 0.7, '大部分判定是 PERFECT / GREAT（' + good + '/' + hits + '）')
-  ok(engine.score.miss === 0, '跟拍时没有漏接')
-  ok(engine.score.wrongDir === 0, '跟拍时没有方向错误')
+  ok(!everMiss, '干等 60 秒也不会判 MISS（门控的核心承诺）')
 }
 
-console.log('\n[5] 一次动作只能结算一个音符 + 错误方向 + 漏接')
+console.log('\n[4] 引擎：门控驱动')
 {
-  // prepBeats 固定 4：这一段只测"手动塞的音符"，不能让谱面自带的音符混进来
-  const { engine, clock } = makeEngine({
-    durationSec: 30, noteStepBeats: 1, restRate: 0, sameSideRate: 0, prepBeats: 4,
-    stableMs: 0, sameSideGapMs: 320, perfectMs: 80, greatMs: 120, goodMs: 180,
-    approachMs: 1200, chartSeed: 5
+  // ---- 4.1 患者模型能把整局做完 ----
+  const rows = []
+  for (const d of [1, 3, 5]) {
+    const r = playGame(d, 320, 0)
+    rows.push(r)
+    console.log('    难度' + d + ' 完成 ' + r.done + ' 个（左' + r.left + '/中' + r.center + '/右' + r.right +
+      '）稳定度 ' + (r.stability === null ? '—' : (r.stability * 100).toFixed(0) + '%') +
+      ' 平均 ' + r.pace + ' 秒/个 评级 ' + r.grade)
+    ok(r.done >= 18, '难度' + d + ' 患者模型能完成 ≥18 个', String(r.done))
+    ok(r.left > 0 && r.right > 0, '难度' + d + ' 左右都练到了', 'L' + r.left + '/R' + r.right)
+    ok(r.unsolved <= 1, '难度' + d + ' 到点只剩 1 个未完成（不会攒一堆漏接）', String(r.unsolved))
+    ok(r.maxNotesOnStage <= 1, '难度' + d + ' 场上同时最多 1 个音符', String(r.maxNotesOnStage))
+    eq(r.crossed.length, 0, '难度' + d + ' 音符不会冲过判定线')
+  }
+  ok(rows[2].done > rows[0].done, '档位越高同样的时间做得越多',
+    rows.map((r) => r.done).join(' < '))
+
+  // ---- 4.2 站桩一个也做不成（训练有效性）----
+  for (const d of [1, 3, 5]) {
+    const idle = playGame(d, 0, 0)
+    console.log('    难度' + d + ' 站桩：完成 ' + idle.done + '（左' + idle.left + '/中' + idle.center + '/右' + idle.right + '）')
+    eq(idle.left, 0, '难度' + d + ' 站桩时左侧一个都完不成')
+    eq(idle.right, 0, '难度' + d + ' 站桩时右侧一个都完不成')
+    ok(idle.done <= 2, '难度' + d + ' 站桩几乎停滞（只有中间音符能过）', String(idle.done))
+  }
+
+  // ---- 4.3 抖动会掉档 ----
+  const shaky = playGame(3, 320, 1)
+  console.log('    抖动模型：稳住了 ' + shaky.perfect + ' / 很稳 ' + shaky.great + ' / 完成了 ' + shaky.good)
+  ok(shaky.great + shaky.good > 0, '中途抖动会掉到「很稳 / 完成了」而不是无限满分')
+  ok(shaky.perfect < shaky.done, '抖动过的音符不再全是「稳住了」')
+
+  // ---- 4.4 命中后才出下一个 ----
+  const { engine, clock, cfg } = makeEngine({
+    durationSec: 60, gapMs: 500, approachMs: 1000, holdMs: 200, stableMs: 60, melodyOn: false
   })
   engine.startCountdown()
   runCountdown(engine, 6000)
-
-  // 站在左侧不动，手动塞两个左音符（间隔 100ms < sameSideGapMs）
-  engine.setSimTarget(-1)
+  engine.beginPlay()
   run(engine, clock, 400)
-  engine.debugPushNote('left', 1000)
-  engine.debugPushNote('left', 1100)
-  run(engine, clock, 1600)
+  ok(engine.pending === null, '开局先空一会儿，不急着出音符')
+  run(engine, clock, 2200)
+  ok(engine.pending !== null, '预备时间过了才出第一个音符')
 
-  ok(engine.score.hits >= 1, '第一个音符能命中')
-  ok(engine.score.hits <= 1, '同一次保持不会把两个同向音符都判成命中（实际 ' + engine.score.hits + '）')
-  ok(engine.score.miss >= 1, '间隔不足的第二个音符记为漏接')
+  const first = engine.pending
+  const targetAt = first.targetTimeMs
+  run(engine, clock, 1200)
+  eq(engine.pending && engine.pending.noteId, first.noteId, '没接住之前一直是同一个音符（不会换）')
+  const vm1 = engine.getViewModel()
+  const live = vm1.notes.filter((n) => !n.judged)
+  eq(live.length, 1, '场上只有一个未判定音符')
+  eq(live[0].progress, 1, '它停在判定线上（progress 封顶 1）')
+  ok(live[0].waiting === true, '状态是 waiting')
+  ok(clock.nowMs() > targetAt + 100, '确实已经过了到线时刻')
 
-  // 错误方向：站在右侧等左音符
-  const e2 = makeEngine({
-    durationSec: 30, noteStepBeats: 1, restRate: 0, sameSideRate: 0, prepBeats: 4,
-    stableMs: 0, approachMs: 1200, chartSeed: 9
-  })
+  // 接住它：逐帧跑到完成的那一帧，检查「完成瞬间」的状态
+  engine.setSimTarget(TARGET[first.targetSide], 0)
+  let doneAt = null
+  let spawnAfter = null
+  for (let f = 0; f < 60 * 40 && doneAt === null; f++) {
+    clock.advance(DT * 1000)
+    const before = engine.score.completed
+    engine.update(DT)
+    engine.drainEvents()
+    if (engine.score.completed > before) {
+      doneAt = clock.nowMs()
+      spawnAfter = engine.nextSpawnAt - doneAt
+    }
+  }
+  eq(engine.score.completed, 1, '稳住并保持之后就完成')
+  const gapMs = Number(cfg.get('gapMs'))
+  near(spawnAfter, gapMs, 40, '完成后按配置的喘息时间才安排下一个')
+
+  // ---- 4.5 逐级提示会升级 ----
+  const e2 = makeEngine({ durationSec: 60, melodyOn: false, approachMs: 900, holdMs: 300 })
   e2.engine.startCountdown()
   runCountdown(e2.engine, 6000)
-  e2.engine.setSimTarget(1)
-  run(e2.engine, e2.clock, 400)
-  e2.engine.debugPushNote('left', 1000)
-  run(e2.engine, e2.clock, 1600)
-  eq(e2.engine.score.wrongDir, 1, '站在错误一侧 → 记一次方向错误')
-  eq(e2.engine.score.miss, 1, '方向错误同时记一次漏接')
-  eq(e2.engine.score.hits, 0, '方向错误不加命中')
+  e2.engine.beginPlay()
+  run(e2.engine, e2.clock, 6200)
+  const vm2 = e2.engine.getViewModel()
+  ok(vm2.pending !== null, '有音符在场')
+  ok(vm2.hintLevel >= 1, '一直不动 → 提示升到第 1 级', String(vm2.hintLevel))
+  run(e2.engine, e2.clock, 7000)
+  ok(e2.engine.getViewModel().hintLevel >= 2, '继续不动 → 提示升到第 2 级')
+  run(e2.engine, e2.clock, 5000)
+  ok(e2.engine.getViewModel().hintLevel >= 3, '再等 → 提示升到第 3 级（语音）')
+}
+
+console.log('\n[5] 时间到点：未完成不是漏接')
+{
+  const { engine, clock } = makeEngine({
+    durationSec: 20, melodyOn: false, approachMs: 1200, holdMs: 400, gapMs: 100, stableMs: 60
+  })
+  engine.startCountdown()
+  runCountdown(engine, 6000)
+  engine.beginPlay()
+
+  // 做一半就不管了
+  run(engine, clock, 4200)
+  if (engine.pending) engine.setSimTarget(TARGET[engine.pending.targetSide], 0)
+  run(engine, clock, 1600)
+  const doneBefore = engine.score.completed
+  ok(doneBefore >= 1, '先完成至少一个', String(doneBefore))
+
+  // 走到时间结束
+  for (let f = 0; f < 40 * 60 && engine.state === 'PLAYING'; f++) {
+    clock.advance(DT * 1000)
+    engine.update(DT)
+    engine.drainEvents()
+  }
+  const s = engine.summary
+  ok(!!s, '结算产生')
+  eq(s.miss, 0, '结算里 miss = 0（永远没有漏接）')
+  eq(s.hits, s.perfect + s.great + s.good, '完成数 = 三档之和')
+  eq(s.noteCount, s.completed, 'noteCount 就是完成个数')
+  ok(s.unsolved <= 1, '未完成最多 1 个（就是到点时场上那个）', String(s.unsolved))
+  eq(s.judgeVersion, 'v3', '判定口径版本升到 v3（与旧的命中率不可比）')
+  ok(s.paceSec === null || s.paceSec > 0, '平均节奏要么有值要么为 null')
+
+  // 一个都没完成时不能假装 100%
+  const idleCfg = makeCfg({ durationSec: 20, melodyOn: false })
+  const idleClock = new FakeClock(songById(idleCfg.get('songId')))
+  const idle = new RhythmEngine({ cfg: idleCfg, clock: idleClock })
+  idle.setSimMode(true)
+  idle.prepare()
+  idle.startCountdown()
+  runCountdown(idle, 6000)
+  idle.beginPlay()
+  for (let f = 0; f < 40 * 60 && idle.state === 'PLAYING'; f++) {
+    idleClock.advance(DT * 1000)
+    idle.update(DT)
+    idle.drainEvents()
+  }
+  const si = idle.summary
+  eq(si.stabilityRate, null, '一个都没完成 → 稳定度 null（不冒充 100%）')
+  eq(si.balanceRate, null, '没有左右样本 → 左右均衡 null')
+  eq(si.grade, '-', '没有样本 → 评级 -')
+  ok(si.completed <= 2, '站桩的完成数很低', String(si.completed))
 }
 
 console.log('\n[6] 暂停与恢复')
 {
-  const { engine, clock } = makeEngine({
-    durationSec: 40, noteStepBeats: 1, restRate: 0, sameSideRate: 0,
-    approachMs: 1500, chartSeed: 11
-  })
+  const { engine, clock } = makeEngine({ durationSec: 40, melodyOn: false, approachMs: 1200, gapMs: 100 })
   engine.startCountdown()
   runCountdown(engine, 6000)
   engine.setSimTarget(-1)
   run(engine, clock, 900)
 
   const beforeTime = clock.nowMs()
-  const beforeJudged = engine.score.judged
-  const beforeHits = engine.score.hits
+  const beforeDone = engine.score.completed
 
   engine.pause()
   eq(engine.state, 'PAUSED', '进入 PAUSED')
   run(engine, clock, 800)
-  eq(clock.nowMs(), beforeTime, '暂停期间音乐时间冻结')
-  eq(engine.score.judged, beforeJudged, '暂停期间不产生新的判定')
-  eq(engine.score.hits, beforeHits, '暂停期间不加分')
+  eq(clock.nowMs(), beforeTime, '暂停期间计时冻结')
+  eq(engine.score.completed, beforeDone, '暂停期间不产生新的完成')
+  if (engine.pending) {
+    const w = engine.pending.waitMs
+    run(engine, clock, 600)
+    eq(engine.pending.waitMs, w, '暂停期间「已等待时长」也冻结（提示不会在暂停时升级）')
+  }
 
   engine.resume()
   eq(engine.state, 'PLAYING', '恢复后回到 PLAYING')
   run(engine, clock, 200)
-  ok(clock.nowMs() > beforeTime, '恢复后音乐时间继续推进')
-  ok(engine.score.judged >= beforeJudged, '恢复后判定继续')
+  ok(clock.nowMs() > beforeTime, '恢复后计时继续')
 }
 
 console.log('\n[7] 传感器中断')
 {
-  const { engine, clock } = makeEngine({
-    durationSec: 40, noteStepBeats: 1, restRate: 0, sameSideRate: 0,
-    approachMs: 1500, chartSeed: 13
-  })
+  const { engine, clock } = makeEngine({ durationSec: 40, melodyOn: false, approachMs: 1200 })
   engine.startCountdown()
   runCountdown(engine, 6000)
   engine.setSimTarget(-1)
   run(engine, clock, 700)
 
-  const hitsBefore = engine.score.hits
+  const doneBefore = engine.score.completed
   const timeBefore = clock.nowMs()
   engine.enterSensorError('disconnected')
   eq(engine.state, 'SENSOR_ERROR', '进入 SENSOR_ERROR')
@@ -539,65 +574,79 @@ console.log('\n[7] 传感器中断')
   ok(engine.interrupted === true, '标记本局被中断过')
 
   run(engine, clock, 1200)
-  eq(engine.score.hits, hitsBefore, '中断期间不产生命中')
-  eq(clock.nowMs(), timeBefore, '中断期间音乐时间冻结')
+  eq(engine.score.completed, doneBefore, '中断期间不产生完成')
+  eq(clock.nowMs(), timeBefore, '中断期间计时冻结')
   eq(engine.state, 'SENSOR_ERROR', '不会自动切回模拟或继续判定')
 
-  run(engine, clock, 2500) // 模拟"数据恢复"前等待
   engine.resume()
   eq(engine.state, 'PLAYING', '恢复后继续训练')
 
   const summary = engine.finish('aborted')
   ok(summary.interrupted === true, '结算里保留中断标记')
   ok(summary.interruptedSec >= 0, '结算里带中断时长')
-  ok(summary.completed === false, '中止时 completed = false')
+  ok(summary.completedAll === false, '中止时 completedAll = false')
 }
 
-console.log('\n[8] 计分与三个准确率')
+console.log('\n[8] 计分：稳定度 / 左右均衡 / 平均节奏')
 {
   const cfg = makeCfg({ scorePerfect: 100, scoreGreat: 70, scoreGood: 40, comboStep: 0.1, comboMaxMul: 1.5, finishBonus: 100 })
   const score = new ScoreManager(cfg)
-  score.reset(10)
+  score.reset()
 
-  eq(score.rhythmAccuracy, null, '没有判定样本 → 节奏准确率 null（页面显示暂无数据）')
-  eq(score.directionAccuracy, null, '没有判定样本 → 方向准确率 null')
-  eq(score.overallHitRate, 0, '综合命中率分母是音符总数，未命中时为 0')
+  eq(score.stabilityRate, null, '没有样本 → 稳定度 null（页面显示暂无数据）')
+  eq(score.balanceRate, null, '没有左右样本 → 均衡度 null')
+  eq(score.avgReactionMs, null, '没有样本 → 平均到位用时 null')
 
   eq(score.comboMul, 1, '第 1 个音符倍率 1.0')
-  score.hit('perfect', { side: 'left', value: 100 })
+  score.hit('perfect', { side: 'left', value: 100, reactionMs: 200, holdMs: 400, flaps: 0 })
   eq(score.combo, 1, '连击 1')
-  score.hit('perfect', { side: 'right', value: 100 })
+  score.hit('perfect', { side: 'right', value: 100, reactionMs: 300, holdMs: 410, flaps: 0 })
   near(score.comboMul, 1.1, 1e-9, '第 2 个音符倍率 1.1')
-  score.hit('great', { side: 'left', value: 100 })
-  score.hit('good', { side: 'right', value: 100 })
-  score.missNote('late')
+  score.hit('great', { side: 'left', value: 100, reactionMs: 400, holdMs: 420, flaps: 2 })
+  eq(score.combo, 3, '很稳仍然续连击')
+  score.hit('good', { side: 'right', value: 100, reactionMs: 500, holdMs: 430, flaps: 5 })
+  eq(score.combo, 0, '掉到「完成了」会断连击（断倍率，不扣分）')
 
   const snap = score.snapshot()
-  eq(snap.hits, 4, '命中 4 个')
-  eq(snap.miss, 1, '漏接 1 个')
-  eq(snap.leftHits, 2, '左侧命中 2 个')
-  eq(snap.rightHits, 2, '右侧命中 2 个')
-  eq(snap.rhythmAccuracy, (1 + 1 + 0.7 + 0.4) / 5, '节奏准确率 = 加权 / 已判定数')
-  eq(snap.directionAccuracy, 1, '没有方向错误时方向准确率 100%')
-  eq(snap.combo, 0, '漏接后连击归零（默认配置）')
+  eq(snap.completed, 4, '完成 4 个')
+  eq(snap.miss, 0, '没有漏接这一项')
+  eq(snap.leftHits, 2, '左侧 2 个')
+  eq(snap.rightHits, 2, '右侧 2 个')
+  eq(snap.balanceRate, 1, '左右各半 → 均衡 1')
+  near(snap.stabilityRate, (1 + 1 + 0.75 + 0.4) / 4, 1e-9, '稳定度 = 加权 / 完成数')
+  eq(snap.avgReactionMs, 350, '平均到位用时 = (200+300+400+500)/4')
+  eq(snap.avgHoldMs, 415, '平均保持时长')
+
+  score.unsolvedNote()
+  const s2 = score.snapshot()
+  eq(s2.unsolved, 1, '未完成单独计数')
+  eq(s2.miss, 0, '未完成不记漏接')
+  eq(s2.completed, 4, '未完成不改变完成数')
 
   score.addFinish()
-  const s2 = score.snapshot()
-  eq(s2.score, s2.base + s2.comboBonus + s2.finishBonus, '总分 = 基础分 + 连击加成 + 完成奖励')
-  eq(s2.finishBonus, 100, '完成奖励取配置值')
+  const s3 = score.snapshot()
+  eq(s3.score, s3.base + s3.comboBonus + s3.finishBonus, '总分 = 基础分 + 连击加成 + 完成奖励')
+  eq(s3.finishBonus, 100, '完成奖励取配置值')
 
-  // 连击倍率上限
-  const cfg2 = makeCfg({ comboStep: 0.2, comboMaxMul: 1.3 })
-  const s3 = new ScoreManager(cfg2)
-  s3.reset(50)
-  for (let i = 0; i < 10; i++) s3.hit('perfect', { side: 'left', value: 100 })
-  near(s3.comboMul, 1.3, 1e-9, '连击倍率不超过上限')
+  // 单侧偏差 → 均衡度下降
+  const cfg2 = makeCfg()
+  const s4 = new ScoreManager(cfg2)
+  s4.reset()
+  for (let i = 0; i < 6; i++) s4.hit('perfect', { side: 'left', value: 100 })
+  for (let i = 0; i < 2; i++) s4.hit('perfect', { side: 'right', value: 100 })
+  near(s4.balanceRate, 1 - 4 / 8, 1e-9, '左 6 右 2 → 均衡度 0.5')
+
+  // 只有中间音符 → 均衡无意义
+  const s5 = new ScoreManager(cfg2)
+  s5.reset()
+  s5.hit('perfect', { side: 'center', value: 100 })
+  eq(s5.balanceRate, null, '只做了中间音符 → 均衡度 null')
 }
 
-console.log('\n[9] 渲染冒烟（Mock Canvas）')
+console.log('\n[9] 渲染冒烟（Mock Canvas + 三套背景）')
 {
-  function renderScreen(w, h, state) {
-    const cfg = makeCfg({ durationSec: 30, noteStepBeats: 1 })
+  function renderScreen(w, h, state, bg) {
+    const cfg = makeCfg({ durationSec: 30, melodyOn: false, backgroundId: bg || 'dawn' })
     const clock = new FakeClock(songById(cfg.get('songId')))
     const engine = new RhythmEngine({ cfg: cfg, clock: clock })
     engine.setSimMode(true)
@@ -614,15 +663,16 @@ console.log('\n[9] 渲染冒烟（Mock Canvas）')
       engine.prepare()
       engine.startCountdown()
       runCountdown(engine, 6000)
-      engine.setSimTarget(-1)
-      run(engine, clock, 900)
+      engine.beginPlay()
+      run(engine, clock, 2400)
       if (state === 'pause') engine.pause()
       if (state === 'sensor') engine.enterSensorError('test')
     } else if (state === 'result') {
       engine.prepare()
       engine.startCountdown()
       runCountdown(engine, 6000)
-      run(engine, clock, 1500)
+      engine.beginPlay()
+      run(engine, clock, 3000)
       engine.finish('timeout')
     }
     renderer.render(DT, Date.now())
@@ -637,22 +687,57 @@ console.log('\n[9] 渲染冒烟（Mock Canvas）')
         ok(r.renderer.buttons.some((b) => b.id === 'start'), 'intro 有开始按钮热区')
         const btn = r.renderer.buttons.find((b) => b.id === 'start')
         eq(r.renderer.hitTest(btn.x + btn.w / 2, btn.y + btn.h / 2), 'start', '热区命中正常')
-        ok(r.renderer.buttons.some((b) => b.id.indexOf('song:') === 0), 'intro 有曲目选择热区')
+        ok(r.renderer.buttons.some((b) => b.id.indexOf('song:') === 0), 'intro 有音色选择热区')
         ok(r.renderer.buttons.some((b) => b.id.indexOf('lv:') === 0), 'intro 有难度选择热区')
+        THEME_IDS.forEach((tid) => {
+          ok(r.renderer.buttons.some((b) => b.id === 'bg:' + tid), 'intro 有背景热区 ' + tid)
+        })
       }
       if (s === 'play') {
-        ok(r.vm.notes.length > 0 || r.vm.totalNotes > 0, 'play 下有音符数据')
+        ok(r.vm.notes.length > 0, 'play 下有音符数据')
         ok(r.renderer.buttons.some((b) => b.id === 'pause'), 'play 有暂停按钮')
-        ok(r.renderer.buttons.some((b) => b.id === 'vol'), 'play 有音量按钮')
-        ok(r.renderer.buttons.some((b) => b.id === 'beat'), 'play 有节拍开关')
+        ok(!r.renderer.buttons.some((b) => b.id === 'vol'), 'play 不再有音量按钮（移进暂停面板）')
+        ok(!r.renderer.buttons.some((b) => b.id === 'beat'), 'play 不再有节拍开关（移进暂停面板）')
+        ok(r.renderer.buttons.some((b) => b.id === 'quit'), 'play 有退出按钮')
+        const live = r.vm.notes.filter((n) => !n.judged)
+        if (live.length) {
+          ok(live[0].progress <= 1.0001, '渲染层拿到的音符进度不会超过 1（停在线）')
+        }
+      }
+      if (s === 'pause') {
+        ok(r.renderer.buttons.some((b) => b.id === 'vol'), 'pause 面板有音量按钮')
+        ok(r.renderer.buttons.some((b) => b.id === 'beat'), 'pause 面板有呼吸提示开关')
       }
       if (s === 'result') {
-        ok(r.vm.summary && r.vm.summary.noteCount > 0, 'result 有结算数据')
+        ok(r.vm.summary && r.vm.summary.completed >= 0, 'result 有结算数据')
       }
     } catch (e) {
       ok(false, s + ' 帧渲染异常：' + e.message)
     }
   })
+
+  THEME_IDS.forEach((tid) => {
+    try {
+      renderScreen(390, 844, 'play', tid)
+      ok(true, '背景 ' + tid + ' 渲染完成')
+    } catch (e) {
+      ok(false, '背景 ' + tid + ' 渲染异常：' + e.message)
+    }
+  })
+
+  // 三套主题必须是同一套几何，只有颜色不同
+  ok(THEME_IDS.length === 3, '三个主题')
+  THEME_IDS.forEach((tid) => {
+    const th = THEMES[tid]
+    ok(th.sky.length >= 5 && th.ridge.length === 3 && th.road.length >= 4,
+      '主题 ' + tid + ' 结构完整（天空/三层山/路面）')
+    const last = th.sky[th.sky.length - 1]
+    ok(last.at === 1, '主题 ' + tid + ' 天空最底部贴住地平线')
+    ok(th.ground[0] !== undefined, '主题 ' + tid + ' 有地面渐层（第一档必须贴天空底色）')
+  })
+  // 车道色温三套必须一致（功能语义，不能随背景变）
+  const laneSet = THEME_IDS.map((t) => THEMES[t].lanes.join('|'))
+  ok(new Set(laneSet).size === 1, '三套背景的车道色温完全一致（左右语言不变）')
 
   try {
     renderScreen(320, 568, 'play')
@@ -682,13 +767,13 @@ console.log('\n[10] 训练记录：防重复 / 模拟不上报 / 分库隔离')
     perfectCount: 10,
     greatCount: 2,
     goodCount: 1,
-    missCount: 1,
+    unsolved: 0,
     comboMax: 8,
     leftHitCount: 7,
     rightHitCount: 6,
-    rhythmAccuracy: 0.88,
-    directionAccuracy: 0.93,
-    overallHitRate: 0.87,
+    stabilityRate: 0.88,
+    balanceRate: 0.93,
+    paceSec: 2.4,
     durationSec: 60,
     syncOffsetMs: 0,
     dataSource: 'real',
@@ -703,8 +788,10 @@ console.log('\n[10] 训练记录：防重复 / 模拟不上报 / 分库隔离')
   rhythmRecords.save(Object.assign({}, rec, { recordId: 'rt-sim-1', dataSource: 'simulation' }))
   eq(rhythmRecords.get('rt-sim-1').uploadState, 'skipped', '模拟数据标记为不上报')
   const rows = rhythmRecords.describePayload(rec)
-  ok(rows.some((r) => r[0] === '节奏准确率') && rows.some((r) => r[0] === '方向准确率'),
-    '隐私清单包含节奏/方向准确率')
+  ok(rows.some((r) => r[0] === '稳定度') && rows.some((r) => r[0] === '左右均衡'),
+    '隐私清单包含稳定度 / 左右均衡')
+  ok(!rows.some((r) => r[0] === '节奏准确率'), '隐私清单不再声称有节奏准确率')
+  ok(rows.some((r) => r[0] === '完成判定'), '隐私清单写清「稳住了/很稳/完成了/未完成」')
 
   const wireBefore = wireRecords.list().length
   const fruitBefore = fruitRecords.list().length

@@ -1,4 +1,10 @@
 # /etc/systemd/system/rehab-server.service
+#
+# ⚠️⚠️ 这个 unit 跑的是 server/index.js —— 已被 server/app.js（Fastify + SQLite）
+#      取代的 v1 实现，它只有「全局 UPLOAD_TOKEN」，没有任何患者身份隔离。
+#      当前生产用的是 PM2（进程名 rehab-api，入口 server/app.js），不是这份 unit。
+#      除非你确实要部署 LEGACY，否则不要照抄下面的 ExecStart。
+#
 # 用法：替换 UPLOAD_TOKEN 与目录后，systemctl daemon-reload && systemctl enable --now rehab-server
 [Unit]
 Description=Rehab Training API

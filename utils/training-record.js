@@ -63,6 +63,18 @@ function clamp01(v) {
   return v < 0 ? 0 : (v > 1 ? 1 : v)
 }
 
+/**
+ * 什么才算「真实传感器数据」。
+ *
+ * 只有明确写出 'real' 或 'sensor' 的才算。缺失、拼错、将来新增的未知来源
+ * 一律按模拟数据处理 —— 这是有意的 fail-closed。
+ * 医疗数据不能反着来：把来源不明的东西当真实数据报上去，康复报告里就会
+ * 混进演示/测试数据，而且事后完全分辨不出来。宁可少传一条，不可多传一条。
+ */
+function isRealSource(v) {
+  return v === 'real' || v === 'sensor'
+}
+
 function buildPayload(rec) {
   const metrics = {}
   Object.keys(rec).forEach((k) => {
@@ -81,7 +93,7 @@ function buildPayload(rec) {
     // 服务端要求 >= 2020-09，太小会被判非法，兜底成当前时间
     startedAt: ts > 1600000000000 ? Math.round(ts) : Date.now(),
     durationSec: Math.max(0, Number(rec.durationSec) || 0),
-    dataSource: rec.dataSource === 'simulation' ? 'simulation' : 'sensor',
+    dataSource: isRealSource(rec.dataSource) ? 'sensor' : 'simulation',
     metrics,
     configSnapshot: rec.configSnapshot || { version: 0, missing: true },
     interrupted: !!rec.interrupted,
@@ -151,10 +163,14 @@ function createRecordStore(opts) {
    */
   function getUploadConfig() {
     const net = canNetwork()
+    const consent = auth.hasPrivacyConsent()
     return {
       url: net ? api.getBase() : '',
       token: '',
-      enabled: net && !!auth.patientId()
+      // enabled 的语义是「这局结束会自动上报」：联网 + 已登录 + 已授权，缺一不可。
+      // 少算 consent 这一项，页面会显示「已就绪」而实际什么都不传。
+      enabled: net && !!auth.patientId() && consent,
+      consent
     }
   }
 
@@ -180,7 +196,7 @@ function createRecordStore(opts) {
     // 归属戳：上报前会核对，避免换账号后把上一个人的记录传上去
     if (!item.owner) item.owner = auth.patientId() || ''
 
-    item.uploadState = item.dataSource === 'simulation' ? 'skipped' : 'local'
+    item.uploadState = isRealSource(item.dataSource) ? 'local' : 'skipped'
     list.unshift(item)
     while (list.length > MAX_RECORDS) list.pop()
     writeList(list)
@@ -252,9 +268,10 @@ function createRecordStore(opts) {
         resolve({ ok: true, state: 'uploaded' })
         return
       }
-      if (rec.dataSource === 'simulation') {
-        update(recordId, { uploadState: 'skipped', uploadError: '模拟数据不上报' })
-        resolve({ ok: false, state: 'skipped', error: '模拟数据不上报' })
+      if (!isRealSource(rec.dataSource)) {
+        const why = rec.dataSource === 'simulation' ? '模拟数据不上报' : '数据来源不明，不上报'
+        update(recordId, { uploadState: 'skipped', uploadError: why })
+        resolve({ ok: false, state: 'skipped', error: why })
         return
       }
       if (!canNetwork()) {
@@ -307,7 +324,7 @@ function createRecordStore(opts) {
 
     const pending = readList().filter(
       (r) => (r.uploadState === 'local' || r.uploadState === 'failed') &&
-        r.dataSource !== 'simulation' &&
+        isRealSource(r.dataSource) &&
         (!r.owner || r.owner === myId) &&
         (r.retry || 0) < MAX_RETRY
     )
@@ -331,7 +348,7 @@ function createRecordStore(opts) {
         }
       })
       const remaining = readList().filter(
-        (r) => (r.uploadState === 'local' || r.uploadState === 'failed') && r.dataSource !== 'simulation'
+        (r) => (r.uploadState === 'local' || r.uploadState === 'failed') && isRealSource(r.dataSource)
       ).length
       return {
         uploaded: batch.length - Object.keys(badIdx).length,
@@ -461,6 +478,7 @@ module.exports = Object.assign({
   flushAll,
   migrateStores,
   buildPayload,
+  isRealSource,
   canNetwork,
   formatTime,
   formatDuration,

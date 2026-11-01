@@ -2,7 +2,7 @@
   "name": "rehab-mini-program",
   "version": "1.0.0",
   "private": true,
-  "description": "康复训练微信小程序：接水果 / 走钢丝 / 节奏训练 / 射击训练 + 训练记录 + 治疗师参数",
+  "description": "康复训练微信小程序：接水果 / 走钢丝 / 节奏训练 / 射击 / 赛车 + 训练记录 + 治疗师参数",
   "scripts": {
     "test": "node tools/run-all.js",
     "test:rhythm": "node tools/rhythm-headless-test.js",
@@ -28,6 +28,6 @@
     "esbuild": "^0.21.5"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22.5.0"
   }
 }

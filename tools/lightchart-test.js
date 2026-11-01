@@ -215,6 +215,34 @@ console.log('-- 抽稀与边界 --')
 }
 
 console.log('')
+console.log('-- 轴名可配置（标定页要横轴 Pitch / 纵轴 Roll）--')
+{
+  // 以前 Roll/Pitch 是写死在渲染里的，标定页把两轴对调后角标会跟着错，
+  // 所以轴名改成构造参数，这里锁住「传什么就画什么」。
+  function axisTexts(opts) {
+    const cv = makeCanvas()
+    const sc = new ScatterChart(cv, opts)
+    sc.setSize(300, 300, 1)
+    sc.setData([{ r: 0, p: 0 }, { r: 1, p: 1 }])
+    return cv._ctx._calls.filter((c) => c.op === 'fillText').map((c) => c.text)
+  }
+
+  const def = axisTexts({ unit: '°' })
+  check('默认横轴 Roll、纵轴 Pitch',
+    def.includes('Roll °') && def.includes('Pitch °'), def.join('|'))
+
+  const swapped = axisTexts({ unit: '°', xLabel: 'Pitch', yLabel: 'Roll' })
+  check('传 xLabel/yLabel 后按传入的名字画',
+    swapped.includes('Pitch °') && swapped.includes('Roll °') &&
+    !swapped.includes('X °') && !swapped.includes('Y °'), swapped.join('|'))
+
+  const custom = axisTexts({ unit: '°', xLabel: 'X', yLabel: 'Y' })
+  check('不再残留写死的 Roll / Pitch',
+    custom.includes('X °') && custom.includes('Y °') &&
+    !custom.includes('Roll °') && !custom.includes('Pitch °'), custom.join('|'))
+}
+
+console.log('')
 console.log('-- LineChart 回归 --')
 {
   const cv = makeCanvas()

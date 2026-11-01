@@ -9,6 +9,9 @@
 // 每个水果都以 (x, y) 为中心、r 为基准半径绘制，调用方负责缩放和旋转。
 // ============================================================================
 
+// Blender 预渲染精灵（位图优先，加载失败回退到下面的矢量绘制）
+const sprites = require('./sprites.js')
+
 function clamp(v, lo, hi) {
   return v < lo ? lo : (v > hi ? hi : v)
 }
@@ -84,6 +87,59 @@ function drawApple(ctx, x, y, r, rot) {
   ctx.quadraticCurveTo(r * 0.34, -r * 0.7, r * 0.1, -r * 0.86)
   ctx.closePath()
   ctx.fillStyle = '#4FA83C'
+  ctx.fill()
+  ctx.restore()
+}
+
+// ---------------------------------------------------------------------------
+// 黄金苹果（稀有果：分值 x3，外形 = 苹果形状 + 金色板 + 更强的光感）
+// 形状逐字复用 drawApple 的贝塞尔，只换色彩 —— 保证两颗苹果剪影完全一致，
+// 玩家靠「颜色 + 光环」分辨稀有度，不靠形状（形状变了会增加辨识负担）。
+// ---------------------------------------------------------------------------
+function drawGoldenApple(ctx, x, y, r, rot) {
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.rotate(rot || 0)
+  ctx.beginPath()
+  ctx.moveTo(0, -r * 0.62)
+  ctx.bezierCurveTo(r * 0.55, -r * 1.02, r * 1.06, -r * 0.3, r * 0.92, r * 0.22)
+  ctx.bezierCurveTo(r * 0.8, r * 0.92, r * 0.18, r * 1.02, 0, r * 0.88)
+  ctx.bezierCurveTo(-r * 0.18, r * 1.02, -r * 0.8, r * 0.92, -r * 0.92, r * 0.22)
+  ctx.bezierCurveTo(-r * 1.06, -r * 0.3, -r * 0.55, -r * 1.02, 0, -r * 0.62)
+  ctx.closePath()
+  ctx.fillStyle = radial(ctx, 0, 0, r, [
+    [0, '#FFEB9C'], [0.5, '#F6C34C'], [1, '#C8891B']
+  ])
+  ctx.fill()
+  // 左侧暗部：暖棕，而不是红苹果的冷暗红
+  ctx.save()
+  ctx.clip()
+  ctx.globalAlpha = 0.2
+  ellipse(ctx, -r * 0.55, r * 0.2, r * 0.66, r * 0.7)
+  ctx.fillStyle = '#8A5A10'
+  ctx.fill()
+  ctx.restore()
+
+  // 金果的高光比普通苹果强一档：它是「奖励」，要在树下三排绿叶里跳出来
+  specular(ctx, -r * 0.32, -r * 0.36, r * 0.3, r * 0.38, 0.75, -0.5)
+  specular(ctx, r * 0.3, -r * 0.2, r * 0.12, r * 0.16, 0.35, 0.6)
+
+  // 果蒂
+  ctx.beginPath()
+  ctx.lineWidth = Math.max(1.2, r * 0.1)
+  ctx.strokeStyle = '#8A5A2A'
+  ctx.lineCap = 'round'
+  ctx.moveTo(0, -r * 0.6)
+  ctx.quadraticCurveTo(r * 0.06, -r * 0.92, r * 0.14, -r * 1.02)
+  ctx.stroke()
+
+  // 叶子
+  ctx.beginPath()
+  ctx.moveTo(r * 0.1, -r * 0.86)
+  ctx.quadraticCurveTo(r * 0.56, -r * 1.16, r * 0.66, -r * 0.74)
+  ctx.quadraticCurveTo(r * 0.34, -r * 0.7, r * 0.1, -r * 0.86)
+  ctx.closePath()
+  ctx.fillStyle = '#5FB13E'
   ctx.fill()
   ctx.restore()
 }
@@ -305,7 +361,11 @@ const DRAWERS = {
  */
 function drawFruit(ctx, type, x, y, r, rot, opt) {
   const o = opt || {}
-  const fn = DRAWERS[type] || drawApple
+  const golden = !!(o.golden && type === 'apple')
+  // 位图优先：Blender 预渲染精灵（带体积光与凹槽条纹）；未就绪/加载失败回退矢量。
+  // squash 变形两条路共用：入篮动画的挤压感不能因为换成位图而丢掉。
+  if (sprites.draw(ctx, type, golden, x, y, r, rot || 0, o.alpha, o.squash)) return
+  const fn = golden ? drawGoldenApple : (DRAWERS[type] || drawApple)
   ctx.save()
   if (o.alpha !== undefined) ctx.globalAlpha = o.alpha
   if (o.squash) {

@@ -52,6 +52,7 @@ server/
 | POST | `/api/v1/records` | 单条或 `{ records: [...] }`（≤20 条）。`recordId` 幂等 |
 | GET | `/api/v1/records` | `?gameId=&from=&to=&limit=&includeSimulation=` 默认排除模拟数据 |
 | DELETE | `/api/v1/records/:id` | 软删除（`deleted_at`） |
+| DELETE | `/api/v1/records` | 患者一次删除自己名下全部记录（「我的 → 删除云端记录」），返回 `{ deleted }` |
 
 **patientId 不由客户端传**：服务端从 JWT 推导，患者只能写自己的记录，治疗师不能走这个接口。这是安全边界，不是遗漏。
 
@@ -100,13 +101,17 @@ server/
 
 因为还没有 `WX_APPID` / `WX_SECRET`。开发模式下，客户端传的 `devId` 直接派生 openid——**任何人都能伪造任意身份**。
 
-目前数据库是空的，风险可控。但：
+**现在这条已经在代码层面拦住了**：`NODE_ENV=production` + `DEV_LOGIN=1` 会让进程直接 `exit(1)`，
+不再只是打一行警告（警告一定会被日志淹没）。真要临时在线上联调，必须同时设
+`ALLOW_DEV_LOGIN_IN_PROD=1`，让这个决定是刻意做出来的。
 
-1. 拿到小程序 AppID/AppSecret 后，**立刻**把 `DEV_LOGIN` 改成 `0`；
+`devId` 以 `therapist` 开头即提权的后门也加了 `NODE_ENV !== 'production'` 硬条件。
+
+拿到小程序 AppID/AppSecret 后：
+
+1. 配 `WX_APPID` / `WX_SECRET`，把 `DEV_LOGIN` 改成 `0`；
 2. 用 `THERAPIST_OPENIDS` 指定治疗师，不要再用 `devId` 前缀；
 3. 部署后 `pm2 restart rehab-api --update-env` 并 `pm2 save`。
-
-启动日志里每次都会打这条警告，看到它说明还没配微信。
 
 ---
 

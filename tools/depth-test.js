@@ -272,7 +272,12 @@ function renderCases(name, makeRenderer, sizes) {
         throw new Error('NaN 绘制: ' + (inner ? inner.report() : '') + ' / ' + st.report())
       }
       const n = inner ? Object.keys(inner.calls).length : 0
-      ok(n > 20, name + ' ' + s.w + '×' + s.h + ' 真的画了东西', n + ' 种调用')
+      // 阈值 18 而不是 20：走钢丝这一轮删掉了两条纯装饰的绘制
+      // （安全走廊的透视虚线、钢丝上的金色光带），绘制**种类**必然少两种。
+      // 这是预期的减法，不是渲染退化 —— 这条断言的本意也只是
+      // 「渲染器真的在落笔」，不是精确计数。真正防回归的是上面的 NaN 检查
+      // 和 wire-headless-test 里的四界面 + 三尺寸冒烟。
+      ok(n >= 18, name + ' ' + s.w + '×' + s.h + ' 真的画了东西', n + ' 种调用')
     } catch (e) {
       badMsg = s.w + '×' + s.h + ' → ' + e.message
       ok(false, name + ' ' + s.w + '×' + s.h + ' 渲染无 NaN', badMsg)

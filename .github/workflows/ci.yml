@@ -13,9 +13,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 必须是 22.5+：后端用 node:sqlite（22.5~23.3 需 --experimental-sqlite，
+      # 23.4+ 默认可用）。用 Node 20 会跑不了后端自检 —— 而且它以前是静默跳过、
+      # 直接 exit 0，CI 全绿但后端一行都没测。
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: 全部自检
         run: node tools/run-all.js

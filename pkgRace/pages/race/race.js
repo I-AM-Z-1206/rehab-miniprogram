@@ -90,6 +90,8 @@ Page({
     this.unmuteAudio()
     // 别的页面可能重设过 handlers，回来时重新接管
     if (this.engine) this.attachSensor()
+    // 分包里的记录库只有进过这个页面才会注册，启动时的 flushAll 覆盖不到它。
+    records.flushPending().catch(function () { /* 忽略 */ })
   },
 
   onHide() {

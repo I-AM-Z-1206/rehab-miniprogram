@@ -85,6 +85,10 @@ jsFiles.forEach((f) => {
   let m
   while ((m = NAV.exec(src))) {
     const url = m[1].replace(/^\//, '')
+    // 带扩展名的是静态资源（图片 / 音频 / glb），不是页面路径。
+    // 例如 sprite 模块里的 url: '/pkgFruit/assets/fruit/xx.png' —— 那是
+    // 贴图地址，不是 navigateTo。页面路径在本项目里一律无扩展名。
+    if (/\.[a-z0-9]+$/i.test(url)) continue
     if (!PAGE_SET.has(url)) problems.push('跳转到未注册页面：' + rel(f) + ' → /' + url)
   }
 })

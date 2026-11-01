@@ -23,12 +23,16 @@ const SECRET = 'smoke-secret-1234'
 
 // node:sqlite 在 Node 22.5~23.3 需要 --experimental-sqlite，23.4+ 才默认可用。
 // 这里先探一次，避免子进程启动失败后只报「启动超时」。
+//
+// ★ 不支持时必须判失败，不能 exit 0。
+//   以前这里是「打印跳过 + exit 0」，配上 CI 用的 Node 20，结果就是：
+//   整条 CI 全绿，而后端 54 项断言一次都没跑过。跳过等于没测。
 try {
   require('node:sqlite')
 } catch (e) {
-  console.log('[smoke] 跳过：当前 Node 不支持 node:sqlite。')
-  console.log('[smoke] Node 22.x 请用 --experimental-sqlite 重跑；Node 23.4+ 可直接运行。')
-  process.exit(0)
+  console.error('[smoke] 失败：当前 Node（' + process.version + '）不支持 node:sqlite。')
+  console.error('[smoke] 请用 Node 23.4+，或在 Node 22.5~23.3 上加 --experimental-sqlite。')
+  process.exit(1)
 }
 
 let PORT = 0
@@ -312,6 +316,17 @@ async function run() {
 
   r = await request('GET', '/nope')
   check('未知路径 → 404 且是 JSON', r.status === 404 && r.body && r.body.error.code === 'NOT_FOUND', r.body)
+
+  // ---------------------------------------------------------------- 删除权（一次清空）
+  // 「我的」页的「删除云端记录」走这条。放在最后，因为它会把剩下的记录全删掉。
+  console.log('\n[13] 患者删除全部记录')
+  r = await request('DELETE', '/api/v1/records', undefined, therapistToken)
+  check('治疗师调用全部删除 → 403', r.status === 403, r.status)
+  r = await request('DELETE', '/api/v1/records', undefined, patientToken)
+  check('患者全部删除 → 200', r.status === 200, r.status)
+  check('返回删除条数 > 0', r.body && r.body.deleted > 0, r.body && r.body.deleted)
+  r = await request('GET', '/api/v1/records?includeSimulation=true', undefined, patientToken)
+  check('全部删除后查询为空', r.body.total === 0, r.body.total)
 }
 
 ;(async () => {

@@ -78,6 +78,9 @@ Page({
     // 从设置页回来：音量/开关可能改过，先同步再决定是否继续放
     if (this.audio) this.audio.sync()
     if (this.audio && this.engine && this.engine.state === 'PLAYING') this.audio.resumeBgm()
+    // 分包里的记录库只有进过这个页面才会注册，app.js 启动时的 flushAll 覆盖不到它。
+    // 这里补传一次离线积压：失败不打扰用户，下次进来再试。
+    records.flushPending().catch(function () { /* 忽略 */ })
   },
 
   onHide() {
@@ -370,29 +373,6 @@ Page({
     this.recordSaved = true
     this.savedRecord = rec
     return rec
-  },
-
-  /** 隐私确认：逐项展示将发送的内容与用途，用户同意后才发 */
-  askUpload(recordId, rec) {
-    const rows = records.describePayload(rec)
-    const preview = rows.slice(0, 6).map((r) => r[0] + '：' + r[1]).join('\n')
-    wx.showModal({
-      title: '发送本局训练记录？',
-      content: '将发送以下内容到训练平台，用于训练进度对比：\n' + preview +
-        '\n…（共 ' + rows.length + ' 项，不含姓名、证件号、联系方式）\n\n可随时在「训练记录」中重试或删除。',
-      confirmText: '同意发送',
-      cancelText: '仅存本机',
-      success: (res) => {
-        if (!res.confirm) return
-        records.upload(recordId, { consent: true }).then((r) => {
-          if (r.ok) {
-            wx.showToast({ title: '已上传', icon: 'success' })
-          } else {
-            wx.showToast({ title: '上传失败：' + (r.error || '请稍后重试'), icon: 'none', duration: 2200 })
-          }
-        })
-      }
-    })
   },
 
   // ---------------------------------------------------------------- 反馈

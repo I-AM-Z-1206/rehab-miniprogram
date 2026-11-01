@@ -36,7 +36,7 @@
   <!-- 上报状态 -->
   <view class="banner {{uploadReady ? 'ok' : ''}}">
     <text class="banner-title">{{uploadReady ? '上报接口已配置' : '上报接口未配置'}}</text>
-    <text class="banner-desc">{{uploadReady ? '记录可逐条或批量发送到训练平台' : '记录只保存在本机，管理员可在训练设置中填写接口地址'}}</text>
+    <text class="banner-desc">{{uploadReady ? '记录可逐条或批量发送到训练平台' : '暂未同步到云端：登录账号并联网后自动补传'}}</text>
   </view>
 
   <view class="actions" wx:if="{{list.length}}">
@@ -73,16 +73,16 @@
         <text class="kpi-label">命中</text>
       </view>
       <view class="kpi">
-        <text class="kpi-num">{{item.miss}}</text>
-        <text class="kpi-label">漏接</text>
+        <text class="kpi-num">{{item.unsolved}}</text>
+        <text class="kpi-label">未完成</text>
       </view>
       <view class="kpi">
         <text class="kpi-num">x{{item.combo}}</text>
         <text class="kpi-label">最高连击</text>
       </view>
       <view class="kpi">
-        <text class="kpi-num">{{item.rhythmAcc}}</text>
-        <text class="kpi-label">节奏准确率</text>
+        <text class="kpi-num">{{item.stability}}</text>
+        <text class="kpi-label">稳定度</text>
       </view>
       <view class="kpi">
         <text class="kpi-num">{{item.grade}}</text>
@@ -96,36 +96,36 @@
       <view class="type-row">
         <view class="type-item">
           <text class="type-num">{{item.perfect}}</text>
-          <text class="type-name">PERFECT</text>
+          <text class="type-name">稳住了</text>
         </view>
         <view class="type-item">
           <text class="type-num">{{item.great}}</text>
-          <text class="type-name">GREAT</text>
+          <text class="type-name">很稳</text>
         </view>
         <view class="type-item">
           <text class="type-num">{{item.good}}</text>
-          <text class="type-name">GOOD</text>
+          <text class="type-name">完成了</text>
         </view>
         <view class="type-item">
-          <text class="type-num">{{item.miss}}</text>
-          <text class="type-name">MISS</text>
+          <text class="type-num">{{item.unsolved}}</text>
+          <text class="type-name">未完成</text>
         </view>
       </view>
 
       <view class="d-row">
-        <text class="d-key">方向准确率</text>
-        <text class="d-val">{{item.dirAcc}}</text>
+        <text class="d-key">左右均衡</text>
+        <text class="d-val">{{item.balance}}</text>
       </view>
       <view class="d-row">
-        <text class="d-key">综合命中率</text>
-        <text class="d-val">{{item.hitRate}}</text>
+        <text class="d-key">平均节奏</text>
+        <text class="d-val">{{item.pace}}</text>
       </view>
       <view class="d-row">
-        <text class="d-key">方向错误次数</text>
-        <text class="d-val">{{item.wrongDir}} 次</text>
+        <text class="d-key">平均到位用时</text>
+        <text class="d-val">{{item.reaction}}</text>
       </view>
       <view class="d-row">
-        <text class="d-key">左 / 右命中</text>
+        <text class="d-key">左 / 右次数</text>
         <text class="d-val">{{item.left}} / {{item.right}}</text>
       </view>
       <view class="d-row">

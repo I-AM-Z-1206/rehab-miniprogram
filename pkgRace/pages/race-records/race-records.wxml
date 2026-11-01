@@ -47,7 +47,7 @@
 
   <!-- 上报状态 -->
   <view class="banner {{uploadReady ? 'ok' : ''}}">
-    <text class="banner-title">{{uploadReady ? '上报接口已就绪' : '记录仅保存在本机'}}</text>
+    <text class="banner-title">{{uploadReady ? '已同步到云端' : '暂未同步：登录账号并联网后自动补传'}}</text>
     <text class="banner-desc">{{uploadReady ? '记录可逐条或批量发送到训练平台' : '登录并连通训练平台后才会自动上报，地址由代码统一管理'}}</text>
   </view>
 

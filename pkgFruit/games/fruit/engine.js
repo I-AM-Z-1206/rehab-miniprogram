@@ -30,7 +30,7 @@
 const { MotionTracker } = require('../../../utils/motion.js')
 const { ScoreManager } = require('./score.js')
 const metrics = require('./metrics.js')
-const { FruitSpawner, FRUIT_TYPES, DESIGN_WIDTH, scoreOf } = require('./spawner.js')
+const { FruitSpawner, FRUIT_TYPES, DESIGN_WIDTH, scoreOf, GOLDEN_MUL } = require('./spawner.js')
 
 const STATE = {
   IDLE: 'IDLE',
@@ -316,6 +316,8 @@ class FruitEngine {
     this._resetHold()
     this.missFlash = 0
     this.comboFlash = 0
+    this.progress = 0
+    this.waveHintAt = 0
     this._milestoneIdx = 0
     this.trials.length = 0
     // 每局从"最保守的距离"起步，让前两颗一定接得住 —— 
@@ -661,6 +663,8 @@ class FruitEngine {
 
     // ---- 生成 ----
     const progress = clamp(this.elapsedSec / Math.max(1, plannedSec), 0, 1)
+    // 暴露给渲染层：天空时段（清晨→黄昏）按它插值
+    this.progress = progress
     // 传入果篮当前横向位置：生成器会避开"篮口正下方"，让原地不动接不到
     const spawns = this.spawner.tick(step, {
       fruits: this.fruits,
@@ -674,6 +678,8 @@ class FruitEngine {
       maxOffset: this._travel()
     })
     for (let i = 0; i < spawns.length; i++) this.fruits.push(this._makeFruit(spawns[i]))
+    // 刚开了一波果子雨 → 弹提示（渲染层按 waveHint 淡出）
+    if (this.spawner.takeWaveFlag()) this.waveHintAt = this.t
 
     // ---- 下落 / 摆动 / 旋转 ----
     for (let i = 0; i < this.fruits.length; i++) {
@@ -761,6 +767,9 @@ class FruitEngine {
     return {
       id: spec.id,
       type: spec.type,
+      // 黄金果：只改分值与视觉，不改判定 —— type 仍是 apple，
+      // metrics 的逐颗口径（dDeg/rt/mt）一颗不多一颗不少
+      golden: !!spec.golden,
       x: spec.x,
       baseX: spec.x,
       y: spec.y,
@@ -936,7 +945,8 @@ class FruitEngine {
     f.state = 'caught'
     f.caughtAt = this.t
     f.catchFromX = f.x
-    const value = scoreOf(this.cfg, f.type)
+    // 黄金果 x3：乘在基础分上再进计分器，分项仍然透明可复现
+    const value = scoreOf(this.cfg, f.type) * (f.golden ? GOLDEN_MUL : 1)
     const r = this.score.hit(value, f.type)
     this._finishTrial(f, true)
 
@@ -947,18 +957,20 @@ class FruitEngine {
     this.fxSeq += 1
     this.pops.push({
       id: 'p' + this.fxSeq,
-      text: '+' + r.gain,
+      text: (f.golden ? '黄金 +' : '+') + r.gain,
       x: f.x,
       at: this.t,
       combo: r.combo,
-      mul: r.mul
+      mul: r.mul,
+      golden: !!f.golden
     })
     this.bursts.push({
       id: 'b' + this.fxSeq,
       x: f.x,
       at: this.t,
       seed: this.fxSeq * 977 + 13,
-      type: f.type
+      type: f.type,
+      golden: !!f.golden
     })
 
     // 连击里程碑：只触发音效/提示，不额外加分（避免计分不可复现）
@@ -1053,6 +1065,10 @@ class FruitEngine {
       catchLine: CATCH_LINE,
       missFlash: this.missFlash,
       comboFlash: this.comboFlash,
+      // 一局进度 0~1：天空时段、难度爬升都用它
+      progress: this.progress || 0,
+      // 果子雨提示（1 → 0 淡出）：刚开波时置 1
+      waveHint: this.waveHintAt > 0 ? Math.max(0, 1 - (this.t - this.waveHintAt) / 2.2) : 0,
       // 设备与状态
       rateHz: this.motion.rateHz,
       stale: this.motion.stale,

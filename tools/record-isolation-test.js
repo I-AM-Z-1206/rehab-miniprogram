@@ -141,6 +141,30 @@ function mkRecord(id, extra) {
     cList.map((r) => r.owner))
   check('将来不会重复迁移', records.migrateStores() === 0)
 
+  // ---------------------------------------------------------------- 场景 4
+  // 来源字段以前是 fail-open：只要不是 'simulation' 就报成 'sensor'。结果是
+  // 字段缺失、拼错、或将来新增的未知来源，都会被当成真实传感器数据写进康复报告，
+  // 而且事后完全分不出来。医疗数据必须反过来：认不出来就当模拟。
+  console.log('\n[4] 数据来源不明一律不上报（fail-closed）')
+  check('real → sensor',
+    records.buildPayload(mkRecord('p1')).dataSource === 'sensor')
+  check('sensor → sensor',
+    records.buildPayload(mkRecord('p2', { dataSource: 'sensor' })).dataSource === 'sensor')
+  check('simulation → simulation',
+    records.buildPayload(mkRecord('p3', { dataSource: 'simulation' })).dataSource === 'simulation')
+  check('来源缺失 → simulation',
+    records.buildPayload(mkRecord('p4', { dataSource: undefined })).dataSource === 'simulation')
+  check('拼错/未知来源 → simulation',
+    records.buildPayload(mkRecord('p5', { dataSource: 'reel' })).dataSource === 'simulation')
+
+  loginAs('p_D')
+  const noSrc = records.save(mkRecord('rNoSrc', { dataSource: undefined }))
+  check('来源缺失的记录入库即标 skipped，不进上传队列',
+    noSrc.uploadState === 'skipped', noSrc.uploadState)
+  const upNoSrc = await records.upload('rNoSrc', { consent: true })
+  check('来源缺失的记录即使显式 upload 也被拒',
+    upNoSrc.state === 'skipped', upNoSrc)
+
   console.log('\n' + '─'.repeat(44))
   console.log('结果：' + passed + ' 通过，' + failed + ' 失败')
   process.exit(failed ? 1 : 0)

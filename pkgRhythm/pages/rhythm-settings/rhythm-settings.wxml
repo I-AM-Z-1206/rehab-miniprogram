@@ -49,8 +49,8 @@
     <view class="ptable">
       <view class="ptable-row head">
         <text class="pc-lv">档</text>
-        <text class="pc">间隔</text>
-        <text class="pc">窗口</text>
+        <text class="pc">保持</text>
+        <text class="pc">喘息</text>
         <text class="pc">飞行</text>
         <text class="pc">时长</text>
       </view>
@@ -67,7 +67,7 @@
   <!-- 曲目 -->
   <view class="card">
     <view class="card-head">
-      <text class="card-title">曲目</text>
+      <text class="card-title">音色</text>
       <text class="card-sub">音符间隔按毫秒，与 BPM 无关</text>
     </view>
     <view
@@ -91,6 +91,13 @@
   </view>
 
   <!-- 参数分组 -->
+  <!-- 治疗师调整区：患者从游戏页点「设置」就能走到这里，
+       看到「容差 / 稳时 / 判定半径」不知道该不该动。先一句话说清楚。 -->
+  <view class="pro-hint">
+    <text class="pro-hint-title">下面这些是治疗师调的参数</text>
+    <text class="pro-hint-body">不用改。想调难度，用上面的档位就够了；确定要微调，再往下看。</text>
+  </view>
+
   <view class="card" wx:for="{{groups}}" wx:key="name" wx:for-item="group">
     <view class="card-head">
       <text class="card-title">{{group.name}}</text>
@@ -144,47 +151,18 @@
       <text class="tag {{syncOffsetMs === 0 ? '' : 'ok'}}">当前 {{syncOffsetMs}} ms</text>
     </view>
     <text class="card-tip">
-      判定时间 = 音乐进度 − 音画延迟补偿。真机上如果"听到"比"看到"晚，就把补偿调大；
-      建议在准备页点「试听 8 拍」，让闪烁与听到的节拍重合后再定值。
+      门控模式下音符会停在判定线上等，不存在「听到」比「看到」晚的问题 ——
+      这个补偿已经不再参与判定，调它不会有任何效果。
     </text>
     <text class="card-tip">
-      补偿值会写入每一条训练记录，方便治疗后对比不同设备的差异；不同机型不保证绝对一致的精度。
+      字段保留是为了历史记录还能解释自己（旧记录里它确实影响过判定）。
     </text>
   </view>
 
-  <!-- 数据上报 -->
-  <view class="card">
-    <view class="card-head">
-      <text class="card-title">训练数据上报</text>
-      <text class="tag {{uploadState === '已配置' ? 'ok' : ''}}">{{uploadState}}</text>
-    </view>
-    <text class="card-tip">
-      接口地址与令牌由管理员填写，不写死在代码里。未配置时记录只保存在本机；
-      模拟数据不会上报。
-    </text>
-    <view class="field">
-      <text class="field-label">接口地址（https）</text>
-      <input
-        class="field-input"
-        value="{{uploadUrl}}"
-        placeholder="https://example.com/api/training/rhythm"
-        bindinput="onUrlInput"
-      />
-    </view>
-    <view class="field">
-      <text class="field-label">访问令牌（可选）</text>
-      <input
-        class="field-input"
-        value="{{uploadToken}}"
-        password="{{true}}"
-        placeholder="仅保存在本机"
-        bindinput="onTokenInput"
-      />
-    </view>
-    <view class="btn-row">
-      <view class="btn primary" bindtap="onSaveUpload">保存上报配置</view>
-    </view>
-  </view>
+  <!-- 这里原来有一块「训练数据上报 / 接口地址 / 访问令牌」表单。
+       上报早已改成登录后静默上传（utils/api.js 统一管地址与 token），
+       setUploadConfig 是空实现 —— 患者填了也不会生效，文案还写着
+       「未配置时记录只保存在本机」，与真实行为相反。整块删除。 -->
 
   <!-- 操作 -->
   <view class="btn-row wide">

@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>康复助手 · 改版后对照</title>
+<style>
+  :root {
+    --ink-1: #171a1f;
+    --ink-2: #3d434c;
+    --ink-3: #5d646e;
+    --ink-4: #858c96;
+    --line: #e6eaef;
+    --line-soft: #f1f4f7;
+    --teal: #0f9c8c;
+    --teal-ink: #0a7d70;
+    --teal-wash: #eef8f6;
+    --amber: #c8871f;
+    --amber-ink: #8f5d0e;
+    --amber-wash: #fdf5e8;
+    --pad-x: 20px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #dfe3e8;
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    display: flex;
+    gap: 18px;
+    padding: 18px;
+    align-items: flex-start;
+  }
+  .phone {
+    width: 375px;
+    height: 760px;
+    background: #fff;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .cap {
+    position: absolute; left: 0; top: -18px;
+    font-size: 11px; color: #6b7280; letter-spacing: 1px;
+  }
+  .nav {
+    height: 44px; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px; font-weight: 700; color: var(--ink-1);
+    position: relative;
+  }
+  .nav .back {
+    position: absolute; left: 16px; top: 50%; margin-top: -8px;
+    width: 10px; height: 16px;
+    border-left: 2px solid var(--ink-1); border-bottom: 2px solid var(--ink-1);
+    transform: rotate(45deg);
+  }
+  .body { flex: 1; padding: 0 var(--pad-x); overflow: hidden; }
+  .tip { font-size: 13px; line-height: 1.75; color: var(--ink-3); display: block; margin-top: 18px; }
+
+  /* ---------- 我的 ---------- */
+  .me { display: flex; align-items: center; padding: 20px 0 22px; }
+  .me-main { flex: 1; }
+  .me-name { font-size: 22px; font-weight: 700; color: var(--ink-1); letter-spacing: -0.25px; }
+  .me-sub { margin-top: 5px; font-size: 13px; color: var(--ink-3); }
+  .me-avatar {
+    width: 48px; height: 48px; border-radius: 50%; background: var(--teal-wash);
+    display: flex; align-items: center; justify-content: center; flex: none;
+  }
+  .me-avatar img { width: 26px; height: 26px; }
+  .sec { display: flex; align-items: center; padding: 18px 0 2px; border-top: 1px solid var(--line); }
+  .sec-title { font-size: 13px; font-weight: 600; color: var(--ink-3); letter-spacing: 1px; }
+  .row { display: flex; align-items: center; min-height: 52px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
+  .row-ico { width: 20px; height: 20px; margin-right: 12px; flex: none; }
+  .row-main { flex: 1; }
+  .row-title { font-size: 15px; color: var(--ink-1); }
+  .row-desc { margin-top: 3px; font-size: 13px; line-height: 1.5; color: var(--ink-3); }
+  .row-value { margin-left: 6px; font-size: 14px; color: var(--ink-4); }
+  .row-go { width: 16px; height: 16px; margin-left: 6px; flex: none; }
+  .sw { width: 46px; height: 28px; border-radius: 14px; background: var(--teal); position: relative; }
+  .sw::after { content: ""; position: absolute; right: 2px; top: 2px; width: 24px; height: 24px; border-radius: 50%; background: #fff; }
+
+  /* ---------- 蓝牙 ---------- */
+  .bar { display: flex; align-items: center; padding: 16px 0 12px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #ccd2da; margin-right: 8px; flex: none; }
+  .dot.on { background: var(--teal); }
+  .bar-text { font-size: 15px; font-weight: 600; color: var(--ink-1); }
+  .btn-row { display: flex; }
+  .btn {
+    flex: 1; height: 48px; line-height: 48px; text-align: center; border-radius: 12px;
+    background: var(--teal); color: #fff; font-size: 15px; font-weight: 600; margin-right: 8px;
+  }
+  .btn:last-child { margin-right: 0; }
+  .btn-outline { background: #fff; color: var(--ink-2); border: 1px solid var(--line); }
+  .sec-h { display: flex; align-items: baseline; justify-content: space-between; padding: 24px 0 4px; }
+  .sec-h .t { font-size: 13px; font-weight: 600; color: var(--ink-3); letter-spacing: 1px; }
+  .sec-h .h { font-size: 13px; color: var(--ink-4); }
+  .angles { display: flex; padding: 14px 0 4px; }
+  .ang { flex: 1; text-align: center; }
+  .ang-sep { width: 1px; background: var(--line); margin: 2px 0; }
+  .ang-num { font-size: 28px; font-weight: 600; color: var(--ink-1); line-height: 1.1; font-family: monospace; }
+  .ang-unit { font-size: 14px; color: var(--ink-3); }
+  .ang-label { margin-top: 5px; font-size: 13px; color: var(--ink-3); }
+  .bat { display: flex; align-items: center; margin-top: 16px; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .bat img { width: 17px; height: 17px; margin-right: 7px; }
+  .bat-label { font-size: 15px; color: var(--ink-2); margin-right: 8px; }
+  .bat-num { font-size: 17px; font-weight: 600; color: var(--ink-1); font-family: monospace; }
+  .bat-btn { margin-left: auto; font-size: 14px; font-weight: 600; color: var(--teal-ink); }
+  .fold { display: flex; align-items: center; padding: 15px 0; }
+  .fold-text { font-size: 14px; color: var(--ink-2); }
+  .fold-arrow { width: 7px; height: 7px; margin-left: 6px; border-right: 1.5px solid var(--ink-4); border-bottom: 1.5px solid var(--ink-4); transform: rotate(45deg); }
+
+  /* ---------- 游戏 ---------- */
+  .lead { padding: 13px 0 5px; }
+  .lead-title { font-size: 22px; font-weight: 700; color: var(--ink-1); letter-spacing: -0.25px; }
+  .lead-desc { margin-top: 6px; font-size: 14px; line-height: 1.5; color: var(--ink-3); }
+  .group { padding: 24px 0 6px; border-bottom: 1px solid var(--line); }
+  .group-title { font-size: 13px; font-weight: 600; color: var(--ink-3); letter-spacing: 1px; display: block; }
+  .group-hint { margin-top: 4px; font-size: 13px; color: var(--ink-3); display: block; }
+  .g-row { display: flex; align-items: center; min-height: 56px; padding: 13px 2px; border-bottom: 1px solid var(--line-soft); }
+  .g-row img { width: 28px; height: 28px; margin-right: 12px; flex: none; }
+  .g-main { flex: 1; }
+  .g-title { font-size: 17px; color: var(--ink-1); }
+  .g-desc { margin-top: 3px; font-size: 13px; line-height: 1.5; color: var(--ink-3); }
+  .g-go { width: 16px; height: 16px; margin-left: 8px; flex: none; }
+
+  /* ---------- 首页 ---------- */
+  .device { display: flex; align-items: center; padding: 17px 0 15px; }
+  .device-name { flex: 1; font-size: 13px; color: var(--ink-3); letter-spacing: 0.25px; }
+  .device-state { font-size: 13px; color: var(--ink-3); }
+  .device-state.on { color: var(--teal-ink); font-weight: 600; }
+  .device-go { width: 16px; height: 16px; margin-left: 4px; }
+  .primary { padding: 20px 17px; border-radius: 12px; background: var(--teal); }
+  .primary-title { font-size: 19px; font-weight: 600; color: #fff; }
+  .primary-sub { display: block; margin-top: 6px; font-size: 14px; line-height: 1.5; color: rgba(255,255,255,0.86); }
+  .prog { margin-top: 0; padding: 16px 2px 19px; border-bottom: 1px solid var(--line); }
+  .prog-num { font-size: 32px; font-weight: 700; color: var(--ink-1); letter-spacing: -0.5px; }
+  .prog-say { display: block; margin-top: 5px; font-size: 15px; line-height: 1.55; color: var(--ink-2); }
+  .week { display: flex; margin-top: 13px; }
+  .wk { display: flex; flex-direction: column; align-items: center; margin-right: 13px; }
+  .wk-dot { width: 13px; height: 13px; border-radius: 50%; background: var(--line-soft); border: 1px solid var(--line); }
+  .wk.on .wk-dot { background: var(--teal); border-color: var(--teal); }
+  .wk-label { margin-top: 4px; font-size: 12px; color: var(--ink-3); }
+  .wk.on .wk-label { color: var(--teal-ink); font-weight: 600; }
+  .prog-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 9px; }
+  .prog-meta { font-size: 13px; color: var(--ink-3); }
+  .link-go { display: flex; align-items: center; }
+  .link-go .txt { font-size: 13px; font-weight: 600; color: var(--teal-ink); }
+  .link-go img { width: 16px; height: 16px; margin-left: 2px; }
+  .step { display: flex; align-items: center; padding: 15px 2px; border-bottom: 1px solid var(--line); }
+  .step-no { width: 22px; font-size: 13px; font-weight: 600; color: var(--ink-4); }
+  .step-name { font-size: 15px; color: var(--ink-3); flex: 1; }
+  .step-desc { font-size: 13px; color: var(--ink-3); }
+
+  /* ---------- 进步 ---------- */
+  .head { padding: 15px 0 17px; }
+  .head-num { font-size: 38px; font-weight: 700; color: var(--ink-1); letter-spacing: -0.75px; }
+  .head-arrow { font-size: 19px; font-weight: 700; color: var(--teal-ink); }
+  .head-say { display: block; margin-top: 6px; font-size: 15px; line-height: 1.6; color: var(--ink-2); }
+  .blk { padding: 16px 0; border-top: 1px solid var(--line); }
+  .blk-t { font-size: 13px; font-weight: 600; color: var(--ink-3); letter-spacing: 0.25px; margin-bottom: 5px; }
+  .t-row { display: flex; align-items: baseline; padding: 7px 0; }
+  .t-name { flex: 1; font-size: 15px; color: var(--ink-1); }
+  .t-count { font-size: 13px; color: var(--ink-3); margin-right: 12px; }
+  .t-val { font-size: 17px; font-weight: 600; color: var(--ink-1); min-width: 53px; text-align: right; }
+  .t-delta { font-size: 13px; font-weight: 600; min-width: 40px; text-align: right; color: var(--teal-ink); }
+  .t-delta.down { color: var(--amber-ink); }
+  .total { padding: 16px 0; border-top: 1px solid var(--line); font-size: 14px; color: var(--ink-2); }
+  .total b { font-size: 20px; font-weight: 700; color: var(--ink-1); }
+  .cta { margin-top: 24px; height: 50px; line-height: 50px; border-radius: 12px; text-align: center; background: var(--teal); color: #fff; font-size: 17px; font-weight: 600; }
+
+  /* ---------- tab bar ---------- */
+  .tabbar {
+    flex: none; height: 54px; display: flex; background: #fff;
+    border-radius: 14px 14px 0 0; box-shadow: 0 -4px 14px rgba(15,40,70,0.10);
+  }
+  .tb { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .tb-ico { width: 30px; height: 30px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+  .tb-ico.on { background: rgba(15,156,140,0.12); }
+  .tb img { width: 22px; height: 22px; }
+  .tb-t { margin-top: 2px; font-size: 12px; line-height: 1.2; color: var(--ink-3); }
+  .tb-t.on { color: var(--teal-ink); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<!-- ============ 我的 ============ -->
+<div class="phone">
+  <div class="cap">我的（改版后）</div>
+  <div class="nav">我的</div>
+  <div class="body">
+    <div class="me">
+      <div class="me-main">
+        <div class="me-name">张建国</div>
+        <div class="me-sub">体验版</div>
+      </div>
+      <div class="me-avatar"><img src="../../assets/icons/user-round-teal.png" /></div>
+    </div>
+
+    <div class="sec"><span class="sec-title">设置</span></div>
+    <div class="row">
+      <img class="row-ico" src="../../assets/icons/volume-2-teal.png" />
+      <div class="row-main">
+        <div class="row-title">语音播报</div>
+        <div class="row-desc">连接、佩戴等节点会念出来</div>
+      </div>
+      <div class="sw"></div>
+    </div>
+    <div class="row">
+      <img class="row-ico" src="../../assets/icons/play-teal.png" />
+      <div class="row-main">
+        <div class="row-title">试听语音</div>
+        <div class="row-desc">先确认手机音量是开着的</div>
+      </div>
+      <img class="row-go" src="../../assets/icons/chevron-right-light.png" />
+    </div>
+    <div class="row">
+      <img class="row-ico" src="../../assets/icons/pencil-teal.png" />
+      <div class="row-main"><div class="row-title">修改昵称</div></div>
+      <span class="row-value">张建国</span>
+      <img class="row-go" src="../../assets/icons/chevron-right-light.png" />
+    </div>
+
+    <div class="sec"><span class="sec-title">关于</span></div>
+    <div class="row">
+      <img class="row-ico" src="../../assets/icons/book-open-teal.png" />
+      <div class="row-main"><div class="row-title">使用说明</div></div>
+      <img class="row-go" src="../../assets/icons/chevron-right-light.png" />
+    </div>
+    <div class="row">
+      <img class="row-ico" src="../../assets/icons/info-teal.png" />
+      <div class="row-main"><div class="row-title">关于本程序</div></div>
+      <span class="row-value">v1.0.0</span>
+      <img class="row-go" src="../../assets/icons/chevron-right-light.png" />
+    </div>
+    <span class="tip">训练记录只保存在这台手机上。卸载小程序会一起清空，不会上传到任何地方。</span>
+  </div>
+  <div class="tabbar">
+    <div class="tb"><div class="tb-ico"><img src="../../assets/icons/house-gray.png" /></div><div class="tb-t">首页</div></div>
+    <div class="tb"><div class="tb-ico"><img src="../../assets/icons/gamepad-2-gray.png" /></div><div class="tb-t">游戏</div></div>
+    <div class="tb"><div class="tb-ico on"><img src="../../assets/icons/user-round-teal.png" /></div><div class="tb-t on">我的</div></div>
+  </div>
+</div>
+
+<!-- ============ 蓝牙传感器 ============ -->
+<div class="phone">
+  <div class="cap">蓝牙传感器（改版后）</div>
+  <div class="nav"><span class="back"></span>蓝牙传感器</div>
+  <div class="body">
+    <div class="bar">
+      <div class="dot on"></div>
+      <span class="bar-text">已连接 · 接收数据中</span>
+    </div>
+    <div class="btn-row">
+      <div class="btn">扫描设备</div>
+      <div class="btn btn-outline">断开</div>
+    </div>
+
+    <div class="sec-h"><span class="t">当前姿态</span><span class="h">已减去零点</span></div>
+    <div class="angles">
+      <div class="ang"><div class="ang-num">12.4<span class="ang-unit">°</span></div><div class="ang-label">前后倾</div></div>
+      <div class="ang-sep"></div>
+      <div class="ang"><div class="ang-num">-3.1<span class="ang-unit">°</span></div><div class="ang-label">左右倾</div></div>
+      <div class="ang-sep"></div>
+      <div class="ang"><div class="ang-num">0.8<span class="ang-unit">°</span></div><div class="ang-label">转向</div></div>
+    </div>
+
+    <div class="bat">
+      <img src="../../assets/icons/battery-gray.png" />
+      <span class="bat-label">电量</span>
+      <span class="bat-num">78%</span>
+      <span class="bat-btn">读取</span>
+    </div>
+
+    <div class="fold"><span class="fold-text">看技术数据</span><div class="fold-arrow"></div></div>
+
+    <span class="tip">传感器开机后蓝灯快闪。扫不到设备时：确认手机蓝牙已开、传感器有电、安卓还需允许定位权限。模拟器不支持蓝牙，要用真机。</span>
+  </div>
+  <div class="tabbar">
+    <div class="tb"><div class="tb-ico"><img src="../../assets/icons/house-gray.png" /></div><div class="tb-t">首页</div></div>
+    <div class="tb"><div class="tb-ico"><img src="../../assets/icons/gamepad-2-gray.png" /></div><div class="tb-t">游戏</div></div>
+    <div class="tb"><div class="tb-ico"><img src="../../assets/icons/user-round-gray.png" /></div><div class="tb-t">我的</div></div>
+  </div>
+</div>
+
+<!-- ============ 游戏 ============ -->
+<div class="phone">
+  <div class="cap">游戏（改版后）</div>
+  <div class="nav">游戏</div>
+  <div class="body">
+    <div class="lead">
+      <div class="lead-title">选一个开始</div>
+      <div class="lead-desc">5 个游戏都用手上的传感器控制 · 身体动，画面才动</div>
+    </div>
+
+    <div class="group">
+      <span class="group-title">静态保持</span>
+      <span class="group-hint">站稳、控制住，身体别晃出范围</span>
+    </div>
+    <div class="g-row">
+      <img src="../../assets/icons/target-blue.png" />
+      <div class="g-main"><div class="g-title">射击</div><div class="g-desc">保持身体在目标范围内瞄准得分</div></div>
+      <img class="g-go" src="../../assets/icons/chevron-right-light.png" />
+    </div>
+    <div class="g-row">
+      <img src="../../assets/icons/waves-blue.png" />
+      <div class="g-main"><div class="g-title">走钢丝</div><div class="g-desc">动态平衡，保险绳容错</div></div>
+      <img class="g-go" src="../../assets/icons/chevron-right-light.png" />
+    </div>
+
+    <div class="group"><span class="group-title">动态控制</span><span class="group-hint">跟着目标移动身体，练重心转移</span></div>
+    <div class="g-row">
+      <img src="../../assets/icons/car-orange.png" />
+      <div class="g-main"><div class="g-title">赛车</div><div class="g-desc">前后左右位移驾驶赛车，霓虹赛道</div></div>
+      <img class="g-go" src="../../assets/icons/chevron-right-light.png" />
+    </div>
+    <div class="g-row">
+      <img src="../../assets/icons/music-orange.png" />
+      <div class="g-main"><div class="g-title">节奏训练</div><div class="g-desc">随音乐节拍左右移动，接住落下的音符</div></div>
+      <img class="g-go" src="../../assets/icons/chevron-right-light.png" />
+    </div>
+    <div class="g-row">
+      <img src="../../assets/icons/focus-blue.png" />
+      <div class="g-main"><div class="g-title">接水果</div><div class="g-desc">左右倾身移动果篮，把水果接进篮子</div></div>
+      <img class="g-go" src="../../assets/icons/chevron-right-light.png" />
+    </div>
+    <span class="tip">训练前先在首页连接传感器并标定零点 —— 不标定，游戏里的判定会一直偏。</span>
+  </div>
+  <div class="tabbar">
+    <div class="tb"><div class="tb-ico"><img src="../../assets/icons/house-gray.png" /></div><div class="tb-t">首页</div></div>
+    <div class="tb"><div class="tb-ico on"><img src="../../assets/icons/gamepad-2-teal.png" /></div><div class="tb-t on">游戏</div></div>
+    <div class="tb"><div class="tb-ico"><img src="../../assets/icons/user-round-gray.png" /></div><div class="tb-t">我的</div></div>
+  </div>
+</div>
+
+<!-- ============ 首页（未连接） ============ -->
+<div class="phone">
+  <div class="cap">首页 · 未连接</div>
+  <div class="nav">首页</div>
+  <div class="body">
+    <div class="device">
+      <div class="dot"></div>
+      <span class="device-name">蓝牙传感器</span>
+      <span class="device-state">未连接</span>
+      <img class="device-go" src="../../assets/icons/chevron-right-light.png" />
+    </div>
+    <div class="primary">
+      <div class="primary-title">连接蓝牙传感器</div>
+      <span class="primary-sub">打开传感器电源，蓝灯快闪后点这里</span>
+    </div>
+    <div class="step">
+      <span class="step-no">2</span>
+      <span class="step-name">零点标定</span>
+      <span class="step-desc">连接之后</span>
+    </div>
+    <div class="step">
+      <span class="step-no">3</span>
+      <span class="step-name">开始训练</span>
+      <span class="step-desc">完成上面两步后</span>
+    </div>
+    <div class="prog">
+      <div><span class="prog-num">68%</span></div>
+      <span class="prog-say">比上周稳了 6 个百分点</span>
+      <div class="week">
+        <div class="wk on"><div class="wk-dot"></div><div class="wk-label">一</div></div>
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">二</div></div>
+        <div class="wk on"><div class="wk-dot"></div><div class="wk-label">三</div></div>
+        <div class="wk on"><div class="wk-dot"></div><div class="wk-label">四</div></div>
+        <div class="wk on"><div class="wk-dot"></div><div class="wk-label">五</div></div>
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">六</div></div>
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">日</div></div>
+      </div>
+      <div class="prog-foot">
+        <span class="prog-meta">本周 4 次</span>
+        <div class="link-go"><span class="txt">查看进步</span><img src="../../assets/icons/chevron-right-light.png" /></div>
+      </div>
+    </div>
+    <span class="tip">传感器开机后蓝灯快闪。绑在胸前。每次摘下再戴上都要重新标定 —— 佩戴角度变了，旧零点就不准了。</span>
+  </div>
+  <div class="tabbar">
+    <div class="tb"><div class="tb-ico on"><img src="../../assets/icons/house-teal.png" /></div><div class="tb-t on">首页</div></div>
+    <div class="tb"><div class="tb-ico"><img src="../../assets/icons/gamepad-2-gray.png" /></div><div class="tb-t">游戏</div></div>
+    <div class="tb"><div class="tb-ico"><img src="../../assets/icons/user-round-gray.png" /></div><div class="tb-t">我的</div></div>
+  </div>
+</div>
+
+<!-- ============ 进步 ============ -->
+<div class="phone">
+  <div class="cap">我的进步（改版后）</div>
+  <div class="nav"><span class="back"></span>我的进步</div>
+  <div class="body">
+    <div class="head">
+      <div><span class="head-num">68%</span><span class="head-arrow">↑</span></div>
+      <span class="head-say">比上周稳了 6 个百分点</span>
+    </div>
+
+    <div class="blk" style="display:flex;align-items:flex-end;">
+      <div class="week" style="margin-top:0;flex:1;">
+        <div class="wk on"><div class="wk-dot"></div><div class="wk-label">一</div></div>
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">二</div></div>
+        <div class="wk on"><div class="wk-dot"></div><div class="wk-label">三</div></div>
+        <div class="wk on"><div class="wk-dot"></div><div class="wk-label">四</div></div>
+        <div class="wk on"><div class="wk-dot"></div><div class="wk-label">五</div></div>
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">六</div></div>
+        <div class="wk"><div class="wk-dot"></div><div class="wk-label">日</div></div>
+      </div>
+      <span class="prog-meta" style="padding-bottom:2px;">4 / 7 天</span>
+    </div>
+
+    <div class="blk">
+      <div class="blk-t">各项训练</div>
+      <div class="t-row"><span class="t-name">射击</span><span class="t-count">12 次</span><span class="t-val">74%</span><span class="t-delta">+5</span></div>
+      <div class="t-row"><span class="t-name">节奏训练</span><span class="t-count">9 次</span><span class="t-val">66%</span><span class="t-delta">+3</span></div>
+      <div class="t-row"><span class="t-name">接水果</span><span class="t-count">6 次</span><span class="t-val">61%</span><span class="t-delta">+1</span></div>
+      <div class="t-row"><span class="t-name">走钢丝</span><span class="t-count">3 次</span><span class="t-val">58%</span><span class="t-delta down">-4</span></div>
+    </div>
+
+    <div class="total"><b>47</b> 次训练 · <b>735</b> 分钟</div>
+    <div class="cta">继续训练</div>
+    <span class="tip">稳定率 = 身体待在目标范围内的时长占比，不是游戏分数。难度调高时暂时下降是正常的。</span>
+  </div>
+</div>
+
+</body>
+<script>
+  // 单屏查看：#3 只显示第 3 台手机，便于放大检查细节
+  var n = location.hash.replace('#', '');
+  if (n) {
+    document.querySelectorAll('.phone').forEach(function (el, i) {
+      if (i !== Number(n) - 1) el.style.display = 'none';
+    });
+  }
+</script>
+</html>

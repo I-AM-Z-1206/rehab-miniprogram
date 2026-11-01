@@ -76,7 +76,9 @@ function stabilityOf(r) {
       return clamp01(1 - (Number(r.offSec) || 0) / d)
     }
     case 'rhythm':
-      return clamp01(r.directionAccuracy)
+      // 门控口径：方向恒对（不对就完不成），改看「站得稳不稳」。
+      // 老记录没有 stabilityRate，退回 directionAccuracy 只为不让历史数据归零。
+      return clamp01(r.stabilityRate !== undefined ? r.stabilityRate : r.directionAccuracy)
     case 'race': {
       const d = secondsOf(r)
       return clamp01((Number(r.stableTime) || 0) / d)
@@ -125,8 +127,10 @@ function readAll(pid) {
     for (let j = 0; j < list.length; j++) {
       const r = list[j]
       if (!r) continue
-      // 模拟数据（没有真实传感器帧）不进统计：那不是患者做出来的
-      if (r.dataSource === 'simulation') continue
+      // 只有明确标了真实来源的才进统计。模拟数据、以及来源缺失/未知的记录
+      // 一律排除 —— 与 utils/training-record.js 的 isRealSource() 同一口径，
+      // 宁可少算一条，也不能让演示数据污染「我这周比上周强了吗」。
+      if (r.dataSource !== 'real' && r.dataSource !== 'sensor') continue
       out.push({ raw: r, gameId: s.gameId, gameName: s.name, at: timeOf(r), stability: stabilityOf(r) })
     }
   }

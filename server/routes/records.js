@@ -222,6 +222,19 @@ module.exports = async function recordRoutes(fastify) {
     }
   })
 
+  // ---------------------------------------------------------------- 全部删除
+  // 患者行使删除权：一次清空自己名下的全部记录。
+  // 逐条 DELETE 在记录多的时候要几十次请求，而且中途失败会留下半删状态。
+  // 这里只软删（deleted_at），治疗师的周报与记录列表都会立刻看不到。
+  fastify.delete('/api/v1/records', { onRequest: [fastify.authenticate] }, async (request) => {
+    const db = open()
+    const p = patientOf(db, request.user.uid, request.user.role)
+    const info = db
+      .prepare('UPDATE record SET deleted_at = ? WHERE patient_id = ? AND deleted_at IS NULL')
+      .run(Date.now(), p.id)
+    return { ok: true, deleted: info.changes }
+  })
+
   // ---------------------------------------------------------------- 软删除
   fastify.delete('/api/v1/records/:id', { onRequest: [fastify.authenticate] }, async (request) => {
     const db = open()

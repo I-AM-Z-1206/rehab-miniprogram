@@ -48,7 +48,7 @@ page {
 
 .sum-label {
   margin-top: 6rpx;
-  font-size: 21rpx;
+  font-size: 24rpx;
   color: #8b8f9a;
 }
 
@@ -78,7 +78,7 @@ page {
 }
 
 .best-label {
-  font-size: 21rpx;
+  font-size: 24rpx;
   color: #8b8f9a;
 }
 
@@ -104,7 +104,7 @@ page {
 
 .best-unit {
   margin-left: 6rpx;
-  font-size: 22rpx;
+  font-size: 24rpx;
   color: #8b8f9a;
 }
 
@@ -132,7 +132,7 @@ page {
 
 .banner-desc {
   margin-top: 6rpx;
-  font-size: 22rpx;
+  font-size: 24rpx;
   line-height: 1.5;
   color: #6b7280;
 }
@@ -178,7 +178,7 @@ page {
 
 .empty-desc {
   margin-top: 10rpx;
-  font-size: 23rpx;
+  font-size: 24rpx;
   color: #8b8f9a;
 }
 
@@ -222,7 +222,7 @@ page {
   margin-left: 12rpx;
   padding: 2rpx 12rpx;
   border-radius: 999rpx;
-  font-size: 20rpx;
+  font-size: 24rpx;
   color: #9a6414;
   background: #fdf6ea;
 }
@@ -231,14 +231,14 @@ page {
   margin-left: 12rpx;
   padding: 2rpx 12rpx;
   border-radius: 999rpx;
-  font-size: 20rpx;
+  font-size: 24rpx;
   color: #8b5cf6;
   background: #f3eeff;
 }
 
 .row-time {
   margin-top: 8rpx;
-  font-size: 22rpx;
+  font-size: 24rpx;
   color: #8b8f9a;
 }
 
@@ -249,7 +249,7 @@ page {
 }
 
 .state {
-  font-size: 20rpx;
+  font-size: 24rpx;
   padding: 4rpx 14rpx;
   border-radius: 999rpx;
   color: #9a6414;
@@ -273,7 +273,7 @@ page {
 
 .chev {
   margin-top: 10rpx;
-  font-size: 21rpx;
+  font-size: 24rpx;
   color: #a9aeb8;
 }
 
@@ -303,7 +303,7 @@ page {
 
 .kpi-label {
   margin-top: 4rpx;
-  font-size: 19rpx;
+  font-size: 24rpx;
   color: #8b8f9a;
 }
 
@@ -326,13 +326,13 @@ page {
 
 .d-key {
   flex: 1;
-  font-size: 23rpx;
+  font-size: 24rpx;
   color: #6b7280;
   padding-right: 20rpx;
 }
 
 .d-val {
-  font-size: 23rpx;
+  font-size: 24rpx;
   font-weight: 600;
   color: #13293a;
   text-align: right;
@@ -340,7 +340,7 @@ page {
 
 .d-note {
   margin-top: 12rpx;
-  font-size: 20rpx;
+  font-size: 24rpx;
   line-height: 1.6;
   color: #a9aeb8;
 }
@@ -384,7 +384,7 @@ page {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 25rpx;
+  font-size: 26rpx;
   color: #c0392b;
   background: #ffffff;
   border: 1rpx solid rgba(192, 57, 43, 0.16);
@@ -392,7 +392,7 @@ page {
 
 .foot {
   margin-top: 26rpx;
-  font-size: 20rpx;
+  font-size: 24rpx;
   line-height: 1.6;
   color: #a9aeb8;
   text-align: center;

@@ -5,7 +5,7 @@ const STATE_TEXT = {
   local: '待上报',
   uploaded: '已上报',
   failed: '上报失败',
-  unconfigured: '未配置接口',
+  unconfigured: '暂不可上传',
   skipped: '模拟数据·不上报'
 }
 
@@ -32,9 +32,13 @@ function toView(r) {
     left: r.leftHitCount || 0,
     right: r.rightHitCount || 0,
     wrongDir: r.wrongDirectionCount || 0,
-    rhythmAcc: pct(r.rhythmAccuracy),
-    dirAcc: pct(r.directionAccuracy),
-    hitRate: pct(r.overallHitRate),
+    // 门控口径（judgeVersion v3）：时间维度消失，看稳定度 / 左右均衡 / 平均节奏。
+    // 老记录（v1/v2）没有这些字段，pct 会返回 '--'，不做假数据。
+    stability: pct(r.stabilityRate),
+    balance: pct(r.balanceRate),
+    pace: r.paceSec ? r.paceSec + ' 秒' : '--',
+    unsolved: r.unsolved || 0,
+    reaction: r.avgReactionMs === null || r.avgReactionMs === undefined ? '--' : (r.avgReactionMs + ' ms'),
     syncOffset: (r.syncOffsetMs > 0 ? '+' : '') + (r.syncOffsetMs || 0) + ' ms',
     completed: !!r.completed,
     aborted: r.reason === 'aborted',
@@ -107,8 +111,8 @@ Page({
     }
     if (!this.data.uploadReady) {
       wx.showModal({
-        title: '未配置上报接口',
-        content: '记录目前只保存在本机。管理员可在「节奏训练 · 训练设置」中填写上报接口地址，之后再来上报。',
+        title: '暂时无法上传',
+        content: '这条记录还在本机。请确认已登录、已开启「上传训练数据」并联网；条件满足后会自动补传。',
         showCancel: false
       })
       return
@@ -142,8 +146,8 @@ Page({
     }
     if (!this.data.uploadReady) {
       wx.showModal({
-        title: '未配置上报接口',
-        content: '记录目前只保存在本机。管理员可在「训练设置」中填写上报接口地址。',
+        title: '暂时无法上传',
+        content: '记录还在本机。请确认已登录、已开启「上传训练数据」并联网；条件满足后会自动补传。',
         showCancel: false
       })
       return

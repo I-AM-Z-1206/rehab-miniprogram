@@ -56,6 +56,101 @@ const SKY = {
   grassNear: '#8CB86A'
 }
 
+// ---------------------------------------------------------------------------
+// 天空时段（v3 重设计）：一局从清晨玩到黄昏，按 progress 插值。
+// 约束：变化集中在中上部天空与远景；**地平线附近保持明亮** ——
+// 水果全部在画面下半区，前景（水果/篮子/引导线）的对比度不能被氛围牺牲。
+// 三段色板的 key 必须与 SKY 完全一致（hexLerp 只处理 # 开头的字段）。
+// ---------------------------------------------------------------------------
+const SKY_MORNING = {
+  top: '#7FC2E9',
+  mid: '#C6E8F6',
+  low: '#F2F7EA',
+  horizon: '#F9F1DE',
+  sun: 'rgba(255,252,238,0.92)',
+  hillFar: '#B7C9DC',
+  hillMid: '#9BB9AC',
+  hillNear: '#93B691',
+  treeDark: '#4C7F58',
+  treeMid: '#5F9863',
+  treeLight: '#7CB475',
+  trunk: '#7A5C3C',
+  grassFar: '#CFE3B0',
+  grassMid: '#B0D28B',
+  grassNear: '#93BC6F'
+}
+
+const SKY_DUSK = {
+  top: '#5E79A6',
+  mid: '#D19A6E',
+  low: '#F5CFA0',
+  horizon: '#FAE4B4',
+  sun: 'rgba(255,196,120,0.95)',
+  hillFar: '#A79FBC',
+  hillMid: '#98A48B',
+  hillNear: '#94A578',
+  treeDark: '#527554',
+  treeMid: '#68945D',
+  treeLight: '#87AC68',
+  trunk: '#775738',
+  grassFar: '#D2CE93',
+  grassMid: '#B0C374',
+  grassNear: '#93AC58'
+}
+
+const SKY_PHASES = [SKY_MORNING, SKY, SKY_DUSK]
+// 背景是离屏缓存的：时段变化时按档重烤。20 档 = 90 秒局约每 4.5 秒重烤一次
+const SKY_STEPS = 20
+
+function hexLerp(a, b, t) {
+  const va = parseInt(a.slice(1), 16)
+  const vb = parseInt(b.slice(1), 16)
+  const r = Math.round(lerp((va >> 16) & 255, (vb >> 16) & 255, t))
+  const g = Math.round(lerp((va >> 8) & 255, (vb >> 8) & 255, t))
+  const bl = Math.round(lerp(va & 255, vb & 255, t))
+  return '#' + ((1 << 24) + (r << 16) + (g << 8) + bl).toString(16).slice(1)
+}
+
+function hexToRgbStr(hex) {
+  const v = parseInt(hex.slice(1), 16)
+  return ((v >> 16) & 255) + ',' + ((v >> 8) & 255) + ',' + (v & 255)
+}
+
+/** progress(0~1) → 当时的天空色板 */
+function skyAt(progress) {
+  const p = clamp(Number(progress) || 0, 0, 1)
+  // 分段：0~0.35 清晨→正午；0.35→1 正午→黄昏。
+  // 黄昏段占 65%：一局的后半程「天色在变」是持续可感知的，不能攒到最后 10% 才变。
+  let a = SKY_PHASES[0]
+  let b = SKY_PHASES[1]
+  let k = clamp(p / 0.35, 0, 1)
+  if (p > 0.35) {
+    a = SKY_PHASES[1]
+    b = SKY_PHASES[2]
+    // 二次缓动：后半程变化越来越明显（患者临近结束、注意力下降时，氛围反而要托住）
+    k = clamp((p - 0.35) / 0.65, 0, 1)
+    k = k * k * (3 - 2 * k) * 0.55 + k * 0.45
+  }
+  const out = {}
+  Object.keys(SKY).forEach((key) => {
+    const va = a[key] !== undefined ? a[key] : SKY[key]
+    const vb = b[key] !== undefined ? b[key] : SKY[key]
+    // 非 hex 字段（如 rgba 字符串）不做数值插值，按段取值
+    out[key] = va[0] === '#' && vb[0] === '#' ? hexLerp(va, vb, k) : (k < 0.5 ? va : vb)
+  })
+  // 太阳位置与晨昏联动：清晨低而偏左，正午高挂右上，黄昏低垂更橙
+  const sunA = { x: 0.2, y: 0.52 }
+  const sunB = { x: 0.82, y: 0.22 }
+  const sunC = { x: 0.9, y: 0.55 }
+  const s0 = p > 0.35 ? sunB : sunA
+  const s1 = p > 0.35 ? sunC : sunB
+  out.sunX = lerp(s0.x, s1.x, k)
+  out.sunY = lerp(s0.y, s1.y, k)
+  // 黄昏的太阳更橙：叠一层橙色晕（_paintSky 里画）
+  out.sunWarm = p > 0.35 ? k : 0
+  return out
+}
+
 function clamp(v, lo, hi) {
   return v < lo ? lo : (v > hi ? hi : v)
 }
@@ -198,6 +293,10 @@ class FruitRenderer {
     const vm = engine.getViewModel()
     const screen = this._screen(vm.state)
 
+    // 天空时段：按局内进度分档，跨档才重烤离屏背景（90 秒局约 20 次）
+    const phase = Math.round(clamp(vm.progress || 0, 0, 1) * SKY_STEPS)
+    this._bgPhase = phase
+
     this._drawBackground()
     this._drawWorld(vm, screen)
 
@@ -228,7 +327,7 @@ class FruitRenderer {
   // ================================================================ 背景
   _drawBackground() {
     const ctx = this.ctx
-    const key = this.W + 'x' + this.H + '@' + this.dpr
+    const key = this.W + 'x' + this.H + '@' + this.dpr + '#p' + (this._bgPhase || 0)
     if (this.bg && this.bgKey === key) {
       // 必须显式给目标尺寸：离屏画布是设备像素尺寸，直接 drawImage(bg,0,0)
       // 会在 dpr 变换下被放大 dpr 倍，导致中景和草地被顶出画面
@@ -236,6 +335,8 @@ class FruitRenderer {
       return
     }
     this.bgKey = key
+    // 当帧的时段色板：所有背景绘制函数都从这里取色
+    this.sky = skyAt((this._bgPhase || 0) / SKY_STEPS)
     // 离屏缓存：静态背景每帧重绘在低端机上会掉帧
     let off = null
     try {
@@ -267,6 +368,7 @@ class FruitRenderer {
   }
 
   _paintSky(g) {
+    const S = this.sky || SKY
     const L = this.L
     const W = L.W
     const H = L.H
@@ -274,22 +376,31 @@ class FruitRenderer {
 
     // 天空
     const sky = g.createLinearGradient(0, 0, 0, hz + H * 0.08)
-    sky.addColorStop(0, SKY.top)
-    sky.addColorStop(0.55, SKY.mid)
-    sky.addColorStop(0.86, SKY.low)
-    sky.addColorStop(1, SKY.horizon)
+    sky.addColorStop(0, S.top)
+    sky.addColorStop(0.55, S.mid)
+    sky.addColorStop(0.86, S.low)
+    sky.addColorStop(1, S.horizon)
     g.fillStyle = sky
     g.fillRect(0, 0, W, hz + H * 0.1)
 
-    // 右上角柔光（太阳）
-    const sunX = W * 0.82
-    const sunY = hz * 0.22
+    // 太阳：位置与颜色随时段移动（清晨低而偏左 → 正午高挂 → 黄昏低垂偏橙）
+    const sunX = W * (S.sunX === undefined ? 0.82 : S.sunX)
+    const sunY = hz * (S.sunY === undefined ? 0.22 : S.sunY)
     const sun = g.createRadialGradient(sunX, sunY, 4, sunX, sunY, W * 0.55)
-    sun.addColorStop(0, SKY.sun)
+    sun.addColorStop(0, S.sun)
     sun.addColorStop(0.35, 'rgba(255,248,220,0.34)')
     sun.addColorStop(1, 'rgba(255,248,220,0)')
     g.fillStyle = sun
     g.fillRect(0, 0, W, hz)
+
+    // 黄昏时给太阳叠一层橙晕：只调氛围，地平线附近的亮度不变（水果对比度优先）
+    if ((S.sunWarm || 0) > 0.02) {
+      const warm = g.createRadialGradient(sunX, sunY, 4, sunX, sunY, W * 0.5)
+      warm.addColorStop(0, 'rgba(255,176,92,' + (0.30 * S.sunWarm).toFixed(3) + ')')
+      warm.addColorStop(1, 'rgba(255,176,92,0)')
+      g.fillStyle = warm
+      g.fillRect(0, 0, W, hz)
+    }
 
     // 第二层日晕：把右上角的天空撑起来，不那么平
     const halo = g.createRadialGradient(sunX, sunY, W * 0.10, sunX, sunY, W * 0.78)
@@ -325,7 +436,7 @@ class FruitRenderer {
       w: W,
       hz: hz,
       bands: [
-        { amp: 0.24, rise: 0.02, freq: 3.6, alpha: 0.46, color: '150,186,208', seed: 0.8 }
+        { amp: 0.24, rise: 0.02, freq: 3.6, alpha: 0.46, color: hexToRgbStr(S.hillFar), seed: 0.8 }
       ]
     })
 
@@ -386,9 +497,17 @@ class FruitRenderer {
           cx + p[0] * r, cy + p[1] * r, r * 0.1,
           cx + p[0] * r, cy + p[1] * r, r * p[2]
         )
-        grd.addColorStop(0, 'rgba(255,255,255,0.96)')
-        grd.addColorStop(0.72, 'rgba(255,255,255,0.72)')
-        grd.addColorStop(1, 'rgba(255,255,255,0)')
+        // 黄昏时云染成金粉色：白云挂在橙色天上会很跳
+        const warm = (this.sky && this.sky.sunWarm) || 0
+        if (warm > 0.05) {
+          grd.addColorStop(0, 'rgba(255,238,214,0.97)')
+          grd.addColorStop(0.72, 'rgba(248,206,160,' + (0.72 - warm * 0.1).toFixed(3) + ')')
+          grd.addColorStop(1, 'rgba(244,186,140,0)')
+        } else {
+          grd.addColorStop(0, 'rgba(255,255,255,0.96)')
+          grd.addColorStop(0.72, 'rgba(255,255,255,0.72)')
+          grd.addColorStop(1, 'rgba(255,255,255,0)')
+        }
         ctx.fillStyle = grd
         ellipse(ctx, cx + p[0] * r, cy + p[1] * r, r * p[2], r * p[2] * 0.78)
         ctx.fill()
@@ -398,6 +517,7 @@ class FruitRenderer {
   }
 
   _paintHills(g) {
+    const S = this.sky || SKY
     const L = this.L
     const W = L.W
     const H = L.H
@@ -412,7 +532,7 @@ class FruitRenderer {
     g.bezierCurveTo(W * 0.94, hz - H * 0.062, W * 0.98, hz - H * 0.04, W, hz - H * 0.042)
     g.lineTo(W, hz + 6)
     g.closePath()
-    g.fillStyle = SKY.hillFar
+    g.fillStyle = S.hillFar
     g.globalAlpha = 0.62
     g.fill()
     g.globalAlpha = 1
@@ -425,13 +545,14 @@ class FruitRenderer {
     g.bezierCurveTo(W * 0.7, hz - H * 0.038, W * 0.84, hz + H * 0.006, W, hz - H * 0.008)
     g.lineTo(W, hz + 10)
     g.closePath()
-    g.fillStyle = SKY.hillMid
+    g.fillStyle = S.hillMid
     g.globalAlpha = 0.72
     g.fill()
     g.globalAlpha = 1
   }
 
   _paintTrees(g) {
+    const S = this.sky || SKY
     const L = this.L
     const W = L.W
     const H = L.H
@@ -478,6 +599,7 @@ class FruitRenderer {
   }
 
   _tree(g, x, baseY, r, s, alpha, seed) {
+    const S = this.sky || SKY
     g.save()
     g.globalAlpha = alpha
     // 树干
@@ -487,7 +609,7 @@ class FruitRenderer {
     g.lineTo(x + r * 0.055, baseY - r * 1.25)
     g.lineTo(x + r * 0.09, baseY)
     g.closePath()
-    g.fillStyle = SKY.trunk
+    g.fillStyle = S.trunk
     g.fill()
 
     // 树冠：3~4 个叠加圆，上亮下暗
@@ -500,8 +622,8 @@ class FruitRenderer {
       const py = cy + p[1] * r
       const pr = r * p[2]
       const grd = g.createRadialGradient(px - pr * 0.3, py - pr * 0.35, pr * 0.1, px, py, pr)
-      grd.addColorStop(0, i === 2 ? SKY.treeLight : SKY.treeMid)
-      grd.addColorStop(1, SKY.treeDark)
+      grd.addColorStop(0, i === 2 ? S.treeLight : S.treeMid)
+      grd.addColorStop(1, S.treeDark)
       g.fillStyle = grd
       ellipse(g, px, py, pr, pr * 0.92)
       g.fill()
@@ -529,15 +651,16 @@ class FruitRenderer {
   }
 
   _paintField(g) {
+    const S = this.sky || SKY
     const L = this.L
     const W = L.W
     const H = L.H
     const hz = L.horizonY
 
     const grass = g.createLinearGradient(0, hz, 0, H)
-    grass.addColorStop(0, SKY.grassFar)
-    grass.addColorStop(0.45, SKY.grassMid)
-    grass.addColorStop(1, SKY.grassNear)
+    grass.addColorStop(0, S.grassFar)
+    grass.addColorStop(0.45, S.grassMid)
+    grass.addColorStop(1, S.grassNear)
     g.fillStyle = grass
     g.beginPath()
     g.moveTo(0, hz)
@@ -928,7 +1051,7 @@ class FruitRenderer {
         const x = lerp(fromX, toX, ease)
         const y = lerp(fromY, toY, ease)
         const r = r0 * (1 - ease * 0.42)
-        drawFruit(ctx, f.type, x, y, r, f.rot + ease * 1.6, { alpha: 1 - ease * 0.55 })
+        drawFruit(ctx, f.type, x, y, r, f.rot + ease * 1.6, { alpha: 1 - ease * 0.55, golden: f.golden })
         continue
       }
 
@@ -938,7 +1061,7 @@ class FruitRenderer {
         // 水果会一路滑到草地深处，看起来像在地上滚。
         // 0.12 大约 0.25 秒，正好是"掉进草里就没"。
         const t = clamp((f.y - 1) / 0.12, 0, 1)
-        drawFruit(ctx, f.type, p.x, p.y, r0 * (1 - t * 0.34), f.rot, { alpha: (1 - t) * 0.85 })
+        drawFruit(ctx, f.type, p.x, p.y, r0 * (1 - t * 0.34), f.rot, { alpha: (1 - t) * 0.85, golden: f.golden })
         continue
       }
 
@@ -956,10 +1079,23 @@ class FruitRenderer {
         ctx.fill()
         ctx.restore()
       }
+      // 黄金果：外圈呼吸光环。它是奖励信号，要在树冠的绿叶背景里跳出来 ——
+      // 只用描边圈 + 轻微脉动，不画大光斑（大光斑会盖住下面的判定引导线）
+      if (f.golden) {
+        const pulse = 0.5 + Math.sin(this.clock * 4.2) * 0.5
+        ctx.save()
+        ctx.globalAlpha = 0.3 + pulse * 0.22
+        ctx.lineWidth = 2.4
+        ctx.strokeStyle = '#F6C34C'
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, r0 * depthScale * (1.42 + pulse * 0.14), 0, Math.PI * 2)
+        ctx.stroke()
+        ctx.restore()
+      }
       // 离开背景：先铺一层向右下的软投影，水果才「浮」在草地上而不是贴上去
       depth.softShadow(ctx, p.x + r0 * 0.14, p.y + r0 * 0.18,
         r0 * 0.95, r0 * 0.78, 0.13, '46,74,42')
-      drawFruit(ctx, f.type, p.x, p.y, r0 * depthScale, f.rot)
+      drawFruit(ctx, f.type, p.x, p.y, r0 * depthScale, f.rot, { golden: f.golden })
     }
   }
 
@@ -995,6 +1131,22 @@ class FruitRenderer {
     ctx.ellipse(x, L.rimY, halfW * 1.5, halfW * 0.9, 0, 0, Math.PI * 2)
     ctx.fill()
     ctx.restore()
+
+    // 连击光环（combo ≥ 5）：篮子周围起金色呼吸光 —— 连击倍率一直在计分里，
+    // 但之前只有 HUD 一行小字，玩家感知不到「现在打得更值」。光晕就是那个"打得更值"。
+    const comboNow = vm.combo || 0
+    if (comboNow >= 5) {
+      const pulse = 0.5 + Math.sin(this.clock * 5) * 0.5
+      const glow = ctx.createRadialGradient(x, L.rimY, halfW * 0.35, x, L.rimY, halfW * (1.9 + pulse * 0.35))
+      glow.addColorStop(0, 'rgba(244,185,66,' + (0.4 + pulse * 0.16).toFixed(3) + ')')
+      glow.addColorStop(1, 'rgba(244,185,66,0)')
+      ctx.save()
+      ctx.fillStyle = glow
+      ctx.beginPath()
+      ctx.ellipse(x, L.rimY, halfW * (1.9 + pulse * 0.35), halfW * 1.15, 0, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.restore()
+    }
 
     drawBasket(ctx, x, L.rimY, halfW, {
       tilt: b.tilt,
@@ -1046,7 +1198,9 @@ class FruitRenderer {
     const L = this.L
     const t = this.engine.t
 
-    // 粒子：从接住点向外溅开的果肉/叶子
+    // 粒子：从接住点向外溅开 —— 果汁水滴（沿运动方向拉伸）+ 打转的叶子
+    // v3：原来是 9 颗均匀圆点，现在 15 颗分三种（果肉圆 / 果汁水滴 / 叶子），
+    // 水滴沿速度方向拉长才有「溅出汁」的方向感；叶子给"整颗果子进了篮"的碎屑感
     const bursts = vm.bursts || []
     for (let bi = 0; bi < bursts.length; bi++) {
       const b = bursts[bi]
@@ -1057,21 +1211,61 @@ class FruitRenderer {
       const by = L.fieldTop + L.catchLine * L.fieldH - 12
       const k = clamp(age / 0.7, 0, 1)
       const alpha = 1 - k
-      const color = this._fruitColor(b.type)
+      const color = b.golden ? '#F6C34C' : this._fruitColor(b.type)
       ctx.save()
-      for (let i = 0; i < 9; i++) {
+      for (let i = 0; i < 15; i++) {
         const a = hash(i, b.seed) * Math.PI * 2
         const sp = (46 + hash(i + 20, b.seed) * 96) * (1 - k * 0.55)
         const px = bx + Math.cos(a) * sp * age
         const py = by + Math.sin(a) * sp * age + 210 * age * age
-        const pr = Math.max(0.8, (2.4 + hash(i + 40, b.seed) * 3) * (1 - k * 0.7))
+        const dir = Math.atan2(210 * age * 2 + Math.sin(a) * sp, Math.cos(a) * sp)
+        const kind = i % 5
         ctx.globalAlpha = alpha * 0.9
-        ctx.fillStyle = i % 3 === 0 ? '#FFFFFF' : color
-        ctx.beginPath()
-        ctx.arc(px, py, pr, 0, Math.PI * 2)
-        ctx.fill()
+        if (kind === 0) {
+          // 叶子：小绿椭圆，边飞边转
+          ctx.save()
+          ctx.translate(px, py)
+          ctx.rotate(a + age * (5 + hash(i, b.seed) * 6))
+          ctx.fillStyle = b.golden ? 'rgba(214,178,86,0.9)' : 'rgba(88,150,70,0.9)'
+          ctx.beginPath()
+          ctx.ellipse(0, 0, 5.2 * (1 - k * 0.4), 2.1 * (1 - k * 0.4), 0, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.restore()
+        } else if (kind === 2) {
+          // 果汁水滴：沿速度方向拉长的椭圆
+          ctx.save()
+          ctx.translate(px, py)
+          ctx.rotate(dir)
+          ctx.fillStyle = i % 2 === 0 ? '#FFFFFF' : color
+          ctx.beginPath()
+          ctx.ellipse(0, 0, Math.max(1.2, 4.6 * (1 - k * 0.6)), Math.max(0.8, 2.1 * (1 - k * 0.6)), 0, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.restore()
+        } else {
+          // 果肉圆点
+          const pr = Math.max(0.8, (2.4 + hash(i + 40, b.seed) * 3) * (1 - k * 0.7))
+          ctx.fillStyle = i % 4 === 1 ? '#FFFFFF' : color
+          ctx.beginPath()
+          ctx.arc(px, py, pr, 0, Math.PI * 2)
+          ctx.fill()
+        }
       }
       ctx.restore()
+
+      // 黄金果：扩散金环 + 短暂闪光 —— 奖励感要和普通接住拉开一个档
+      if (b.golden) {
+        const gk = clamp(age / 0.55, 0, 1)
+        if (gk < 1) {
+          ctx.save()
+          ctx.globalAlpha = (1 - gk) * 0.85
+          ctx.lineWidth = 3.5 * (1 - gk * 0.6)
+          ctx.strokeStyle = '#F6C34C'
+          ctx.beginPath()
+          ctx.arc(bx, by, 14 + gk * 52, 0, Math.PI * 2)
+          ctx.stroke()
+          ctx.restore()
+        }
+      }
     }
 
     // 得分飘字
@@ -1091,11 +1285,13 @@ class FruitRenderer {
       ctx.scale(scale, scale)
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.font = '800 20px "PingFang SC", "Helvetica Neue", Helvetica, Arial, sans-serif'
+      // 黄金果的飘字更大更金：奖励要一眼和普通得分区分
+      const popSize = p.golden ? 23 : 20
+      ctx.font = '800 ' + popSize + 'px "PingFang SC", "Helvetica Neue", Helvetica, Arial, sans-serif'
       ctx.lineWidth = 4
       ctx.strokeStyle = 'rgba(255,255,255,0.92)'
       ctx.strokeText(p.text, 0, 0)
-      ctx.fillStyle = p.combo >= 3 ? C.amberDeep : C.tealDeep
+      ctx.fillStyle = p.golden ? '#C9891B' : (p.combo >= 3 ? C.amberDeep : C.tealDeep)
       ctx.fillText(p.text, 0, 0)
       if (p.mul && p.mul > 1.05) {
         ctx.font = '700 10px "PingFang SC", "Helvetica Neue", Helvetica, Arial, sans-serif'
@@ -1127,6 +1323,43 @@ class FruitRenderer {
     const w = W - 24
     const h = L.hudH
     const short = L.short
+
+    // ---- 果子雨提示条：刚开波时从顶部滑入，短暂停留后淡出 ----
+    // 只报事件不给数值 —— 患者需要的是「接下来会热闹一点」的预期，不是一串参数
+    const waveHint = vm.waveHint || 0
+    if (waveHint > 0.02) {
+      const slide = 1 - Math.min(1, (1 - waveHint) / 0.18) // 前 18% 滑入
+      const bannerY = L.hudY + L.hudH + 14 + (1 - slide) * -18
+      const bw = 168
+      const bx = (W - bw) / 2
+      ctx.save()
+      ctx.globalAlpha = Math.min(1, waveHint * 1.6)
+      rr(ctx, bx, bannerY, bw, 40, 20)
+      ctx.fillStyle = 'rgba(255,255,255,0.94)'
+      ctx.shadowColor = 'rgba(16,48,32,0.14)'
+      ctx.shadowBlur = 12
+      ctx.shadowOffsetY = 4
+      ctx.fill()
+      ctx.shadowColor = 'transparent'
+      ctx.lineWidth = 1
+      ctx.strokeStyle = 'rgba(244,195,76,0.75)'
+      ctx.stroke()
+      // 三颗小果粒点缀左侧
+      const dropY = bannerY + 20
+      const dropColors = ['#DE3B31', '#F6C34C', '#7CB454']
+      for (let di = 0; di < 3; di++) {
+        ctx.fillStyle = dropColors[di]
+        ctx.beginPath()
+        ctx.arc(bx + 22 + di * 14, dropY + (di === 1 ? -3 : 0), 3.6, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.font = '700 14px "PingFang SC", "Helvetica Neue", Helvetica, Arial, sans-serif'
+      ctx.fillStyle = '#8A5A10'
+      ctx.fillText('果子雨来了', bx + bw / 2 + 14, dropY)
+      ctx.restore()
+    }
 
     // 卡片：白底 + 柔和投影
     ctx.save()

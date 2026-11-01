@@ -21,13 +21,30 @@ function selectTab(page, index) {
   }
 }
 
+// 连点保护：中老年用户很容易连点两下。wx.navigateTo 不会合并两次点击，
+// 会真的叠两层同一个页面 —— 返回时要按两次才回到上一页，看起来像"卡住了"。
+// 500ms 足够吃掉连点，又不影响正常的连续操作。
+const NAV_LOCK_MS = 500
+let navLockAt = 0
+
 // 统一跳转：tab 页自动使用 switchTab，其余走 navigateTo
 function openPage(url) {
   if (!url) return
+  const now = Date.now()
+  if (now - navLockAt < NAV_LOCK_MS) return
+  navLockAt = now
+
+  const fail = (err) => {
+    console.error('openPage fail:', url, err)
+    // 最常见的原因是页面栈已满 10 层（游戏 → 设置 → 记录 反复进出）。
+    // 原来只 console.error，用户点了一下什么都没发生，不知道该怎么办。
+    wx.showToast({ title: '页面打开失败，返回上一页再试', icon: 'none' })
+  }
+
   if (TAB_PAGES.indexOf(url) >= 0) {
-    wx.switchTab({ url, fail: (err) => console.error('switchTab fail:', err) })
+    wx.switchTab({ url, fail })
   } else {
-    wx.navigateTo({ url, fail: (err) => console.error('navigateTo fail:', err) })
+    wx.navigateTo({ url, fail })
   }
 }
 

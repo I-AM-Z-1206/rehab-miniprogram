@@ -20,6 +20,17 @@ __pycache__/
 # 节奏训练音频中间产物（npm run audio:rhythm 生成，正式资源为同目录 m4a）
 pkgRhythm/audio/rhythm/*.wav
 
+# Blender 渲染中间产物
+tools/blender/out/
+tools/blender/*.bak.py
+
+# 预览页构建产物与调试截图（可由 _build.js / 脚本重建）
+tools/*-preview/**/*.bundle.js
+tools/*-preview/**/*.png
+tools/ui-preview/*.png
+tools/wire-art/
+tools/char-after.png
+
 # 编辑器/助手目录
 .workbuddy/
 

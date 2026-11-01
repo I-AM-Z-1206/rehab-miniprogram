@@ -1,13 +1,14 @@
 /** calibrate.wxss —— 零点标定页
  *
- * 设计说明（针对"一股 AI 味"的反馈）：
- *   AI 生成界面的三个典型套路，这里都刻意避开——
- *     1. 灰底(#f5f6fa)上堆一圈白卡片 + 大圆角 + 柔和阴影：改为纯白底、
- *        用 1rpx 细线和留白分区，阴影只给主按钮这一个真正需要浮起来的元素；
- *     2. 所有区块都套同样的卡片容器、看起来层层叠叠：只有真正需要成组的
- *        内容才给底色，其余靠字号 / 字重 / 颜色建立层级；
- *     3. 渐变紫蓝按钮、装饰性色块、无意义的居中排版：颜色只承担功能，
- *        主色=可操作，红橙=需要注意，灰=次要。
+ * 结构说明（针对之前"反人类"的反馈做过一轮重排）：
+ *   结论（当前角度 + 标没标定）在最上面，姿态分布在按钮上方，说明是一句话放在最后。
+ *
+ * 这一版只统一"皮肤"，不动结构：
+ *   - 灰原来是第三套（#1a1d21 / #8b9198 / #a1a1aa），和首页的 #1a1f26 / #949aa3 / #a8aeb8
+ *     不是同一个体系，两页之间翻动时字色会跳。现在全部走令牌。
+ *   - 警告色原来是 #e8845a —— 那是珊瑚红。项目自己的规则是「康复场景不用红，红色像警报」，
+ *     这里却用它标"标准差偏大"。改成琥珀。
+ *   - 22-25rpx 的标签（图例、统计项、提示）提到 24-26rpx 下限。
  */
 
 page {
@@ -23,12 +24,11 @@ page {
 }
 
 .page-body {
-  padding: 24rpx 32rpx 64rpx;
+  padding: 8rpx var(--pad-x) 64rpx;
 }
 
 .mono {
-  font-family: 'SF Mono', Menlo, Consolas, monospace;
-  font-variant-numeric: tabular-nums;
+  font-family: monospace;
 }
 
 .spacer { flex: 1; }
@@ -38,24 +38,25 @@ page {
   display: flex;
   flex-direction: row;
   align-items: center;
-  padding: 20rpx 0;
-  border-bottom: 1rpx solid #ececf0;
+  padding: 28rpx 0;
+  border-bottom: 1rpx solid var(--line);
 }
 
 .dot {
   width: 16rpx;
   height: 16rpx;
   border-radius: 50%;
-  background-color: #d4d4d8;
-  margin-right: 14rpx;
+  background-color: #ccd2da;
+  margin-right: 16rpx;
+  flex-shrink: 0;
 }
 
 .dot.on {
-  background-color: #0f9c8c;
+  background-color: var(--teal);
 }
 
 .dot.scan {
-  background-color: #e8a33d;
+  background-color: var(--amber);
   animation: pulse 800ms infinite;
 }
 
@@ -66,57 +67,65 @@ page {
 }
 
 .bar-text {
-  font-size: 27rpx;
-  color: #1a1d21;
+  font-size: var(--fs-body-s);
+  color: var(--ink-1);
 }
 
+/* 链接文字必须用加深版青色：#0f9c8c 在白底上只有 3.4:1，26rpx 的正文达不到 4.5:1 */
 .link {
-  font-size: 27rpx;
-  color: #0f9c8c;
-  padding: 8rpx 4rpx;
+  font-size: var(--fs-body-s);
+  color: var(--teal-ink);
+  padding: 12rpx 4rpx;
 }
 
-.link-stop { color: #e8a33d; }
+.link-stop { color: var(--amber-ink); }
 
 /* ---------- 设备列表 ---------- */
 .dev {
   display: flex;
   flex-direction: row;
   align-items: center;
-  padding: 22rpx 0;
-  border-bottom: 1rpx solid #f4f4f6;
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid var(--line-soft);
 }
 
-.dev-l { flex: 1; }
+.dev:active { opacity: 0.55; }
+
+.dev-l {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
 
 .dev-name {
-  font-size: 29rpx;
-  color: #1a1d21;
+  font-size: var(--fs-body);
+  color: var(--ink-1);
 }
 
 .dev-id {
-  font-size: 22rpx;
-  color: #a1a1aa;
+  font-size: var(--fs-micro);
+  color: var(--ink-4);
   margin-top: 4rpx;
 }
 
 .dev-rssi {
-  font-size: 24rpx;
-  color: #a1a1aa;
+  font-size: var(--fs-note);
+  color: var(--ink-3);
   margin-right: 20rpx;
 }
 
 .dev-go {
-  font-size: 26rpx;
-  color: #0f9c8c;
+  font-size: var(--fs-body-s);
+  font-weight: 600;
+  color: var(--teal-ink);
 }
 
 /* ---------- 标题 ---------- */
 .h1 {
-  font-size: 42rpx;
-  font-weight: 600;
-  color: #1a1d21;
-  margin: 40rpx 0 28rpx;
+  font-size: var(--fs-h1);
+  font-weight: 700;
+  color: var(--ink-1);
+  margin: 44rpx 0 28rpx;
   letter-spacing: -0.5rpx;
 }
 
@@ -126,7 +135,7 @@ page {
   flex-direction: row;
   align-items: stretch;
   background-color: #f7f9fa;
-  border-radius: 16rpx;
+  border-radius: var(--r-md);
   padding: 36rpx 0;
   margin-bottom: 20rpx;
 }
@@ -140,26 +149,26 @@ page {
 
 .ro-sep {
   width: 1rpx;
-  background-color: #e4e8ea;
+  background-color: var(--line);
   margin: 8rpx 0;
 }
 
 .ro-num {
   font-size: 62rpx;
   font-weight: 500;
-  color: #1a1d21;
+  color: var(--ink-1);
   line-height: 1.1;
 }
 
 .ro-unit {
-  font-size: 30rpx;
-  color: #9aa0a6;
+  font-size: var(--fs-body-s);
+  color: var(--ink-3);
   margin-left: 2rpx;
 }
 
 .ro-label {
-  font-size: 23rpx;
-  color: #8b9198;
+  font-size: var(--fs-note);
+  color: var(--ink-3);
   margin-top: 10rpx;
 }
 
@@ -168,9 +177,10 @@ page {
   display: flex;
   flex-direction: row;
   align-items: center;
-  padding: 18rpx 24rpx;
-  border-radius: 12rpx;
-  font-size: 25rpx;
+  padding: 20rpx 24rpx;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-note);
+  line-height: 1.5;
   margin-bottom: 36rpx;
 }
 
@@ -183,18 +193,18 @@ page {
 }
 
 .badge-on {
-  background-color: #eef8f6;
-  color: #0b7a6a;
+  background-color: var(--teal-wash);
+  color: var(--teal-ink);
 }
 
-.badge-on .badge-dot { background-color: #0f9c8c; }
+.badge-on .badge-dot { background-color: var(--teal); }
 
 .badge-off {
-  background-color: #fdf3e7;
-  color: #96631a;
+  background-color: var(--amber-wash);
+  color: var(--amber-ink);
 }
 
-.badge-off .badge-dot { background-color: #e8a33d; }
+.badge-off .badge-dot { background-color: var(--amber); }
 
 /* ---------- 主操作 ---------- */
 .acts {
@@ -204,28 +214,30 @@ page {
 }
 
 .btn-primary {
-  height: 96rpx;
-  line-height: 96rpx;
+  height: 100rpx;
+  line-height: 100rpx;
   text-align: center;
-  background-color: #0f9c8c;
+  background-color: var(--teal);
   color: #ffffff;
-  font-size: 32rpx;
-  font-weight: 500;
-  border-radius: 16rpx;
-  box-shadow: 0 6rpx 16rpx rgba(15, 156, 140, 0.24);
+  font-size: var(--fs-h2);
+  font-weight: 600;
+  border-radius: var(--r-lg);
+}
+
+.btn-primary:active {
+  background-color: var(--teal-press);
 }
 
 .btn-primary.disabled {
-  background-color: #c8d3d1;
-  box-shadow: none;
+  background-color: #c9d3d1;
 }
 
 .btn-plain {
   margin-top: 24rpx;
   text-align: center;
-  font-size: 27rpx;
-  color: #71767c;
-  padding: 16rpx 0;
+  font-size: var(--fs-body-s);
+  color: var(--ink-3);
+  padding: 20rpx 0;
 }
 
 /* ---------- 标定中 ---------- */
@@ -253,8 +265,8 @@ page {
   height: 168rpx;
   box-sizing: border-box;
   border-radius: 50%;
-  border: 6rpx solid #0f9c8c;
-  border-top-color: #e6f4f2;
+  border: 6rpx solid var(--teal);
+  border-top-color: var(--teal-wash);
   animation: spin 1s linear infinite;
 }
 
@@ -278,24 +290,24 @@ page {
 .ring-num {
   font-size: 60rpx;
   font-weight: 500;
-  color: #0f9c8c;
+  color: var(--teal-ink);
   line-height: 1;
 }
 
 .ring-unit {
-  font-size: 24rpx;
-  color: #0f9c8c;
+  font-size: var(--fs-micro);
+  color: var(--teal-ink);
   margin-left: 2rpx;
 }
 
 .ring-text {
-  font-size: 28rpx;
-  color: #4a4f55;
+  font-size: var(--fs-body-s);
+  color: var(--ink-2);
 }
 
 /* ---------- 结果：用列表而不是三个并排格子 ---------- */
 .result {
-  border-top: 1rpx solid #ececf0;
+  border-top: 1rpx solid var(--line);
   padding-top: 8rpx;
   margin-bottom: 36rpx;
 }
@@ -305,40 +317,42 @@ page {
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  padding: 22rpx 0;
-  border-bottom: 1rpx solid #f4f4f6;
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid var(--line-soft);
 }
 
 .res-k {
-  font-size: 27rpx;
-  color: #8b9198;
+  font-size: var(--fs-body-s);
+  color: var(--ink-3);
 }
 
 .res-v {
-  font-size: 29rpx;
-  color: #1a1d21;
+  font-size: var(--fs-body);
+  color: var(--ink-1);
 }
 
-.res-v.ok { color: #0f9c8c; }
-.res-v.warn { color: #e8845a; }
+.res-v.ok { color: var(--teal-ink); }
+.res-v.warn { color: var(--amber-ink); }
 
 /* ---------- 折叠区 ---------- */
 .fold {
   display: flex;
   flex-direction: row;
   align-items: center;
-  padding: 26rpx 0;
-  border-top: 1rpx solid #ececf0;
-  font-size: 28rpx;
-  color: #4a4f55;
+  padding: 30rpx 0;
+  border-top: 1rpx solid var(--line);
+  font-size: var(--fs-body-s);
+  color: var(--ink-2);
 }
+
+.fold:active { opacity: 0.55; }
 
 .fold-arrow {
   width: 14rpx;
   height: 14rpx;
   margin-left: 12rpx;
-  border-right: 3rpx solid #a1a1aa;
-  border-bottom: 3rpx solid #a1a1aa;
+  border-right: 3rpx solid var(--ink-4);
+  border-bottom: 3rpx solid var(--ink-4);
   transform: rotate(45deg);
   transition: transform 200ms;
 }
@@ -352,15 +366,15 @@ page {
 }
 
 .sub {
-  font-size: 26rpx;
-  color: #4a4f55;
-  margin: 20rpx 0 12rpx;
+  font-size: var(--fs-note);
+  color: var(--ink-2);
+  margin: 24rpx 0 12rpx;
 }
 
 .chart {
   height: 200rpx;
   background-color: #fafbfc;
-  border-radius: 12rpx;
+  border-radius: var(--r-sm);
 }
 
 .chart-lg {
@@ -377,7 +391,7 @@ page {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
-  margin: 18rpx 0 24rpx;
+  margin: 20rpx 0 24rpx;
 }
 
 .lg {
@@ -385,8 +399,8 @@ page {
   flex-direction: row;
   align-items: center;
   margin-right: 32rpx;
-  font-size: 23rpx;
-  color: #8b9198;
+  font-size: var(--fs-note);
+  color: var(--ink-3);
 }
 
 .sw {
@@ -396,13 +410,13 @@ page {
   margin-right: 10rpx;
 }
 
-.sw-sd { background-color: #0f9c8c; }
+.sw-sd { background-color: var(--teal); }
 .sw-range { background-color: #8fd4cb; }
 .sw-dot {
   width: 12rpx;
   height: 12rpx;
   border-radius: 50%;
-  background-color: #e8845a;
+  background-color: var(--amber);
   margin-right: 10rpx;
 }
 
@@ -410,7 +424,7 @@ page {
   display: flex;
   flex-direction: row;
   background-color: #fafbfc;
-  border-radius: 12rpx;
+  border-radius: var(--r-sm);
   padding: 24rpx 0;
 }
 
@@ -422,31 +436,31 @@ page {
 }
 
 .st-n {
-  font-size: 30rpx;
-  color: #1a1d21;
+  font-size: var(--fs-h2);
+  color: var(--ink-1);
 }
 
-.st-n.ok { color: #0f9c8c; }
-.st-n.warn { color: #e8845a; }
+.st-n.ok { color: var(--teal-ink); }
+.st-n.warn { color: var(--amber-ink); }
 
 .st-l {
-  font-size: 22rpx;
-  color: #a1a1aa;
+  font-size: var(--fs-micro);
+  color: var(--ink-4);
   margin-top: 8rpx;
 }
 
 /* ---------- 说明与提示：一句话，放在最后 ---------- */
 .note {
-  font-size: 25rpx;
-  color: #a1a1aa;
+  font-size: var(--fs-note);
+  color: var(--ink-3);
   line-height: 1.7;
   padding-top: 28rpx;
-  border-top: 1rpx solid #ececf0;
+  border-top: 1rpx solid var(--line);
 }
 
 .hint {
-  font-size: 24rpx;
-  color: #a1a1aa;
+  font-size: var(--fs-note);
+  color: var(--ink-3);
   padding: 12rpx 0;
 }
 
@@ -466,14 +480,14 @@ page {
 }
 
 .zero-title {
-  font-size: 28rpx;
+  font-size: var(--fs-body);
   font-weight: 600;
-  color: #1a1f26;
+  color: var(--ink-1);
 }
 
 .zero-hint {
-  font-size: 23rpx;
-  color: #949aa3;
+  font-size: var(--fs-note);
+  color: var(--ink-3);
 }
 
 /* 比原来的 440rpx 稍矮：它要让出首屏空间给下面的标定按钮 */

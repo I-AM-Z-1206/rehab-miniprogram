@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>设置页 · 字号提升后</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: #dfe3e8; font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    padding: 18px; display: flex; gap: 18px; align-items: flex-start;
+  }
+  .phone { width: 375px; background: #f5f6fa; position: relative; padding-bottom: 20px; }
+  .cap { position: absolute; left: 0; top: -16px; font-size: 11px; color: #6b7280; letter-spacing: 1px; }
+  .nav { height: 44px; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 700; color: #171a1f; background: #fff; }
+  .body { padding: 10px 12px 30px; }
+
+  .hero { display: flex; align-items: center; justify-content: space-between; padding: 15px 15px; border-radius: 14px;
+    background: linear-gradient(135deg, #e8f6f3 0%, #eaf2fb 100%); border: 1px solid rgba(15,156,140,0.10);
+    box-shadow: 0 4px 13px rgba(15,40,70,0.05); }
+  .hero-left { display: flex; flex-direction: column; }
+  .hero-kicker { font-size: 12px; color: #7a8fa1; }
+  .hero-title { margin-top: 3px; font-size: 17px; font-weight: 700; color: #13293a; }
+  .hero-desc { margin-top: 4px; font-size: 12px; color: #7a8fa1; }
+  .hero-badge { padding: 5px 11px; border-radius: 50px; font-size: 12px; font-weight: 700; color: #0a7e72;
+    background: rgba(255,255,255,0.85); border: 1px solid rgba(15,156,140,0.18); }
+
+  /* 新增的患者提示 */
+  .pro-hint { display: flex; flex-direction: column; margin: 12px 0 5px; padding: 12px 13px;
+    border-radius: 6px; background: #eef1f4; border-left: 3px solid #c3cad3; }
+  .pro-hint-title { font-size: 13px; font-weight: 600; color: #3d434c; }
+  .pro-hint-body { margin-top: 4px; font-size: 13px; line-height: 1.6; color: #5d646e; }
+
+  .card { background: #fff; border-radius: 14px; padding: 14px 16px; margin-top: 10px; border: 1px solid #f0f2f5;
+    box-shadow: 0 4px 13px rgba(15,40,70,0.045); }
+  .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; }
+  .card-title { font-size: 14px; font-weight: 700; color: #13293a; }
+  .card-sub { font-size: 12px; color: #9aa6b2; }
+  .card-tip { display: block; margin: 3px 0 7px; font-size: 12px; line-height: 1.7; color: #9aa0a6; }
+
+  .presets { display: flex; }
+  .preset { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 8px 0 7px; margin: 0 3px;
+    border-radius: 10px; background: #f7f9fa; border: 1px solid #eef1f4; }
+  .preset.active { background: linear-gradient(180deg, #e9f8f4 0%, #dff3ee 100%); border-color: rgba(15,156,140,0.4); }
+  .preset-lv { font-size: 15px; font-weight: 700; color: #7a8fa1; }
+  .preset.active .preset-lv { color: #0a7e72; }
+  .preset-name { margin-top: 2px; font-size: 11px; color: #9aa6b2; }
+  .preset.active .preset-name { color: #0f9c8c; font-weight: 600; }
+
+  .ptable { margin: 2px 0 6px; border-radius: 9px; overflow: hidden; border: 1px solid #f0f2f5; }
+  .ptable-row { display: flex; align-items: center; padding: 6px 5px; background: #fff; border-top: 1px solid #f5f7f9; }
+  .ptable-row.head { border-top: none; background: #f7f9fa; }
+  .ptable-row.active { background: #eaf8f4; }
+  .pc-lv { width: 22px; text-align: center; font-size: 11px; font-weight: 700; color: #7a8fa1; }
+  .ptable-row.active .pc-lv { color: #0a7e72; }
+  .pc { flex: 1; text-align: center; font-size: 11px; color: #55636e; }
+  .ptable-row.head .pc { color: #9aa6b2; }
+
+  .item { padding: 9px 0 7px; border-top: 1px solid #f4f6f8; }
+  .item:first-of-type { border-top: none; }
+  .item-head { display: flex; align-items: center; justify-content: space-between; }
+  .item-label { font-size: 13px; color: #2c3e4d; }
+  .item-value { font-size: 12px; font-weight: 700; color: #0f9c8c; }
+  .item-tip { display: block; margin-top: 2px; font-size: 12px; line-height: 1.65; color: #a3aab2; }
+  .bar { height: 4px; border-radius: 2px; background: #e8edf1; margin: 8px 0 4px; position: relative; }
+  .bar-fill { height: 4px; border-radius: 2px; background: #0f9c8c; width: 42%; }
+  .bar-knob { position: absolute; left: 42%; top: -5px; width: 11px; height: 14px; border-radius: 6px; background: #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.25); }
+  .seg { display: flex; margin-top: 6px; padding: 2px; border-radius: 8px; background: #f3f6f8; }
+  .seg-item { flex: 1; padding: 7px 4px; text-align: center; font-size: 12px; color: #7a8fa1; border-radius: 6px; }
+  .seg-item.active { color: #0a7e72; font-weight: 700; background: #fff; box-shadow: 0 2px 6px rgba(15,40,70,0.07); }
+  .upl-fold { display: flex; align-items: center; margin: 5px 0; padding: 13px;
+    background: #fff; border-radius: 6px; border: 1px solid #f0f2f5; }
+  .upl-fold-text { font-size: 13px; font-weight: 600; color: #5d646e; }
+  .upl-tag { margin-left: auto; font-size: 12px; color: #858c96; }
+  .upl-arrow { width: 6px; height: 6px; margin-left: 7px; border-right: 1.5px solid #9aa6b2;
+    border-bottom: 1.5px solid #9aa6b2; transform: rotate(45deg); }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="cap">设置页 · 字号提升后（六列表格是风险点）</div>
+  <div class="nav">接水果 · 训练设置</div>
+  <div class="body">
+
+    <div class="hero">
+      <div class="hero-left">
+        <span class="hero-kicker">当前难度</span>
+        <span class="hero-title">适中</span>
+        <span class="hero-desc">参数改动立即生效并自动保存</span>
+      </div>
+      <div class="hero-badge">第 2 档</div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">难度档位</span>
+        <span class="card-sub">套用推荐值</span>
+      </div>
+      <div class="presets">
+        <div class="preset"><span class="preset-lv">1</span><span class="preset-name">很轻松</span></div>
+        <div class="preset active"><span class="preset-lv">2</span><span class="preset-name">适中</span></div>
+        <div class="preset"><span class="preset-lv">3</span><span class="preset-name">稍难</span></div>
+        <div class="preset"><span class="preset-lv">4</span><span class="preset-name">较难</span></div>
+        <div class="preset"><span class="preset-lv">5</span><span class="preset-name">挑战</span></div>
+      </div>
+      <span class="card-tip">档位只影响游戏参数，不改变计分公式；套用后仍可逐项微调。</span>
+
+      <div class="ptable">
+        <div class="ptable-row head">
+          <span class="pc-lv">档</span><span class="pc">容差</span><span class="pc">稳时</span>
+          <span class="pc">宽度</span><span class="pc">间隔</span><span class="pc">时长</span>
+        </div>
+        <div class="ptable-row">
+          <span class="pc-lv">1</span><span class="pc">16°</span><span class="pc">0.4s</span>
+          <span class="pc">120</span><span class="pc">1.8s</span><span class="pc">60s</span>
+        </div>
+        <div class="ptable-row active">
+          <span class="pc-lv">2</span><span class="pc">12°</span><span class="pc">0.6s</span>
+          <span class="pc">100</span><span class="pc">1.5s</span><span class="pc">90s</span>
+        </div>
+        <div class="ptable-row">
+          <span class="pc-lv">3</span><span class="pc">9°</span><span class="pc">0.9s</span>
+          <span class="pc">86</span><span class="pc">1.2s</span><span class="pc">120s</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="pro-hint">
+      <span class="pro-hint-title">下面这些是治疗师调的参数</span>
+      <span class="pro-hint-body">不用改。想调难度，用上面的档位就够了；确定要微调，再往下看。</span>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="card-title">判定与节奏</span></div>
+
+      <div class="item">
+        <div class="item-head"><span class="item-label">目标容差</span><span class="item-value">12.0°</span></div>
+        <div class="bar"><div class="bar-fill"></div><div class="bar-knob"></div></div>
+        <span class="item-tip">身体倾角在 ±12° 以内算「保持住」</span>
+      </div>
+
+      <div class="item">
+        <div class="item-head"><span class="item-label">落点分布</span><span class="item-value">左右交替</span></div>
+        <div class="seg">
+          <div class="seg-item">随机</div>
+          <div class="seg-item active">左右交替</div>
+          <div class="seg-item">跟随</div>
+        </div>
+        <span class="item-tip">交替分布能让两侧都练到，随机分布波动更大</span>
+      </div>
+    </div>
+
+    <div class="upl-fold">
+      <span class="upl-fold-text">训练数据上报</span>
+      <span class="upl-tag">未配置</span>
+      <span class="upl-arrow"></span>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

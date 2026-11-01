@@ -1,158 +1,174 @@
 // ============================================================================
-// games/rhythm/hit-judge.js —— 命中判定（方向 × 节奏，两个维度分开算）
+// games/rhythm/hit-judge.js —— 门控判定（只看动作质量，不看时间）
 // ----------------------------------------------------------------------------
-// 判定流程（与需求 §8 对应）：
-//   1. 音符是否进入有效时间窗口（|now - targetTime| ≤ goodMs）
-//   2. 当前身体方向是否等于音符要求的方向
-//   3. 方向对了还要满足"稳定性"（进入该侧后保持 stableMs）
-//   4. 方向对了还要满足"动作有效性"（一次动作最多结算一个音符；同向重复
-//      需要新的动作或满足 sameSideGapMs 的间隔）
-//   5. 方向反了且已稳定 → 记为 wrongDirection（同时按 MISS 结算）
-//   6. 超过 goodMs 仍未命中 → 漏接（MISS）
+// 【2026-11-01 重写】从「时间窗口判定」改成「门控判定」
 //
-// 为什么要"一次动作最多一个音符"：
-//   否则玩家只要一直站在左侧，所有左侧音符都会自动命中，训练就失去意义。
-//   引擎在 actionOk 里传这个信息，判定层只负责按规则裁决。
+// 为什么必须换：
+//   旧判定回答的是「你到位的时间准不准」—— 靠 |now - targetTime| 分
+//   PERFECT / GREAT / GOOD，超过窗口就是 MISS。但这套规则**只在机器决定
+//   音符时刻时才有意义**。一旦改成「接到才出下一个」，音符是患者自己触发
+//   的，他永远不会迟到、也不会早到，时间精度这个维度在物理上消失了；
+//   而 MISS 更不可能发生 —— 音符会停在那里一直等。
+//
+// 现在的判定回答的是「你站得稳不稳」。一个音符的生命周期：
+//
+//   approaching ──到达判定线──→ waiting ──方向对且稳住 stableMs──→ holding
+//        ↑                          │                                 │
+//        │                     （一直等，不惩罚）              ──保持 holdMs──→ done
+//        └──────────────────────────┴───────── 中途离开正确一侧 ─────────┘
+//
+// 分级依据是**抖动次数（flaps）**：进入正确一侧并且稳住之后，中途离开过几次。
+//   flaps = 0    → PERFECT（一次到位，全程没离开）
+//   flaps 1~2    → GREAT
+//   flaps ≥ 3    → GOOD（反复进出，但最后完成了）
+//
+// 康复意义：这条规则奖励的是「安静地站住」，不是「快」。平衡功能训练里
+// 快是危险信号 —— 抢动作、身体冲过头、重心来不及回收，都是跌倒的典型路径。
+// 所以时间只**记录**（reactionMs / holdMs），不参与评分。
 // ============================================================================
 
 const VERDICT = {
   PERFECT: 'perfect',
   GREAT: 'great',
   GOOD: 'good',
+  // 时间到点时还没完成的那一个音符。**不是漏接**：门控下它只是"还没做完"。
+  UNSOLVED: 'unsolved',
+  // 仅旧记录（judgeVersion v1/v2 时代）里会出现，新对局永不产生
   MISS: 'miss'
 }
 
 // 判定名称 / 颜色 / 图形同时给出，避免只靠颜色区分（需求 §4）
 const VERDICT_STYLE = {
-  perfect: { en: 'PERFECT', zh: '完美', mark: '★', color: '#FFD479' },
-  great: { en: 'GREAT', zh: '很好', mark: '◆', color: '#7BE3FF' },
-  good: { en: 'GOOD', zh: '不错', mark: '●', color: '#B49BFF' },
-  miss: { en: 'MISS', zh: '漏接', mark: '✕', color: '#FF7C93' }
+  perfect: { en: 'PERFECT', zh: '稳住了', mark: '★', color: '#FFD479' },
+  great: { en: 'GREAT', zh: '很稳', mark: '◆', color: '#7BE3FF' },
+  good: { en: 'GOOD', zh: '完成了', mark: '●', color: '#B49BFF' },
+  unsolved: { en: 'UNSOLVED', zh: '未完成', mark: '○', color: '#96A5B4' },
+  miss: { en: 'MISS', zh: '漏接', mark: '✕', color: '#96A5B4' }
 }
 
-const ACC_WEIGHT = { perfect: 1, great: 0.7, good: 0.4, miss: 0 }
+// 稳定度权重：完美 1 / 很稳 0.75 / 完成 0.4
+const ACC_WEIGHT = { perfect: 1, great: 0.75, good: 0.4, unsolved: 0, miss: 0 }
+
+// 抖动容差：离开正确一侧超过这个次数就掉到 GOOD
+const FLAPS_GREAT = 2
+
+// 逐级提示的门槛（音符在判定线上干等了多少毫秒）
+const HINT_TIERS = [3000, 6000, 10000]
 
 function clamp(v, lo, hi) {
   return v < lo ? lo : (v > hi ? hi : v)
 }
 
-class HitJudge {
+class GateJudge {
   /**
-   * @param {object} cfg 配置 store（每帧读最新窗口，治疗师改完立即生效）
+   * @param {object} cfg 配置 store（每帧读最新值，治疗师改完立即生效）
    */
   constructor(cfg) {
     this.cfg = cfg
   }
 
-  get windows() {
-    const p = clamp(Number(this.cfg.get('perfectMs')) || 60, 10, 300)
-    const g = Math.max(p + 5, Number(this.cfg.get('greatMs')) || 105)
-    const d = Math.max(g + 5, Number(this.cfg.get('goodMs')) || 160)
-    // 提前容差：躯干不是按键。
-    //
-    // 按键可以在拍点上精确按下，躯干不行 —— 它必须**提前启动**才能准时到位，
-    // 移动本身就要几百毫秒。所以「进入该侧的时刻早于拍点」是正常的、
-    // 甚至是唯一可行的策略，不是失误。原来 early 和 late 用同一个窗口，
-    // 结果就是：患者做对了（提前启动、准时到位）却被判 MISS，一路漏接。
-    //
-    // 只放宽 early 一侧；late 保持严格，那才是真的跟丢了节奏。
-    const ef = clamp(Number(this.cfg.get('earlyFactor')) || 1, 1, 3)
-    return { perfect: p, great: g, good: d, earlyFactor: ef }
+  /** 稳住多久才允许开始计「保持」——过滤路过的抖动 */
+  get stableNeedMs() {
+    return clamp(Number(this.cfg.get('stableMs')) || 0, 0, 400)
   }
 
-  /** 只按时间误差分级，不管方向。deltaMs < 0 = 提前进入 */
-  classify(deltaMs) {
-    const w = this.windows
-    const a = Math.abs(deltaMs) / (deltaMs < 0 ? w.earlyFactor : 1)
-    if (a <= w.perfect) return VERDICT.PERFECT
-    if (a <= w.great) return VERDICT.GREAT
-    if (a <= w.good) return VERDICT.GOOD
-    return null
+  /** 稳住之后还要保持多久才算完成 */
+  get holdNeedMs() {
+    return clamp(Number(this.cfg.get('holdMs')) || 400, 120, 1600)
   }
 
-  /** 时间窗口是否已经彻底关闭（该记漏接了） */
-  isExpired(note, nowMs) {
-    return nowMs - note.targetTimeMs > this.windows.good
-  }
-
-  /** 是否已经进入可以判定的时间窗 */
-  isInWindow(note, nowMs) {
-    return Math.abs(nowMs - note.targetTimeMs) <= this.windows.good
+  quality(flaps) {
+    const f = Math.max(0, Math.round(Number(flaps) || 0))
+    if (f <= 0) return VERDICT.PERFECT
+    if (f <= FLAPS_GREAT) return VERDICT.GREAT
+    return VERDICT.GOOD
   }
 
   /**
-   * 判定一个音符
-   * ------------------------------------------------------------------
-   * 为什么"到达判定线之后才判"：
-   *   玩家的输入是持续的身体位置，不是按键事件。如果音符还在半路就判，
-   *   玩家提前 300ms 站好也会被当成"准"，节奏训练就失去意义。
-   *   因此规则是：音符到达判定线（targetTime）那一帧起才开始判，
-   *   时间误差 = 玩家"进入该侧"的时刻 − 音符目标时刻：
-   *     · 正好在拍上进入 → PERFECT
-   *     · 早了（提前站好并保持）→ 按提前量给 GREAT / GOOD
-   *     · 晚了（进窗口后才进入）→ 按延后量给 GREAT / GOOD
-   *     · 窗口内一直站在错误一侧 → 方向错误 + MISS
-   *     · 窗口关闭仍未就位 → MISS
+   * 单帧推进：**纯函数**，不改 note，返回新状态由引擎落盘。
    *
-   * @param {object} note 谱面音符
-   * @param {number} nowMs 判定时间（音乐时间，已扣掉音画补偿）
-   * @param {object} input { side, enterAt, stableMs, actionOk }
-   * @returns {{verdict:string, deltaMs:number, reason:string}}
+   * @param {object} note  { targetTimeMs, flaps }
+   * @param {object} input { now, side, expected, enterAt, stableMs }
+   *   enterAt = 进入当前所处一侧的时刻（引擎的 action.since）
+   *   stableMs = 进入该侧已经多久（now - enterAt）
+   * @returns {{state:string, flaps:number, reactionMs:number, heldMs:number,
+   *            waitMs:number, hintLevel:number, verdict?:string}}
    */
-  evaluate(note, nowMs, input) {
-    const w = this.windows
-    const sinceLine = nowMs - note.targetTimeMs
-    const stableNeed = Number(this.cfg.get('stableMs')) || 0
+  step(note, input) {
+    const now = Number(input.now) || 0
+    const target = Number(note.targetTimeMs) || 0
+    const flaps = Math.max(0, Math.round(Number(note.flaps) || 0))
+    const expected = input.expected
+    const side = input.side
 
-    // 还没到判定线：一律不判（避免"提前站好"被误判为准）
-    if (sinceLine < 0) return { verdict: 'pending', deltaMs: sinceLine, reason: 'before-line' }
-
-    const expired = sinceLine > w.good
-    const sideOk = input.side === note.targetSide
-
-    if (!sideOk) {
-      const stableWrong = input.side && input.side !== 'center' && input.stableMs >= stableNeed
-      // 左右音符：稳定站在错误一侧 → 立即记方向错误（及时反馈）。
-      // 中间音符例外：患者从两侧「回中」的路上必然先经过错误侧，
-      // 到线瞬间就判方向错误会误伤正在正确移动的人 —— 给满整个窗口，
-      // 窗口内回到中间照常按迟到判；窗口关闭仍偏在两侧才记方向错误。
-      if (note.targetSide !== 'center' && stableWrong) {
-        return { verdict: VERDICT.MISS, deltaMs: sinceLine, reason: 'wrong-side', wrongSide: true }
+    // 1. 还在飞：只报告进度，不判定
+    if (now < target) {
+      return {
+        state: 'approaching',
+        flaps: flaps,
+        reactionMs: 0,
+        heldMs: 0,
+        waitMs: 0,
+        hintLevel: 0
       }
-      if (expired) {
-        return {
-          verdict: VERDICT.MISS,
-          deltaMs: sinceLine,
-          reason: stableWrong ? 'wrong-side' : 'no-input',
-          wrongSide: stableWrong
-        }
+    }
+
+    const waitMs = now - target
+    const onSide = side === expected
+    const enterAt = Number(input.enterAt) || 0
+    const stableNeed = this.stableNeedMs
+
+    // 2. 方向不对 / 还没稳够 → waiting。
+    //    曾经 holding 过又掉了 → 记一次抖动（这就是「稳不住」的量化）。
+    if (!onSide || (now - enterAt) < stableNeed) {
+      const wasHolding = input.state === 'holding'
+      return {
+        state: 'waiting',
+        flaps: wasHolding ? flaps + 1 : flaps,
+        reactionMs: 0,
+        heldMs: 0,
+        waitMs: waitMs,
+        hintLevel: this._hintLevel(waitMs)
       }
-      return { verdict: 'pending', deltaMs: sinceLine, reason: 'not-in-place' }
     }
 
-    // 方向对：还要确认动作可结算（一次动作只结算一个音符）
-    if (input.stableMs < stableNeed) {
-      if (expired) return { verdict: VERDICT.MISS, deltaMs: sinceLine, reason: 'unstable' }
-      return { verdict: 'pending', deltaMs: sinceLine, reason: 'unstable' }
-    }
-    if (!input.actionOk) {
-      if (expired) return { verdict: VERDICT.MISS, deltaMs: sinceLine, reason: 'no-new-action' }
-      return { verdict: 'pending', deltaMs: sinceLine, reason: 'no-new-action' }
+    // 3. 方向对且已经稳了：从「稳住的那一刻」开始算保持时长。
+    //    提前站好的患者不该被惩罚 —— stableStartAt 落在 targetTime 之前时
+    //    一律按 targetTime 起算（提前准备好是他自己的策略，不是失误）。
+    const stableStartAt = Math.max(target, enterAt + stableNeed)
+    const heldMs = now - stableStartAt
+    const holdNeed = this.holdNeedMs
+    // 反应时只记录不打分：进入稳定状态的时刻 - 音符到达时刻（提前则为 0）
+    const reactionMs = Math.max(0, Math.round(stableStartAt - target))
+
+    if (heldMs >= holdNeed) {
+      return {
+        state: 'done',
+        flaps: flaps,
+        reactionMs: reactionMs,
+        heldMs: Math.round(heldMs),
+        waitMs: 0,
+        hintLevel: 0,
+        verdict: this.quality(flaps)
+      }
     }
 
-    // 时间误差：从"进入该侧"的时刻算，提前站好最多算到窗口边缘
-    const entered = typeof input.enterAt === 'number' ? input.enterAt : note.targetTimeMs
-    // 窗口都过了才进入 → 迟到，不再给分
-    if (sinceLine > w.good && entered > note.targetTimeMs) {
-      return { verdict: VERDICT.MISS, deltaMs: sinceLine, reason: 'too-late' }
+    return {
+      state: 'holding',
+      flaps: flaps,
+      reactionMs: reactionMs,
+      heldMs: Math.round(heldMs),
+      waitMs: 0,
+      hintLevel: 0
     }
-    const raw = entered - note.targetTimeMs
-    // 提前侧的截断也要跟着放宽，否则 earlyFactor 白设
-    const deltaMs = clamp(raw, -w.good * w.earlyFactor, w.good)
-    const verdict = this.classify(deltaMs)
-    if (!verdict) return { verdict: 'pending', deltaMs: sinceLine, reason: 'out' }
-    return { verdict, deltaMs, reason: raw < 0 ? 'early' : 'hit' }
+  }
+
+  /** 等待越久，提示越明确。0 = 不提示 */
+  _hintLevel(waitMs) {
+    let lv = 0
+    for (let i = 0; i < HINT_TIERS.length; i++) if (waitMs >= HINT_TIERS[i]) lv = i + 1
+    return lv
   }
 }
 
-module.exports = { HitJudge, VERDICT, VERDICT_STYLE, ACC_WEIGHT }
+module.exports = { GateJudge, VERDICT, VERDICT_STYLE, ACC_WEIGHT, HINT_TIERS, FLAPS_GREAT }

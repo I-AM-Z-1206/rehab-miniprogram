@@ -5,52 +5,66 @@
 <scroll-view class="ui-scroll" scroll-y type="list">
   <view class="page">
 
-    <!-- 设备状态：一行，轻 -->
-    <view class="device" bindtap="goConnect">
+    <!-- 设备状态：一行，轻。点整行进连接页 —— 所以右侧必须有个箭头，
+         否则「WT9011DCL 姿态传感器」看起来只是一行说明，没人会去点它。
+         型号放在连接页的设备列表里，这里说人话：蓝牙传感器。 -->
+    <view
+      class="device"
+      bindtap="goConnect"
+      aria-role="button"
+      aria-label="蓝牙传感器 {{stateText}}，点击{{bleLinked ? '查看连接' : '去连接'}}"
+    >
       <view class="dot {{bleLinked ? 'on' : ''}}"></view>
-      <text class="device-name">WT9011DCL 姿态传感器</text>
+      <text class="device-name">蓝牙传感器</text>
       <text class="device-state {{step === 3 ? 'on' : ''}}">{{stateText}}</text>
+      <image class="device-go" src="/assets/icons/chevron-right-light.png" mode="aspectFit" />
     </view>
 
     <!-- ============ 全部就绪：折叠成一块 + 一行小字 ============
          这里原来还留着「✓ 传感器已连接」「✓ 零点已标定」两行，
          加上状态行和按钮，同一件事说了四遍，把真正要按的按钮挤到下面去了。 -->
     <block wx:if="{{step === 3}}">
-      <view class="primary" bindtap="goTrain">
+      <view class="primary" bindtap="goTrain" aria-role="button" aria-label="开始训练，选择今天的训练项目">
         <text class="primary-title">开始训练</text>
         <text class="primary-sub">选择今天的训练项目</text>
       </view>
-      <view class="ready" bindtap="goCalibrate">
+      <view class="ready" bindtap="goCalibrate" aria-role="button" aria-label="本次连接已标定，点击重新标定">
         <text class="ready-text">本次连接已标定</text>
-        <text class="ready-go">重新标定 ›</text>
+        <view class="link-go">
+          <text class="ready-go">重新标定</text>
+          <image class="go-ico" src="/assets/icons/chevron-right-light.png" mode="aspectFit" />
+        </view>
       </view>
     </block>
 
     <!-- ============ 还差步骤：完整三步 ============ -->
     <block wx:else>
       <!-- 第 1 步：连接 -->
-      <view class="primary" wx:if="{{step === 1}}" bindtap="goConnect">
+      <view class="primary" wx:if="{{step === 1}}" bindtap="goConnect" aria-role="button" aria-label="第 1 步，连接蓝牙传感器">
         <view class="primary-row">
           <text class="primary-no">1</text>
           <text class="primary-title">连接蓝牙传感器</text>
         </view>
         <text class="primary-sub">打开传感器电源，蓝灯快闪后点这里</text>
       </view>
-      <view class="step done" wx:else bindtap="goConnect">
+      <view class="step done" wx:else bindtap="goConnect" aria-role="button" aria-label="传感器已连接，点击查看详情">
         <text class="step-check">✓</text>
         <text class="step-name">传感器已连接</text>
-        <text class="step-go">查看 ›</text>
+        <view class="link-go">
+          <text class="step-go">查看</text>
+          <image class="go-ico" src="/assets/icons/chevron-right-light.png" mode="aspectFit" />
+        </view>
       </view>
 
       <!-- 第 2 步：零点标定 -->
-      <view class="primary" wx:if="{{step === 2}}" bindtap="goCalibrate">
+      <view class="primary" wx:if="{{step === 2}}" bindtap="goCalibrate" aria-role="button" aria-label="第 2 步，零点标定，站直不动按一下标定">
         <view class="primary-row">
           <text class="primary-no">2</text>
           <text class="primary-title">零点标定</text>
         </view>
         <text class="primary-sub">站直不动，进去按一下「标定」—— 不标定，判定会一直偏</text>
       </view>
-      <view class="step pending" wx:else bindtap="hintConnect">
+      <view class="step pending" wx:else bindtap="hintConnect" aria-role="button" aria-label="零点标定，需要先连接传感器">
         <text class="step-no">2</text>
         <view class="step-main">
           <text class="step-name">零点标定</text>
@@ -68,10 +82,13 @@
       </view>
     </block>
 
-    <!-- ============ 我的进步 ============ -->
-    <view class="prog" bindtap="goProgress">
+    <!-- ============ 我的进步 ============
+         注意 .prog-num 承载两种完全不同的内容：
+         「68%」是结论数字，该巨大；「还没有训练数据」是一句话，用 32px 粗体渲染会挤成一堵墙。
+         所以 tone 为 none（非趋势态）时切到 is-text，降字号、降字重。 -->
+    <view class="prog" bindtap="goProgress" aria-role="button" aria-label="我的进步，{{prog.headline}}，点击查看详情">
       <view class="prog-line">
-        <text class="prog-num">{{prog.headline}}</text>
+        <text class="prog-num {{prog.tone === 'none' ? 'is-text' : ''}}">{{prog.headline}}</text>
         <text class="prog-arrow {{prog.tone}}" wx:if="{{prog.arrow}}">{{prog.arrow}}</text>
       </view>
       <text class="prog-say">{{prog.detail}}</text>
@@ -82,9 +99,14 @@
           <text class="wk-label">{{item.label}}</text>
         </view>
       </view>
-      <view class="prog-foot">
+      <!-- 没有任何训练记录时不给「查看进步」入口：
+           点进去是一整页空态，等于用一次无效点击换一次困惑。 -->
+      <view class="prog-foot" wx:if="{{prog.total > 0}}">
         <text class="prog-meta">{{prog.meta}}</text>
-        <text class="prog-go">查看进步 ›</text>
+        <view class="link-go">
+          <text class="prog-go">查看进步</text>
+          <image class="go-ico" src="/assets/icons/chevron-right-light.png" mode="aspectFit" />
+        </view>
       </view>
     </view>
 

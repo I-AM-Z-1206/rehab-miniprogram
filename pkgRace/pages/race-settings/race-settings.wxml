@@ -60,6 +60,13 @@
   </view>
 
   <!-- 参数分组 -->
+  <!-- 治疗师调整区：患者从游戏页点「设置」就能走到这里，
+       看到「容差 / 稳时 / 判定半径」不知道该不该动。先一句话说清楚。 -->
+  <view class="pro-hint">
+    <text class="pro-hint-title">下面这些是治疗师调的参数</text>
+    <text class="pro-hint-body">不用改。想调难度，用上面的档位就够了；确定要微调，再往下看。</text>
+  </view>
+
   <view class="card" wx:for="{{groups}}" wx:key="name" wx:for-item="group">
     <view class="card-head">
       <text class="card-title">{{group.name}}</text>
@@ -94,21 +101,18 @@
     </view>
   </view>
 
-  <!-- 数据上报 -->
+  <!-- 数据同步：地址与令牌由 utils/api.js 统一管理，患者不需要也不应该手填。 -->
   <view class="card">
     <view class="card-head">
-      <text class="card-title">训练数据上报</text>
+      <text class="card-title">训练数据</text>
       <text class="tag {{uploadReady ? 'ok' : ''}}">{{uploadState}}</text>
     </view>
     <text class="card-tip">
-      接口地址由管理员在记录页填写，不写死在代码里。未配置时成绩只保存在本机；模拟数据不会上报。
+      登录账号并联网后，训练记录会自动同步到云端，只有你本人和绑定的治疗师能看。
+      没网时先存在本机，下次联网自动补传；模拟数据不会上报。
     </text>
-    <view class="kv">
-      <text class="kv-key">服务端</text>
-      <text class="kv-val">{{endpoint || '未配置'}}</text>
-    </view>
     <view class="btn-row">
-      <view class="btn ghost" bindtap="onGoRecords">查看记录与上报</view>
+      <view class="btn ghost" bindtap="onGoRecords">查看训练记录</view>
     </view>
   </view>
 

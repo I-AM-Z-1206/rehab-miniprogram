@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html><body>
+<canvas id="c"></canvas>
+<pre id="log"></pre>
+<script>
+function log(msg) { document.getElementById('log').textContent += msg + '\n'; }
+const img = new Image();
+img.onload = function() {
+  const W = img.width, H = img.height;
+  log('loaded: ' + W + 'x' + H);
+  const c = document.getElementById('c');
+  const ctx = c.getContext('2d');
+  c.width = W; c.height = H;
+  ctx.drawImage(img, 0, 0);
+
+  // 去白背景
+  const data = ctx.getImageData(0, 0, W, H);
+  const d = data.data;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i] > 235 && d[i+1] > 235 && d[i+2] > 235) d[i+3] = 0;
+  }
+  ctx.putImageData(data, 0, 0);
+
+  // 裁5帧
+  const fw = W / 5;
+  const frames = [];
+  for (let f = 0; f < 5; f++) {
+    const sx = f * fw;
+    const fd = ctx.getImageData(sx, 0, fw, H).data;
+    let minX = fw, minY = H, maxX = 0, maxY = 0;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < fw; x++) {
+        if (fd[(y * fw + x) * 4 + 3] > 10) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    frames.push({x: sx + minX, y: minY, w: maxX - minX, h: maxY - minY});
+  }
+  log('frames: ' + JSON.stringify(frames));
+
+  const maxH = Math.max(...frames.map(f => f.h));
+  const maxW = Math.max(...frames.map(f => f.w));
+  log('frame size: ' + maxW + 'x' + maxH);
+
+  const sheetC = document.createElement('canvas');
+  sheetC.width = maxW * 5;
+  sheetC.height = maxH;
+  const sctx = sheetC.getContext('2d');
+  for (let i = 0; i < 5; i++) {
+    const fr = frames[i];
+    const fx = i * maxW + Math.floor((maxW - fr.w) / 2);
+    const fy = maxH - fr.h;
+    sctx.drawImage(c, fr.x, fr.y, fr.w, fr.h, fx, fy, fr.w, fr.h);
+  }
+
+  // 显示结果
+  c.style.display = 'none';
+  document.body.appendChild(sheetC);
+  sheetC.style.width = '100%';
+
+  // 导出
+  const a = document.createElement('a');
+  a.href = sheetC.toDataURL('image/png');
+  a.download = 'fox-walk.png';
+  a.textContent = '下载 fox-walk.png';
+  a.style.cssText = 'display:block;padding:10px;font-size:20px;color:#333;';
+  document.body.appendChild(a);
+  log('DONE');
+};
+img.src = 'fox-sprite-raw.png';
+</script>
+</body></html>

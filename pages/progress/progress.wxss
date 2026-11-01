@@ -39,7 +39,15 @@ page {
   font-size: 76rpx;
   font-weight: 700;
   letter-spacing: -1.5rpx;
-  color: #1a1f26;
+  color: var(--ink-1);
+}
+
+/* 同首页：没有数据时这里是句子不是数字。76rpx/700 装一句话，字会撞在一起。 */
+.head-num.is-text {
+  font-size: 44rpx;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.5rpx;
 }
 
 .head-arrow {
@@ -48,45 +56,51 @@ page {
   font-weight: 700;
 }
 
-.head-arrow.up { color: #0f9c8c; }
-.head-arrow.down { color: #c47b1f; }
-.head-arrow.flat { color: #a8aeb8; }
+.head-arrow.up { color: var(--teal-ink); }
+.head-arrow.down { color: var(--amber-ink); }
+.head-arrow.flat { color: var(--ink-4); }
 
 .head-say {
   display: block;
   margin-top: 12rpx;
-  font-size: 30rpx;
+  font-size: var(--fs-body);
   line-height: 1.6;
-  color: #4a515c;
+  color: var(--ink-2);
 }
 
 /* ---------- 分区 ---------- */
 .block {
   display: block;
   padding: 32rpx 0;
-  border-top: 1rpx solid #eceff3;
+  border-top: 1rpx solid var(--line);
 }
 
-/* 打卡是唯一需要横向一行的分区 */
+/* 打卡是唯一需要横向一行的分区。
+   用 flex-end 而不是 center：「4 / 7 天」要和星期标签站在同一条基线上，
+   居中会让它浮在圆点和标签之间，看着像没对齐。 */
 .block-week {
   display: flex;
   flex-direction: row;
-  align-items: center;
+  align-items: flex-end;
 }
 
+/* 分区标题是标签，不是标题：26rpx / ink-3，靠字距和上方细线分开，
+   不和下面 32rpx 的实际数据抢注意力 */
 .block-title {
   display: block;
-  font-size: 26rpx;
-  color: #949aa3;
-  margin-bottom: 6rpx;
+  font-size: var(--fs-note);
+  font-weight: 600;
+  color: var(--ink-3);
+  letter-spacing: 0.5rpx;
+  margin-bottom: 10rpx;
 }
 
 .block-note {
   display: block;
   width: 100%;
-  font-size: 25rpx;
+  font-size: var(--fs-note);
   line-height: 1.7;
-  color: #a8aeb8;
+  color: var(--ink-3);
 }
 
 /* ---------- 本周打卡 ---------- */
@@ -107,14 +121,14 @@ page {
   width: 26rpx;
   height: 26rpx;
   border-radius: 50%;
-  background-color: #f2f4f7;
-  border: 2rpx solid #e6eaf0;
+  background-color: var(--line-soft);
+  border: 2rpx solid var(--line);
   box-sizing: border-box;
 }
 
 .wk.on .wk-dot {
-  background-color: #0f9c8c;
-  border-color: #0f9c8c;
+  background-color: var(--teal);
+  border-color: var(--teal);
 }
 
 .wk.today .wk-dot {
@@ -123,17 +137,20 @@ page {
 
 .wk-label {
   margin-top: 8rpx;
-  font-size: 22rpx;
-  color: #b3b9c2;
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
 }
 
 .wk.on .wk-label {
-  color: #0f9c8c;
+  color: var(--teal-ink);
+  font-weight: 600;
 }
 
 .week-meta {
-  font-size: 24rpx;
-  color: #949aa3;
+  font-size: var(--fs-note);
+  line-height: 1.2;
+  color: var(--ink-3);
+  padding-bottom: 2rpx;
 }
 
 .chart {
@@ -158,34 +175,36 @@ page {
 
 .row-name {
   flex: 1;
-  font-size: 29rpx;
-  color: #1a1f26;
+  font-size: var(--fs-body);
+  color: var(--ink-1);
 }
 
+/* 「12 次」是弱信息，但 23rpx + #b3b9c2（2.0:1）是直接看不见。
+   弱化靠字号和墨色，不靠把对比度压到不可读。 */
 .row-count {
-  font-size: 23rpx;
-  color: #b3b9c2;
+  font-size: var(--fs-note);
+  color: var(--ink-3);
   margin-right: 24rpx;
 }
 
 .row-val {
-  font-size: 32rpx;
+  font-size: var(--fs-h2);
   font-weight: 600;
-  color: #1a1f26;
+  color: var(--ink-1);
   min-width: 106rpx;
   text-align: right;
 }
 
 .row-delta {
-  font-size: 25rpx;
+  font-size: var(--fs-note);
   font-weight: 600;
-  min-width: 76rpx;
+  min-width: 80rpx;
   text-align: right;
 }
 
-.row-delta.up { color: #0f9c8c; }
-.row-delta.down { color: #c47b1f; }
-.row-delta.flat { color: #b3b9c2; }
+.row-delta.up { color: var(--teal-ink); }
+.row-delta.down { color: var(--amber-ink); }
+.row-delta.flat { color: var(--ink-4); }
 
 /* ---------- 累计 ---------- */
 .block-last {
@@ -195,41 +214,42 @@ page {
 .total-num {
   font-size: 40rpx;
   font-weight: 700;
-  color: #1a1f26;
+  color: var(--ink-1);
 }
 
 .total-item {
   margin-left: 8rpx;
-  font-size: 25rpx;
-  color: #4a515c;
+  font-size: var(--fs-body-s);
+  color: var(--ink-2);
 }
 
 .total-sep {
   margin: 0 20rpx;
-  color: #d3d7de;
-  font-size: 25rpx;
+  color: var(--ink-4);
+  font-size: var(--fs-note);
 }
 
 /* ---------- 底部 ---------- */
 .cta {
   margin-top: 48rpx;
-  padding: 30rpx 0;
-  border-radius: 16rpx;
+  height: 100rpx;
+  line-height: 100rpx;
+  border-radius: var(--r-lg);
   text-align: center;
-  font-size: 32rpx;
+  font-size: var(--fs-h2);
   font-weight: 600;
   color: #ffffff;
-  background-color: #0f9c8c;
+  background-color: var(--teal);
 }
 
 .cta:active {
-  background-color: #0d8b7d;
+  background-color: var(--teal-press);
 }
 
 .foot {
   display: block;
   margin-top: 28rpx;
-  font-size: 23rpx;
+  font-size: var(--fs-note);
   line-height: 1.75;
-  color: #a8aeb8;
+  color: var(--ink-3);
 }

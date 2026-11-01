@@ -5,7 +5,7 @@ const STATE_TEXT = {
   local: '待上报',
   uploaded: '已上报',
   failed: '上报失败',
-  unconfigured: '未配置接口',
+  unconfigured: '暂不可上传',
   skipped: '模拟数据·不上报'
 }
 
@@ -125,7 +125,7 @@ Page({
     if (!this.data.uploadReady) {
       wx.showModal({
         title: '暂时无法上报',
-        content: '记录目前只保存在本机。上报需要先登录并连通训练平台（地址由 utils/api.js 统一管理）。',
+        content: '这条记录还在本机。请确认已登录、已开启「上传训练数据」并联网；条件满足后会自动补传。',
         showCancel: false
       })
       return
@@ -165,7 +165,7 @@ Page({
     if (!this.data.uploadReady) {
       wx.showModal({
         title: '暂时无法上报',
-        content: '记录只保存在本机。上报需要先登录并连通训练平台。',
+        content: '记录还在本机。请确认已登录、已开启「上传训练数据」并联网；条件满足后会自动补传。',
         showCancel: false
       })
       return

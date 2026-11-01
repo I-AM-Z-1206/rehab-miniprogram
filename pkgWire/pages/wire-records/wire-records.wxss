@@ -48,7 +48,7 @@ page {
 
 .sum-label {
   margin-top: 6rpx;
-  font-size: 21rpx;
+  font-size: 24rpx;
   color: #8b8f9a;
 }
 
@@ -86,7 +86,7 @@ page {
 .banner-desc {
   display: block;
   margin-top: 6rpx;
-  font-size: 21rpx;
+  font-size: 24rpx;
   line-height: 1.6;
   color: #9a8a72;
 }
@@ -108,7 +108,7 @@ page {
   line-height: 76rpx;
   text-align: center;
   border-radius: 22rpx;
-  font-size: 25rpx;
+  font-size: 26rpx;
   font-weight: 600;
   color: #0a7e72;
   background: #fff;
@@ -135,7 +135,7 @@ page {
 
 .empty-desc {
   margin-top: 12rpx;
-  font-size: 22rpx;
+  font-size: 24rpx;
   color: #9aa0a6;
   text-align: center;
 }
@@ -179,7 +179,7 @@ page {
 .row-diff {
   margin-left: 12rpx;
   padding: 4rpx 12rpx;
-  font-size: 19rpx;
+  font-size: 22rpx;
   color: #0a7e72;
   background: #e9f7f4;
   border-radius: 8rpx;
@@ -188,7 +188,7 @@ page {
 .row-sim {
   margin-left: 8rpx;
   padding: 4rpx 12rpx;
-  font-size: 19rpx;
+  font-size: 22rpx;
   color: #9a6414;
   background: #fdf2e0;
   border-radius: 8rpx;
@@ -197,7 +197,7 @@ page {
 .row-abort {
   margin-left: 8rpx;
   padding: 4rpx 12rpx;
-  font-size: 19rpx;
+  font-size: 22rpx;
   color: #b8492f;
   background: #fdeeeb;
   border-radius: 8rpx;
@@ -205,7 +205,7 @@ page {
 
 .row-time {
   margin-top: 8rpx;
-  font-size: 21rpx;
+  font-size: 24rpx;
   color: #9aa0a6;
 }
 
@@ -216,7 +216,7 @@ page {
 }
 
 .state {
-  font-size: 20rpx;
+  font-size: 24rpx;
   color: #8b8f9a;
 }
 
@@ -235,7 +235,7 @@ page {
 
 .chev {
   margin-top: 10rpx;
-  font-size: 21rpx;
+  font-size: 24rpx;
   color: #0f9c8c;
 }
 
@@ -262,7 +262,7 @@ page {
 
 .kpi-label {
   margin-top: 4rpx;
-  font-size: 19rpx;
+  font-size: 24rpx;
   color: #a3aab2;
 }
 
@@ -281,12 +281,12 @@ page {
 }
 
 .d-key {
-  font-size: 22rpx;
+  font-size: 24rpx;
   color: #8b95a1;
 }
 
 .d-val {
-  font-size: 22rpx;
+  font-size: 24rpx;
   font-weight: 600;
   color: #2c3e4d;
 }
@@ -296,7 +296,7 @@ page {
 }
 
 .sway-title {
-  font-size: 21rpx;
+  font-size: 24rpx;
   color: #8b95a1;
 }
 
@@ -340,7 +340,7 @@ page {
 .d-note {
   display: block;
   margin-top: 14rpx;
-  font-size: 19rpx;
+  font-size: 24rpx;
   line-height: 1.7;
   color: #b0b6bd;
 }
@@ -388,7 +388,7 @@ page {
 
 .foot {
   padding: 10rpx 30rpx 40rpx;
-  font-size: 20rpx;
+  font-size: 24rpx;
   line-height: 1.8;
   color: #b0b6bd;
   text-align: center;

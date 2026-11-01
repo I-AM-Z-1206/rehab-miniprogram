@@ -1,7 +1,6 @@
 // wire-settings.js —— 走钢丝：治疗师训练参数设置
 // 所有参数写入 utils/wire-config.js（独立存储键），游戏进行中也可从别的入口修改
 const { getStore, SCHEMA, GROUPS, PRESETS, validate } = require('../../../utils/wire-config.js')
-const records = require('../../../utils/training-record.js')
 
 const AXIS_LABEL = { pitch: 'Pitch 轴', roll: 'Roll 轴' }
 const FAIL_LABEL = { penalty: '暂停前进 + 扣分', terminate: '直接结束本局' }
@@ -12,6 +11,7 @@ function fmt(key, value) {
   if (meta.type === 'bool') return value ? '开' : '关'
   if (key === 'axisX' || key === 'axisY') return AXIS_LABEL[value] || value
   if (key === 'failRule') return FAIL_LABEL[value] || value
+  if (key === 'characterId') return ({ fox: '小狐狸', rabbit: '小兔子', panda: '小熊猫' })[value] || value
   if (key === 'difficulty') return '第 ' + value + ' 档'
   const num = typeof value === 'number' ? Math.round(value * 100) / 100 : value
   return num + (meta.unit ? ' ' + meta.unit : '')
@@ -25,9 +25,6 @@ Page({
     presets: [],
     errors: [],
     warnings: [],
-    uploadUrl: '',
-    uploadToken: '',
-    uploadState: '未配置',
     saving: false
   },
 
@@ -68,7 +65,6 @@ Page({
     }).filter((g) => g.items.length > 0)
 
     const v = validate(cfg.all())
-    const upload = records.getUploadConfig()
     this.setData({
       groups: groups,
       difficulty: cfg.get('difficulty'),
@@ -79,9 +75,7 @@ Page({
         active: lv === cfg.get('difficulty')
       })),
       errors: v.errors,
-      warnings: v.warnings,
-      uploadUrl: upload.url || '',
-      uploadState: upload.url ? (upload.enabled ? '已配置' : '已填写但未启用') : '未配置'
+      warnings: v.warnings
     })
   },
 
@@ -170,30 +164,6 @@ Page({
         wx.showToast({ title: '已恢复默认', icon: 'success' })
       }
     })
-  },
-
-  // ---------------------------------------------------------------- 上报配置
-  onUrlInput(e) {
-    this.setData({ uploadUrl: e.detail.value })
-  },
-
-  onTokenInput(e) {
-    this.setData({ uploadToken: e.detail.value })
-  },
-
-  onSaveUpload() {
-    const url = (this.data.uploadUrl || '').trim()
-    if (url && !/^https:\/\//i.test(url)) {
-      wx.showModal({
-        title: '地址格式提示',
-        content: '上报地址必须是 https 开头的接口地址。小程序不允许请求 http 明文接口。',
-        showCancel: false
-      })
-      return
-    }
-    records.setUploadConfig({ url: url, token: this.data.uploadToken || '', enabled: !!url })
-    this.syncAll()
-    wx.showToast({ title: url ? '已保存' : '已清空', icon: 'none' })
   },
 
   // ---------------------------------------------------------------- 校验

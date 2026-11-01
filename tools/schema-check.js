@@ -168,4 +168,6 @@ check('game_config 主键是 (patient_id, game_id)', () => {
 })
 
 console.log('\n[schema-check] ' + pass + ' passed, ' + fail + ' failed')
+// 给 tools/run-all.js 一个可识别的中文收尾行（它按「全部通过 / 失败」取摘要）
+console.log('结果：' + (fail ? '未通过（' + fail + ' 项失败）' : '全部通过（' + pass + ' 项）'))
 process.exit(fail ? 1 : 0)

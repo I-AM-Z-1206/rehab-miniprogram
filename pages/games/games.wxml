@@ -21,15 +21,16 @@
       wx:key="id"
       class="row"
       data-id="{{item.id}}"
-      data-title="{{item.title}}"
       bindtap="onGameTap"
+      aria-role="button"
+      aria-label="{{item.title}}，{{item.desc}}，点击开始"
     >
       <image class="row-icon" src="{{item.icon}}" mode="aspectFit" />
       <view class="row-main">
         <text class="row-title">{{item.title}}</text>
         <text class="row-desc">{{item.desc}}</text>
       </view>
-      <text class="row-go">›</text>
+      <image class="row-go" src="/assets/icons/chevron-right-light.png" mode="aspectFit" />
     </view>
 
     <!-- 动态控制 -->
@@ -42,15 +43,16 @@
       wx:key="id"
       class="row"
       data-id="{{item.id}}"
-      data-title="{{item.title}}"
       bindtap="onGameTap"
+      aria-role="button"
+      aria-label="{{item.title}}，{{item.desc}}，点击开始"
     >
       <image class="row-icon" src="{{item.icon}}" mode="aspectFit" />
       <view class="row-main">
         <text class="row-title">{{item.title}}</text>
         <text class="row-desc">{{item.desc}}</text>
       </view>
-      <text class="row-go">›</text>
+      <image class="row-go" src="/assets/icons/chevron-right-light.png" mode="aspectFit" />
     </view>
 
     <text class="tip">训练前先在首页连接传感器并标定零点 —— 不标定，游戏里的判定会一直偏。</text>
